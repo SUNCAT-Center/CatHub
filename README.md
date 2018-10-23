@@ -1,3 +1,9 @@
+## Introduction
+
+CatHub provides an interface to the Surface Reactions database on [Catalysis-Hub.org](http://www.catalysis-hub.org][Catalysis-Hub.org).
+
+The module includes a command line interface that can be used to access and upload data. A short guide is given below. We refer to the [catalysis-hub documentation](http://docs.catalysis-hub.org/en/latest/tutorials/upload.html) for details on how to submit data.
+
 ## Using the cathub cli
 
 Run `cathub`, like so
@@ -6,17 +12,9 @@ Run `cathub`, like so
 
 or with any of its sub-commands, like so
 
-    cathub make_folders_template --help
+    cathub reactions --help
 
 ## Examples
-
-To create an .json input file
-
-    cathub make_folders_template project1.json --create-template
-
-To create a folder structures from a .json input file
-
-    cathub make_folders_template project1.json
 
 Querying the Catalysis Hub database:
 
