@@ -2,10 +2,10 @@ import os
 import json
 import unittest
 import shutil
-from catkit.hub.postgresql import CathubPostgreSQL
-from catkit.hub.cathubsqlite import CathubSQLite
-from catkit.hub.query import get_reactions
-from catkit.hub import db2server, make_folders_template, folder2db
+from cathub.postgresql import CathubPostgreSQL
+from cathub.cathubsqlite import CathubSQLite
+from cathub.query import get_reactions
+from cathub import db2server, make_folders_template, folder2db
 
 path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
 

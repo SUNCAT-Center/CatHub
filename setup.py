@@ -6,18 +6,18 @@ with open('requirements.txt', 'r') as f:
     requirements = [f for f in requirements if 'git' not in f]
     requirements += ['ase>=3.16.2']
 
-with open('readme.org', 'r') as f:
+with open('README.md', 'r') as f:
     readme = f.read()
 
 setuptools.setup(
-    name="CatKit",
-    version="0.5.3",
-    url="https://github.com/SUNCAT-Center/CatKit",
+    name="Cathub",
+    version="0.1.0",
+    url="https://github.com/SUNCAT-Center/CatHub",
 
-    author="Jacob Boes",
-    author_email="jrboes@stanford.edu",
+    author="Kirsten Winther",
+    author_email="winther@stanford.edu",
 
-    description="General purpose tools for high-throughput catalysis.",
+    #description="General purpose tools for high-throughput catalysis.",
     long_description=readme,
     license='GPL-3.0',
 

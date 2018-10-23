@@ -31,7 +31,7 @@ import numpy as np
 # local imports
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     symbols, collect_structures
-import .ase_tools as ase_tools
+import cathub.ase_tools
 
 np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
 
@@ -280,7 +280,7 @@ def fuzzy_match(structures, options):
                                 )
                         else:
                             adsorbates = map(lambda x: ase.utils.formula_hill(
-                                            ase_tools.get_numbers_from_formula(x))
+                                            cathub.ase_tools.get_numbers_from_formula(x))
                                     , adsorbates)
                             stoichiometry_factors = {}
                             if options.verbose:
@@ -505,9 +505,9 @@ def main(options):
             with open(pickle_file, 'wb') as outfile:
                 pickle.dump(structures, outfile)
 
-    if hasattr(ase_tools, 'PUBLICATION_TEMPLATE') \
-            and ase_tools.PUBLICATION_TEMPLATE:
-        publication_template = ase_tools.PUBLICATION_TEMPLATE
+    if hasattr(cathub.ase_tools, 'PUBLICATION_TEMPLATE') \
+            and cathub.ase_tools.PUBLICATION_TEMPLATE:
+        publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
     else:
         publication_template = PUBLICATION_TEMPLATE
 

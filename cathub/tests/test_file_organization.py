@@ -5,7 +5,7 @@ import sys
 import os
 import collections
 
-import catkit.hub.organize
+import cathub.organize
 
 print(os.path.abspath(__file__))
 path = os.path.abspath(os.path.join(os.path.dirname(__file__)))
@@ -50,7 +50,7 @@ def test_file_organization_module():
 
     subprocess.call(
         ('python {path}/make_test_slabs.py'.format(path=path)).split())
-    catkit.hub.organize.main(options)
+    cathub.organize.main(options)
 
 
 def test_file_organization_module_non_keep():
@@ -76,7 +76,7 @@ def test_file_organization_module_non_keep():
 
     subprocess.call(
         ('python {path}/make_test_slabs.py'.format(path=path)).split())
-    catkit.hub.organize.main(options)
+    cathub.organize.main(options)
 
 def test_file_organization_module_collect_only():
     options = Struct(**{
@@ -101,7 +101,7 @@ def test_file_organization_module_collect_only():
 
     subprocess.call(
         ('python {path}/make_test_slabs.py'.format(path=path)).split())
-    catkit.hub.organize.collect_structures(options.foldername, options)
+    cathub.organize.collect_structures(options.foldername, options)
 
 
 if __name__ == '__main__':
