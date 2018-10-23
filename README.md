@@ -16,15 +16,29 @@ or with any of its sub-commands, like so
 
 ## Examples
 
-Querying the Catalysis Hub database:
+Querying the Surface Reactions database:
 
     cathub reactions -q reactants=CO -q chemicalComposition=~Pt
 
     cathub publications -q title=~Evolution -q year=2017
 
-Reading folders into sqlite3 db file:
+Querying atomic structures on Catalysis Hub with ase db:
 
-    cathub folder2db <foldername>
+    cathub ase --args PtSr --gui
+
+## Uploading data
+
+Organizing a general folder into a structured folder:
+
+    cathub organize <folderame> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
+
+As an alternative to cathub organize - create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
+    cathub make_folders --create-template <template>
+    cathub make_folders <template>
+
+Reading folders into a local .db file:
+
+    cathub folder2db <foldername> --userhandle <slack-username or gmail-address>
 
 Sending the data to the Catalysis Hub server:
 
