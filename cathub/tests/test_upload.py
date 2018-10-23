@@ -43,7 +43,7 @@ class UploadTestCase(unittest.TestCase):
             ],
             'bulk_compositions': ['Pt'],
             'crystal_structures': ['fcc', 'hcp'],
-            'facets': ['111']
+            'facets': ['110']
         }
 
         title = template_data['title']
