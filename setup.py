@@ -17,7 +17,7 @@ setuptools.setup(
     author="Kirsten Winther",
     author_email="winther@stanford.edu",
 
-    #description="General purpose tools for high-throughput catalysis.",
+    description="Python API for the Surface Reactions database on Catalysis-Hub.org",
     long_description=readme,
     license='GPL-3.0',
 
