@@ -89,8 +89,12 @@ def fuzzy_match(structures, options):
         # add more info from filename
         facet_match = re.search(
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
+        site_match = [site_name for site_name in
+                      ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
         if facet_match:
             structure.info['facet'] = facet_match.group()
+        elif site_match:
+            structure.info['site'] = site_match[0]
         else:
             structure.info['facet'] = options.facet_name or 'facet'
 
@@ -330,18 +334,18 @@ def fuzzy_match(structures, options):
                             adsorbate=adsorbate,
                         )
 
-                        formula = '*@site' + str(key_count.get(key, 0)) + ' ->'
+                        formula = '*@' + ' ->'
 
                         if additions:
                             formula += ' ' + \
                                 get_chemical_formula(
                                     ase.atoms.Atoms(additions)) \
-                                + '*@site' + str(key_count.get(key, 0))
+                                #+ '*@'  #site' + str(key_count.get(key, 0))
                         if subtractions:
                             formula += ' ' + \
                                 get_chemical_formula(
                                     ase.atoms.Atoms(subtractions)) \
-                                + '*@site' + str(key_count.get(key, 0))
+                                + '*@'  # site' + str(key_count.get(key, 0))
 
                         gas_phase_corrections = {}
 
