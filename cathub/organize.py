@@ -93,11 +93,12 @@ def fuzzy_match(structures, options):
                       ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
         if facet_match:
             structure.info['facet'] = facet_match.group()
-        elif site_match:
-            structure.info['site'] = site_match[0]
         else:
-            structure.info['facet'] = options.facet_name or 'facet'
+            structure.info['facet'] = options.facet_name or ''
 
+        if site_match:
+            structure.info['site'] = site_match[0]
+            
         density = len(structure) / structure.get_volume()
         if options.verbose:
             print("  {density:10.3f} {filename}".format(
@@ -334,18 +335,25 @@ def fuzzy_match(structures, options):
                             adsorbate=adsorbate,
                         )
 
-                        formula = '*@' + ' ->'
+                        formula = '*'
+                        
+                        if surf1.info.get('site', None):
+                            formula += '@' + surf1.info['site']
+
+                        formula += ' ->'
 
                         if additions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(additions)) \
-                                #+ '*@'  #site' + str(key_count.get(key, 0))
+                                    ase.atoms.Atoms(additions))
+
                         if subtractions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(subtractions)) \
-                                + '*@'  # site' + str(key_count.get(key, 0))
+                                    ase.atoms.Atoms(subtractions))
+                                    
+                        if surf2.info.get('site', None):
+                            formula += '@' + surf2.info['site']
 
                         gas_phase_corrections = {}
 
