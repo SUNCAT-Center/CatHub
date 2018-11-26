@@ -98,7 +98,7 @@ def fuzzy_match(structures, options):
 
         if site_match:
             structure.info['site'] = site_match[0]
-            
+
         density = len(structure) / structure.get_volume()
         if options.verbose:
             print("  {density:10.3f} {filename}".format(
@@ -285,12 +285,12 @@ def fuzzy_match(structures, options):
                                 )
                         else:
                             adsorbates = map(lambda x: ase.utils.formula_hill(
-                                            cathub.ase_tools.get_numbers_from_formula(x))
-                                    , adsorbates)
+                                cathub.ase_tools.get_numbers_from_formula(x)), adsorbates)
                             stoichiometry_factors = {}
                             if options.verbose:
                                 print(" ADSORBATES " + str(adsorbates))
-                                print(" GP_CANDIDATES " + str(gas_phase_candidates))
+                                print(" GP_CANDIDATES " +
+                                      str(gas_phase_candidates))
                             for adsorbate in adsorbates:
                                 if adsorbate in gas_phase_candidates:
                                     stoichiometry_factors \
@@ -336,7 +336,7 @@ def fuzzy_match(structures, options):
                         )
 
                         formula = '*'
-                        
+
                         if surf1.info.get('site', None):
                             formula += '@' + surf1.info['site']
 
@@ -345,13 +345,13 @@ def fuzzy_match(structures, options):
                         if additions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(additions))
+                                    ase.atoms.Atoms(additions)) + '*'
 
                         if subtractions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(subtractions))
-                                    
+                                    ase.atoms.Atoms(subtractions)) + '*'
+
                         if surf2.info.get('site', None):
                             formula += '@' + surf2.info['site']
 
@@ -403,15 +403,14 @@ def fuzzy_match(structures, options):
                                     or structure.info['filetype'],
                                     {}) \
                                 .setdefault(options.xc_functional, {}) \
-                                .setdefault(equal_formula + '_' + (
-                                    options.structure
-                                    or 'structure'
-                                    ), {}) \
+                                .setdefault(equal_formula + ('_' +
+                                                             options.structure
+                                                             or ''
+                                                             ), {}) \
                                 .setdefault(
-                                        options.facet_name
-                                        if options.facet_name != 'facet'
-                                        else surf1.info['facet']
-                                        , {}) \
+                                    options.facet_name
+                                    if options.facet_name != 'facet'
+                                    else surf1.info['facet'], {}) \
                                 .setdefault('empty_slab', surf1)
 
                             collected_energies[key] = energy
@@ -437,7 +436,7 @@ def fuzzy_match(structures, options):
                                 equal_formula + '_' + (
                                     options.structure
                                     or 'structure'), {}
-                                ).setdefault(
+                            ).setdefault(
                                 options.facet_name
                                 if options.facet_name != 'facet'
                                 else surf1.info['facet'],
@@ -512,7 +511,7 @@ def main(options):
                     options.gas_dir,
                     options.verbose,
                     level='**/*')
-                    )
+            )
         if options.use_cache:
             with open(pickle_file, 'wb') as outfile:
                 pickle.dump(structures, outfile)

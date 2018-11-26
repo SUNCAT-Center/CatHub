@@ -642,7 +642,7 @@ class FolderReader:
             'coverages': self.coverages,
             'reactants': reaction_info['reactants'],
             'products': reaction_info['products'],
-            'reaction_energy': reaction_energy,
+            'reaction_energy': float(reaction_energy),
             'activation_energy': activation_energy,
             'dft_code': self.DFT_code,
             'dft_functional': self.DFT_functional,
