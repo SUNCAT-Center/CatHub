@@ -30,7 +30,7 @@ import numpy as np
 
 # local imports
 from .ase_tools import gas_phase_references, get_chemical_formula, \
-    symbols, collect_structures
+    get_reduced_chemical_formula, symbols, collect_structures
 import cathub.ase_tools
 
 np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
@@ -236,7 +236,7 @@ def fuzzy_match(structures, options):
                             print("Warning: trouble parsing {additions}, {e}"
                                   .format(additions=additions, e=e))
 
-                    equal_formula = get_chemical_formula(
+                    equal_formula = get_reduced_chemical_formula(
                         ase.atoms.Atoms(equal))
 
                     # check if we have some additions of subtractions

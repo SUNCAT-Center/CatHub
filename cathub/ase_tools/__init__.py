@@ -1,9 +1,12 @@
 import sys
+from functools import reduce
+from fractions import gcd
 from ase import Atoms
 from ase.io import read
 # from ase.io.trajectory import convert
 import numpy as np
 import ase
+from ase.utils import formula_metal
 import copy
 from cathub.tools import get_atoms, get_state, clear_prefactor
 
@@ -33,6 +36,18 @@ def get_chemical_formula(atoms, mode='metal'):
         return atoms.get_chemical_formula(mode=mode)
     except ValueError:
         return atoms.get_chemical_formula(mode='hill')
+
+def get_reduced_chemical_formula(atoms):
+    numbers = atoms.numbers
+    unique_numbers, counts = np.unique(numbers, return_counts=True)
+    print(unique_numbers, counts[0])
+    denominator = reduce(gcd, counts)
+    print(denominator)
+    reduced_numbers = []
+    for i, atomic_number in enumerate(unique_numbers):
+        reduced_count = int(counts[i] / denominator)
+        reduced_numbers += [atomic_number] * reduced_count
+    return formula_metal(reduced_numbers)
 
 
 def symbols(atoms):

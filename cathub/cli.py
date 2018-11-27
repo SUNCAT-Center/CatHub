@@ -436,7 +436,7 @@ def connect(user):
     help="Specify adsorbates that are to be included. (E.g. -a CO,O,H )")
 @click.option(
     '-c', '--dft-code',
-    default='',
+    default='DFT-CODE',
     type=str,
     show_default=True,
     help="Specify DFT Code used to calculate"
@@ -509,8 +509,8 @@ def connect(user):
     " that should not be considered.")
 @click.option(
     '-S', '--structure',
+    default='STRUCTURE',
     type=str,
-    default='structure',
     show_default=True,
     help='Bulk structure from which slabs where generated.'
     'E.g. fcc or A_a_225 for the general case.'
@@ -548,7 +548,7 @@ def connect(user):
 @click.option(
     '-x', '--xc-functional',
     type=str,
-    default='XC_FUNCTIONAL',
+    default='XC-FUNCTIONAL',
     show_default=True,
     help="Set the DFT exchange-correlation functional"
     " used to calculate total energies.")
