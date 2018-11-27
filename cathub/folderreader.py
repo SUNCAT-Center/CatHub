@@ -606,9 +606,9 @@ class FolderReader:
                     self.prefactors_TS,
                     self.energy_corrections)
 
-        except BaseException:
+        except BaseException as e:
             message = "reaction energy failed for files in '{}'".format(root)
-            self.raise_error(message)
+            self.raise_error(message + '\n' + e.message)
 
         expr = -self.energy_limit < reaction_energy < self.energy_limit
 
