@@ -233,6 +233,21 @@ class FolderReader:
         try:
             with open(root + '/energy_corrections.txt', 'r') as f:
                 self.energy_corrections = yaml.load(f)
+                if self.energy_corrections:
+                    self.stdout.write('----------------------------\n')
+                    self.stdout.write('Applying energy corrections:\n')
+                    for key, value in self.energy_corrections.items():
+                        if value > 0:
+                            sgn = '+'
+                        else:
+                            sgn = '-'
+                            sys.stdout.write('  {key}: {sgn}{value}\n'\
+                                             .format(key=key, sgn=sgn,
+                                                     value=value))
+                    self.stdout.write('----------------------------\n')
+                else:
+                    self.energy_corrections = {}
+
         except BaseException:
             self.energy_corrections = {}
 
@@ -606,9 +621,9 @@ class FolderReader:
                     self.prefactors_TS,
                     self.energy_corrections)
 
-        except BaseException:
+        except BaseException as e:
             message = "reaction energy failed for files in '{}'".format(root)
-            self.raise_error(message)
+            self.raise_error(message + '\n' + e.message)
 
         expr = -self.energy_limit < reaction_energy < self.energy_limit
 

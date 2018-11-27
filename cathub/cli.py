@@ -310,6 +310,10 @@ def make_folders(create_template, template, custom_base, diagnose):
 
         '@site' (i.e. OHstar in bridge-> OHstar@bridge)
 
+    Energy corrections to gas phase molecules can be included as:
+
+        energy_corrections: {H2: 0.1, CH4: -0.15}
+
     Then, save the template and call:
 
     $ cathub make_folders <template_name>
@@ -360,7 +364,8 @@ def make_folders(create_template, template, custom_base, diagnose):
         ],
         'bulk_compositions': ['Pt'],
         'crystal_structures': ['fcc', 'hcp'],
-        'facets': ['111']
+        'facets': ['111'],
+        'energy_corrections': {},
     })
     if template is not None:
         if create_template:
@@ -394,6 +399,7 @@ def make_folders(create_template, template, custom_base, diagnose):
                 crystal_structures = template_data['crystal_structures']
                 bulk_compositions = template_data['bulk_compositions']
                 facets = template_data['facets']
+                energy_corrections = template_data['energy_corrections']
 
     make_folders_template.main(
         title=title,
@@ -413,7 +419,8 @@ def make_folders(create_template, template, custom_base, diagnose):
         custom_base=custom_base,
         bulk_compositions=bulk_compositions,
         crystal_structures=crystal_structures,
-        facets=facets
+        facets=facets,
+        energy_corrections=energy_corrections
     )
 
 
@@ -552,6 +559,10 @@ def connect(user):
     show_default=True,
     help="Set the DFT exchange-correlation functional"
     " used to calculate total energies.")
+@click.option(
+    '--energy-corrections',
+    type=str,
+    help="Energy correction to gas phase molecules.")
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
