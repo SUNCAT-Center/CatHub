@@ -15,6 +15,7 @@ from . import folder2db as _folder2db
 from . import db2server as _db2server
 from . import organize as _organize
 from . import folderreader
+from . import ase_tools
 from .cathubsqlite import CathubSQLite
 from .postgresql import CathubPostgreSQL
 
@@ -339,34 +340,7 @@ def make_folders(create_template, template, custom_base, diagnose):
     if custom_base is None:
         custom_base = os.path.abspath(os.path.curdir)
 
-    template_data = collections.OrderedDict({
-        'title': 'Fancy title',
-        'authors': ['Doe, John', 'Einstein, Albert'],
-        'journal': 'JACS',
-        'volume': '1',
-        'number': '1',
-        'pages': '23-42',
-        'year': '2017',
-        'publisher': 'ACS',
-        'doi': '10.NNNN/....',
-        'DFT_code': 'Quantum Espresso',
-        'DFT_functionals': ['BEEF-vdW', 'HSE06'],
-        'reactions': [
-            collections.OrderedDict({'reactants':
-                                     ['2.0H2Ogas', '-1.5H2gas', 'star'],
-                                     'products': ['OOHstar@top']}),
-            collections.OrderedDict({'reactants': ['CCH3star@bridge'],
-                                     'products':
-                                     ['Cstar@hollow', 'CH3star@ontop']}),
-            collections.OrderedDict({'reactants':
-                                     ['CH4gas', '-0.5H2gas', 'star'],
-                                     'products': ['CH3star@ontop']})
-        ],
-        'bulk_compositions': ['Pt'],
-        'crystal_structures': ['fcc', 'hcp'],
-        'facets': ['111'],
-        'energy_corrections': {},
-    })
+    template_data = ase_tools.PUBLICATION_TEMPLATE
     if template is not None:
         if create_template:
             if os.path.exists(template):
@@ -561,6 +535,7 @@ def connect(user):
     " used to calculate total energies.")
 @click.option(
     '--energy-corrections',
+    default={},
     type=str,
     help="Energy correction to gas phase molecules.")
 def organize(**kwargs):
@@ -577,6 +552,13 @@ def organize(**kwargs):
         lambda x: (''.join(sorted(string2symbols(x)))),
         kwargs['adsorbates'].split(','),
     ))
+    if kwargs['energy_corrections']:
+        e_c_dict = {}
+        for e_c in kwargs['energy_corrections'].split(','):
+            key, value = e_c.split('=')
+            e_c_dict.update({key: float(value)})
+        kwargs['energy_corrections'] = e_c_dict
+
     options = collections.namedtuple(
         'options',
         kwargs.keys()

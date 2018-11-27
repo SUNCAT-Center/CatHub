@@ -2,8 +2,12 @@
 
 # builtin imports
 import pickle
+import json
+import yaml
+from yaml import Dumper
 import re
 import pprint
+import collections
 
 # A lot of functions from os.path
 # in python 2 moved to os. and changed
@@ -34,19 +38,6 @@ from .ase_tools import gas_phase_references, get_chemical_formula, \
 import cathub.ase_tools
 
 np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
-
-PUBLICATION_TEMPLATE = """{
-    "title": "Test",
-    "authors": ["Doe"],
-    "journal": "",
-    "volume": "",
-    "number": "",
-    "pages": "",
-    "year": "2018",
-    "publisher": "",
-    "doi": "",
-    "tags": []
-}"""
 
 
 def fuzzy_match(structures, options):
@@ -119,6 +110,9 @@ def fuzzy_match(structures, options):
             if formula not in options.exclude_reference.split(','):
                 gas_phase_candidates.append(get_chemical_formula(structure))
                 reference_energy[formula] = structure.get_potential_energy()
+                if formula in options.energy_corrections.keys():
+                    reference_energy[formula] += \
+                        options.energy_corrections[formula]
                 if options.verbose:
                     print("           GAS", formula,
                           structure.info['filename'])
@@ -468,10 +462,12 @@ def fuzzy_match(structures, options):
 
     return collected_structures
 
+def dict_representer(dumper, data):
+    return dumper.represent_dict(data.items())
 
-def create_folders(options, structures, root='',
-                   publication_template=PUBLICATION_TEMPLATE):
+def create_folders(options, structures, publication_template, root=''):
     out_format = 'json'
+    Dumper.add_representer(collections.OrderedDict, dict_representer)
 
     for key in structures:
         if isinstance(structures[key], dict):
@@ -480,11 +476,22 @@ def create_folders(options, structures, root='',
             if Path(root).parent.as_posix() == '.':
                 # Have to explicitly convert Path to str
                 # to work under python 3.4
-                with open(str(
-                        Path(root).joinpath('publication.txt')),
-                        'w') as outfile:
-                    outfile.write(publication_template)
-            create_folders(options, structures[key], root=d)
+                with open(str(Path(root).joinpath('publication.txt')),
+                          'w') as outfile:
+                    yaml.dump(publication_template,
+                              outfile,
+                              indent=4,
+                              Dumper=Dumper)
+
+                if options.energy_corrections:
+                    with open(str(Path(root).joinpath('energy_corrections.txt')),
+                              'w') as outfile:
+                        yaml.dump(options.energy_corrections,
+                                  outfile
+                        )
+
+            create_folders(options, structures[key], publication_template={},
+                           root=d)
         else:
             ase.io.write(
                 str(Path(root).joinpath(key + '.' + out_format)),
@@ -516,12 +523,7 @@ def main(options):
             with open(pickle_file, 'wb') as outfile:
                 pickle.dump(structures, outfile)
 
-    if hasattr(cathub.ase_tools, 'PUBLICATION_TEMPLATE') \
-            and cathub.ase_tools.PUBLICATION_TEMPLATE:
-        publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
-    else:
-        publication_template = PUBLICATION_TEMPLATE
-
+    publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
     structures = fuzzy_match(structures, options)
     create_folders(options, structures,
                    root=options.foldername.strip('/') + '.organized',
