@@ -76,7 +76,7 @@ class FolderReader:
         self.year = None
         self.tags = None
         self.pub_id = None
-
+        self.warnings = []
 
     def read(self, skip=[], goto_metal=None, goto_reaction=None):
         """
@@ -98,7 +98,7 @@ class FolderReader:
         """ If publication level is input"""
         if os.path.isfile(self.data_base + '/publication.txt'):
             self.user_base_level -= 1
-            
+
         self.stdout.write('---------------------- \n')
         self.stdout.write('Starting folderreader! \n')
         self.stdout.write('---------------------- \n')
@@ -170,6 +170,7 @@ class FolderReader:
         assert self.cathub_db is not None, \
             'Wrong folder! No reactions found in {base}'\
             .format(base=self.user_base)
+        self.print_warnings()
         self.get_summary()
 
     def get_summary(self):
@@ -241,7 +242,7 @@ class FolderReader:
                             sgn = '+'
                         else:
                             sgn = '-'
-                            sys.stdout.write('  {key}: {sgn}{value}\n'\
+                            sys.stdout.write('  {key}: {sgn}{value}\n'
                                              .format(key=key, sgn=sgn,
                                                      value=value))
                     self.stdout.write('----------------------------\n')
@@ -263,7 +264,8 @@ class FolderReader:
 
         self.pub_id = get_pub_id(self.title, self.authors, self.year)
         self.cathub_db = '{}{}.db'.format(self.data_base, self.pub_id)
-        self.stdout.write('Writing to .db file {}:\n \n'.format(self.cathub_db))
+        self.stdout.write(
+            'Writing to .db file {}:\n \n'.format(self.cathub_db))
         pub_data.update({'pub_id': self.pub_id})
         pid = self.write_publication(pub_data)
 
@@ -306,8 +308,8 @@ class FolderReader:
         assert '_' in basename, \
             """Wrong folderstructure! Folder should be of format
             <metal>_<crystalstructure> but found {basename}""".format(
-                    basename=basename
-                    )
+                basename=basename
+            )
         self.metal, self.crystal = basename.split('_', 1)
 
         self.stdout.write(
@@ -324,8 +326,8 @@ class FolderReader:
         if n_bulk == 0:
             return
         elif n_bulk > 1:
-            self.stdout.write('Warning: more than one bulk structure submitted at {root}'
-                  .format(root=root))
+            self.raise_warning('More than one bulk structure submitted at {root}'
+                               .format(root=root))
             return
 
         bulk = bulk_structures[0]
@@ -342,7 +344,8 @@ class FolderReader:
             ase_id = ase_tools.write_ase(bulk, self.cathub_db, self.stdout,
                                          self.user, **key_value_pairs)
         elif self.update:
-            ase_tools.update_ase(self.cathub_db, id, self.stdout, **key_value_pairs)
+            ase_tools.update_ase(self.cathub_db, id,
+                                 self.stdout, **key_value_pairs)
 
         self.ase_ids.update({'bulk' + self.crystal: ase_id})
 
@@ -354,13 +357,13 @@ class FolderReader:
         n_empty = len(empty_structures)
 
         if n_empty == 0:
-            self.stdout.write('Warning: No empty slab submitted at {root}\n'
-                  .format(root=root))
+            self.raise_warning('No empty slab submitted at {root}'
+                               .format(root=root))
             self.empty = None
             return
         elif n_empty > 1:
-            self.stdout.write('Warning: more than one empty slab submitted at {root}\n'
-                  .format(root=root))
+            self.raise_warning('More than one empty slab submitted at {root}'
+                               .format(root=root))
             filename_collapse = ''.join([empty.info['filename']
                                          for empty in empty_structures])
             if 'TS' not in filename_collapse:
@@ -383,7 +386,8 @@ class FolderReader:
             ase_id = ase_tools.write_ase(self.empty, self.cathub_db, self.stdout,
                                          self.user, **key_value_pairs)
         elif self.update:
-            ase_tools.update_ase(self.cathub_db, id, self.stdout, **key_value_pairs)
+            ase_tools.update_ase(self.cathub_db, id,
+                                 self.stdout, **key_value_pairs)
         self.ase_ids.update({'star': ase_id})
 
     def read_reaction(self, root):
@@ -414,7 +418,7 @@ class FolderReader:
                 if self.states[key][i] == 'gas':
                     assert molecule in self.ase_ids_gas.keys(), \
                         """Molecule {molecule} is missing in folder {gas_folder}"""\
-                        .format(molecule = clear_prefactor(self.reaction[key][i]),
+                        .format(molecule=clear_prefactor(self.reaction[key][i]),
                                 gas_folder=self.gas_folder)
                     self.structures[key][i] = self.gas[molecule]
                     species = clear_prefactor(
@@ -441,9 +445,8 @@ class FolderReader:
         slab_structures = collect_structures(root)
 
         if len(slab_structures) == 0:
-            self.stdout.write('Warning: No adsorbate structures in {root}: \n'
-                  .format(root=root))
-            self.stdout.write('    No reaction added! \n')
+            self.raise_warning('No structure files in {root}: Skipping this folder'
+                               .format(root=root))
             return
 
         n_atoms = np.array([])
@@ -465,15 +468,16 @@ class FolderReader:
 
         empty = self.empty
         if not empty:
-            reactant_entries = self.reaction['reactants'] + self.reaction['products']
+            reactant_entries = self.reaction['reactants'] + \
+                self.reaction['products']
             if 'star' in reactant_entries:
                 message = 'Empty slab needed for reaction!'
                 self.raise_error(message)
                 return
             else:
                 empty = slab_structures[0]
-                self.stdout.write("Warning: Using '{}' as a reference instead of empty slab\n"\
-                                  .format(empty.info['filename']))
+                self.raise_warning("Using '{}' as a reference instead of empty slab"
+                                   .format(empty.info['filename']))
         empty_atn = list(empty.get_atomic_numbers())
 
         prefactor_scale = copy.deepcopy(self.prefactors)
@@ -493,8 +497,8 @@ class FolderReader:
             atns = list(slab.get_atomic_numbers())
             if not (np.array(atns) > 8).any() and \
                (np.array(empty_atn) > 8).any():
-                self.stdout.write("Warning: Only molecular species for structure: {}\n"
-                      .format(root + f))
+                self.raise_warning("Only molecular species for structure: {}"
+                                   .format(f))
                 continue
 
             """Get supercell size relative to empty slab"""
@@ -508,8 +512,8 @@ class FolderReader:
                 ads_atn.remove(atn)
             ads_atn = sorted(ads_atn)
             if ads_atn == [] and 'star' in self.ase_ids:
-                self.stdout.write("Warning: No adsorbates for structure: {}\n"
-                                  .format(root + f))
+                self.raise_warning("No adsorbates for structure: {}"
+                                   .format(f))
                 continue
 
             ase_id = None
@@ -558,7 +562,7 @@ class FolderReader:
                     molecule_atn = ase_tools.get_numbers_from_formula(molecule)
                     for n_ads in range(1, 5):
                         mol_atn = sorted(molecule_atn * n_ads)
-                        if (ads_atn == mol_atn or len(ads_atn)==0) and \
+                        if (ads_atn == mol_atn or len(ads_atn) == 0) and \
                            self.states[key][n] == 'star':
                             if not self.structures[key][n] == '':
                                 continue
@@ -602,7 +606,8 @@ class FolderReader:
         for key, structurelist in self.structures.items():
             if '' in structurelist:
                 index = structurelist.index('')
-                molecule = clear_state(clear_prefactor(self.reaction[key][index]))
+                molecule = clear_state(
+                    clear_prefactor(self.reaction[key][index]))
                 if self.states[key][index] == 'star':
                     message = "Adsorbate '{}' not found for any structure files in '{}'."\
                         .format(molecule, root) + \
@@ -681,11 +686,23 @@ class FolderReader:
             'energy_corrections': self.energy_corrections,
             'username': self.user}
 
-
     def raise_error(self, message):
         if self.debug:
             self.stdout.write('--------------------------------------\n')
             self.stdout.write('Error: ' + message + '\n')
             self.stdout.write('--------------------------------------\n')
+            self.warnings.append('Error: ' + message)
         else:
+            self.print_warnings()
             raise RuntimeError(message)
+
+    def raise_warning(self, message):
+        self.stdout.write('Warning: ' + message + '\n')
+        self.warnings.append('Warning: ' + message)
+
+    def print_warnings(self):
+        self.stdout.write('-------------------------------------------\n')
+        self.stdout.write('All errors and warnings: ' + '\n')
+        for warning in self.warnings:
+            self.stdout.write('    ' + warning + '\n')
+        self.stdout.write('-------------------------------------------\n')
