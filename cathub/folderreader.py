@@ -490,12 +490,11 @@ class FolderReader:
         """ Match adsorbate structures with reaction entries"""
         for i, slab in enumerate(slab_structures):
             f = slab.info['filename']
-            print(f)
             atns = list(slab.get_atomic_numbers())
             if not (np.array(atns) > 8).any() and \
                (np.array(empty_atn) > 8).any():
-                self.stdout.write("Warning: Only molecular species for structure: {}"
-                      .format(f))
+                self.stdout.write("Warning: Only molecular species for structure: {}\n"
+                      .format(root + f))
                 continue
 
             """Get supercell size relative to empty slab"""
@@ -509,7 +508,9 @@ class FolderReader:
                 ads_atn.remove(atn)
             ads_atn = sorted(ads_atn)
             if ads_atn == [] and 'star' in self.ase_ids:
-                del self.ase_ids['star']
+                self.stdout.write("Warning: No adsorbates for structure: {}\n"
+                                  .format(root + f))
+                continue
 
             ase_id = None
             id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
@@ -601,7 +602,7 @@ class FolderReader:
         for key, structurelist in self.structures.items():
             if '' in structurelist:
                 index = structurelist.index('')
-                molecule = clear_prefactor(self.reaction[key][index])
+                molecule = clear_state(clear_prefactor(self.reaction[key][index]))
                 if self.states[key][index] == 'star':
                     message = "Adsorbate '{}' not found for any structure files in '{}'."\
                         .format(molecule, root) + \

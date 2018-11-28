@@ -94,6 +94,8 @@ def collect_structures(foldername, verbose=False, level='*'):
             with open(posix_filename) as infile:
                 global PUBLICATION_TEMPLATE
                 PUBLICATION_TEMPLATE = infile.read()
+        if posix_filename.endswith('traj.old'):
+            continue
         elif Path(posix_filename).is_file():
             try:
                 filetype = ase.io.formats.filetype(posix_filename)
