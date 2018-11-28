@@ -546,6 +546,7 @@ class FolderReader:
                                          **key_value_pairs)
                 self.ase_ids.update({'TSemptystar': ase_id})
                 continue
+
             found = False
             for key, mollist in self.reaction_atoms.items():
                 if found:
@@ -584,11 +585,6 @@ class FolderReader:
                             found = True
                             break
 
-            if found == False:
-                message = "Adsorbate '{}' not found for any structure files in '{}'."\
-                    .format(molecule, root) + \
-                    "Please check your adsorbate structures and the empty slab."
-                self.raise_error(message)
             if n_ads > 1:
                 for key1, values in prefactor_scale.items():
                     for mol_i in range(len(values)):
@@ -600,6 +596,22 @@ class FolderReader:
                     for mol_i in range(len(values)):
                         if self.reaction[key2][mol_i] == 'star':
                             prefactor_scale[key2][mol_i] *= supercell_factor
+
+        # Check that all structures have been found
+        for key, structurelist in self.structures.items():
+            if '' in structurelist:
+                index = structurelist.index('')
+                molecule = clear_prefactor(self.reaction[key][index])
+                if self.states[key][index] == 'star':
+                    message = "Adsorbate '{}' not found for any structure files in '{}'."\
+                        .format(molecule, root) + \
+                        " Please check your adsorbate structures and the empty slab."
+                if self.states[key][index] == 'gas':
+                    message = "Gas phase molecule '{}' not found for any structure files in '{}'."\
+                        .format(molecule, self.gas_folder) + \
+                        " Please check your gas phase references."
+                self.raise_error(message)
+                return
 
         surface_composition = self.metal
         chemical_composition = ase_tools.get_chemical_formula(empty)
@@ -623,7 +635,7 @@ class FolderReader:
 
         except BaseException as e:
             message = "reaction energy failed for files in '{}'".format(root)
-            self.raise_error(message + '\n' + e.message)
+            self.raise_error(message + '\n' + str(e))
 
         expr = -self.energy_limit < reaction_energy < self.energy_limit
 
