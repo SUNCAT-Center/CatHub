@@ -60,6 +60,7 @@ def fuzzy_match(structures, options):
     if options.verbose:
         print("Group By Densities")
         print("===================")
+    print(options)
     for structure in structures:
         if options.include_pattern:
             if not re.search(
@@ -78,11 +79,12 @@ def fuzzy_match(structures, options):
                 continue
 
         # add more info from filename
+        print(structure.info['filename'])
         facet_match = re.search(
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
         site_match = [site_name for site_name in
                       ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
-        if facet_match:
+        if facet_match and options.facet_name == 'facet':
             structure.info['facet'] = facet_match.group()
         else:
             structure.info['facet'] = options.facet_name or ''
@@ -263,6 +265,7 @@ def fuzzy_match(structures, options):
                         # TODO: len(gas_phase_candidates) >= symbols
                         if len(gas_phase_candidates)  \
                            >= len(difference_symbols):
+                            print('Collecting gas phase references')
                             references = \
                                 gas_phase_references \
                                 .construct_reference_system(
@@ -278,6 +281,7 @@ def fuzzy_match(structures, options):
                                     adsorbates, references,
                                 )
                         else:
+                            print('map to atomic numbers')
                             adsorbates = map(lambda x: ase.utils.formula_hill(
                                 cathub.ase_tools.get_numbers_from_formula(x)), adsorbates)
                             stoichiometry_factors = {}
@@ -331,8 +335,8 @@ def fuzzy_match(structures, options):
 
                         formula = '*'
 
-                        if surf1.info.get('site', None):
-                            formula += '@' + surf1.info['site']
+                        #if surf1.info.get('site', None):
+                        #    formula += '@' + surf1.info['site']
 
                         formula += ' ->'
 
@@ -438,11 +442,11 @@ def fuzzy_match(structures, options):
                                 equation,
                                 {})[adsorbate] = surf2
 
-    print("\n\nCollected Reaction Energies Data")
+    print("\n\nCollected Adsorption Energies Data")
     print("====================================")
     if options.verbose:
         pprint.pprint(collected_structures)
-    print("\n\nCollected Reaction Energies")
+    print("\n\nCollected Adsorption Energies")
     print("===========================")
     if len(collected_energies) == 0:
         print("Warning: no energies collected. Some ways to fix this:")
