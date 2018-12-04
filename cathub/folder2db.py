@@ -10,6 +10,7 @@ def main(folder_name, debug=False, energy_limit=5, skip=[], userhandle=None,
                       energy_limit=energy_limit,
                       userhandle=userhandle)
     FR.write(skip=skip, goto_reaction=goto_reaction)
+    return FR.pub_id
 
 
 if __name__ == '__main__':

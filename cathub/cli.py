@@ -16,6 +16,7 @@ from . import db2server as _db2server
 from . import organize as _organize
 from . import folderreader
 from . import ase_tools
+from . import tools
 from .cathubsqlite import CathubSQLite
 from .postgresql import CathubPostgreSQL
 
@@ -66,7 +67,7 @@ def ase(dbuser, dbpassword, args, gui):
     type=str,
     default='anonymous',
     show_default=True,
-    help='SLack or Github username. Alternatively your email adress.')
+    help='Slack username or google email address')
 @click.option('--debug',
               is_flag=True,
               show_default=True,
@@ -86,13 +87,22 @@ def ase(dbuser, dbpassword, args, gui):
               help="""name of reaction folder to skip ahead to""")
 def folder2db(folder_name, userhandle, debug, energy_limit, skip_folders,
               goto_reaction):
-    """Read folders and collect data in local sqlite3 database"""
+    """Read folder and collect data in local sqlite3 database"""
+
+    folder_name = folder_name.rstrip('/')
     skip = []
     for s in skip_folders.split(', '):
         for sk in s.split(','):
             skip.append(sk)
-    _folder2db.main(folder_name, debug, energy_limit,
-                    skip, userhandle, goto_reaction)
+    pub_id = _folder2db.main(folder_name, debug, energy_limit,
+                             skip, userhandle, goto_reaction)
+    if pub_id:
+        print('')
+        print('')
+        print('Ready to release the data?')
+        print(
+            "  Send it to the Catalysis-Hub server with 'cathub db2server {folder_name}/{pub_id}.db'.".format(**locals()))
+        print("  Then log in at www.catalysis-hub.org/upload/ to verify and release. ")
 
 
 @cli.command()
@@ -263,13 +273,12 @@ def publications(columns, n_results, queries):
 
 
 @cli.command()
-@click.argument('template')
-@click.option('--create-template', is_flag=True,
-              help="Create an empty template file.")
-@click.option('--custom-base', )
-@click.option('--diagnose', )
-def make_folders(create_template, template, custom_base, diagnose):
-    """Create a basic folder tree to put in DFT calculcations.
+@click.argument('template',
+                default='template')
+@click.option('--custom-base',
+              help='Generate folders in a custom directory ')
+def make_folders(template, custom_base):
+    """Create a basic folder tree for dumping DFT calculcations for reaction energies.
 
     Dear all
 
@@ -278,7 +287,7 @@ def make_folders(create_template, template, custom_base, diagnose):
 
     Start by creating a template file by calling:
 
-    $ cathub make_folders --create-template <template_name>
+    $ cathub make_folders  <template_name>
 
     Then open the template and modify it to so that it contains information
     about your data. You will need to enter publication/dataset information,
@@ -330,6 +339,9 @@ def make_folders(create_template, template, custom_base, diagnose):
     Accepted file formats include everything that can be read by ASE
     and contains the total potential energy of the calculation, such
     as .traj or .OUTCAR files.
+
+    After dumping your files, run `cathub folder2db <your folder> --userhandle=<your Slack or Gmail adress>`
+    to collect the data.
     """
 
     def dict_representer(dumper, data):
@@ -339,41 +351,40 @@ def make_folders(create_template, template, custom_base, diagnose):
 
     if custom_base is None:
         custom_base = os.path.abspath(os.path.curdir)
+    template = custom_base + '/' + template
 
     template_data = ase_tools.PUBLICATION_TEMPLATE
-    if template is not None:
-        if create_template:
-            if os.path.exists(template):
-                raise UserWarning(
-                    "File {template} already exists. Refusing to overwrite"
-                    .format(**locals()))
-            with open(template, 'w') as outfile:
-                outfile.write(
-                    yaml.dump(
-                        template_data,
-                        indent=4,
-                        Dumper=Dumper) +
-                    '\n')
-                return
-        else:
-            with open(template) as infile:
-                template_data = yaml.load(infile)
-                title = template_data['title']
-                authors = template_data['authors']
-                journal = template_data['journal']
-                volume = template_data['volume']
-                number = template_data['number']
-                pages = template_data['pages']
-                year = template_data['year']
-                publisher = template_data['publisher']
-                doi = template_data['doi']
-                dft_code = template_data['DFT_code']
-                dft_functionals = template_data['DFT_functionals']
-                reactions = template_data['reactions']
-                crystal_structures = template_data['crystal_structures']
-                bulk_compositions = template_data['bulk_compositions']
-                facets = template_data['facets']
-                energy_corrections = template_data['energy_corrections']
+    if not os.path.exists(template):
+        with open(template, 'w') as outfile:
+            outfile.write(
+                yaml.dump(
+                    template_data,
+                    indent=4,
+                    Dumper=Dumper) +
+                '\n')
+            print("Created template file: {template}\n".format(**locals()) +
+                  '  Please edit it and run the script again to create your folderstructure.\n' +
+                  '  Run cathub make_folders --help for instructions')
+            return
+
+    with open(template) as infile:
+        template_data = yaml.load(infile)
+        title = template_data['title']
+        authors = template_data['authors']
+        journal = template_data['journal']
+        volume = template_data['volume']
+        number = template_data['number']
+        pages = template_data['pages']
+        year = template_data['year']
+        publisher = template_data['publisher']
+        doi = template_data['doi']
+        dft_code = template_data['DFT_code']
+        dft_functionals = template_data['DFT_functionals']
+        reactions = template_data['reactions']
+        crystal_structures = template_data['crystal_structures']
+        bulk_compositions = template_data['bulk_compositions']
+        facets = template_data['facets']
+        energy_corrections = template_data['energy_corrections']
 
     make_folders_template.main(
         title=title,
@@ -396,6 +407,9 @@ def make_folders(create_template, template, custom_base, diagnose):
         facets=facets,
         energy_corrections=energy_corrections
     )
+    pub_id = tools.get_pub_id(title, authors, year)
+    print(
+        "Now dump your DFT output files into the folder, and run 'cathub folder2db {pub_id} --userhandle <your Slack of Gmail adress>'".format(**locals()))
 
 
 @cli.command()
@@ -443,7 +457,7 @@ def connect(user):
     show_default=True,
     help="Specify a folder where gas-phase molecules"
     " for calculating adsorption energies are located."
-        )
+)
 @click.option(
     '-g', '--max-density-gas',
     type=float,
@@ -466,7 +480,7 @@ def connect(user):
     help="When multiple energies for the same facet and adsorbate"
     "are found keep all energies"
     "not only the most stable."
-              )
+)
 @click.option(
     '-m', '--max-energy',
     type=float,
@@ -480,7 +494,7 @@ def connect(user):
     help="By default hydrogen is included as a gas-phase species"
          "to avoid using typically less accurate gas-phase references."
          "Use this flag to avoid using hydrogen."
-             )
+)
 @click.option(
     '-r', '--exclude-reference',
     type=str,
@@ -495,7 +509,7 @@ def connect(user):
     show_default=True,
     help='Bulk structure from which slabs where generated.'
     'E.g. fcc or A_a_225 for the general case.'
-        )
+)
 @click.option(
     '-s', '--max-density-slab',
     type=float,
