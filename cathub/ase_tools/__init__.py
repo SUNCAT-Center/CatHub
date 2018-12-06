@@ -1,9 +1,13 @@
 import sys
+import collections
+from functools import reduce
+from fractions import gcd
 from ase import Atoms
 from ase.io import read
 # from ase.io.trajectory import convert
 import numpy as np
 import ase
+from ase.utils import formula_metal
 import copy
 from cathub.tools import get_atoms, get_state, clear_prefactor
 
@@ -21,7 +25,34 @@ try:
 except (ImportError, AttributeError):
     from pathlib2 import Path
 
-PUBLICATION_TEMPLATE = ''
+PUBLICATION_TEMPLATE = collections.OrderedDict({
+    'title': 'Fancy title',
+    'authors': ['Doe, John', 'Einstein, Albert'],
+    'journal': 'JACS',
+    'volume': '1',
+    'number': '1',
+    'pages': '23-42',
+    'year': '2017',
+    'publisher': 'ACS',
+    'doi': '10.NNNN/....',
+    'DFT_code': 'Quantum Espresso',
+    'DFT_functionals': ['BEEF-vdW', 'HSE06'],
+    'reactions': [
+        collections.OrderedDict({'reactants':
+                                 ['2.0H2Ogas', '-1.5H2gas', 'star'],
+                                 'products': ['OOHstar@top']}),
+        collections.OrderedDict({'reactants': ['CCH3star@bridge'],
+                                 'products':
+                                 ['Cstar@hollow', 'CH3star@ontop']}),
+        collections.OrderedDict({'reactants':
+                                 ['CH4gas', '-0.5H2gas', 'star'],
+                                 'products': ['CH3star@ontop']})
+    ],
+    'bulk_compositions': ['Pt'],
+    'crystal_structures': ['fcc', 'hcp'],
+    'facets': ['111'],
+    'energy_corrections': {},
+})
 
 
 def get_chemical_formula(atoms, mode='metal'):
@@ -33,6 +64,16 @@ def get_chemical_formula(atoms, mode='metal'):
         return atoms.get_chemical_formula(mode=mode)
     except ValueError:
         return atoms.get_chemical_formula(mode='hill')
+
+def get_reduced_chemical_formula(atoms):
+    numbers = atoms.numbers
+    unique_numbers, counts = np.unique(numbers, return_counts=True)
+    denominator = reduce(gcd, counts)
+    reduced_numbers = []
+    for i, atomic_number in enumerate(unique_numbers):
+        reduced_count = int(counts[i] / denominator)
+        reduced_numbers += [atomic_number] * reduced_count
+    return formula_metal(reduced_numbers)
 
 
 def symbols(atoms):
@@ -53,6 +94,9 @@ def collect_structures(foldername, verbose=False, level='*'):
             with open(posix_filename) as infile:
                 global PUBLICATION_TEMPLATE
                 PUBLICATION_TEMPLATE = infile.read()
+            continue
+        if posix_filename.endswith('traj.old'):
+            continue
         elif Path(posix_filename).is_file():
             try:
                 filetype = ase.io.formats.filetype(posix_filename)

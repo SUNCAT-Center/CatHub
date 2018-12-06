@@ -471,17 +471,17 @@ class CathubSQLite:
         cur = con.cursor()
         cur.execute("""
         SELECT
-        surface_composition, reactants, products, reaction_energy,
+        surface_composition, facet, reactants, products, reaction_energy,
         activation_energy, sites
         FROM
         reaction;""")
         rows = cur.fetchall()
         table = []
         for row in rows:
-            equation = get_equation(json.loads(row[1]), json.loads(row[2]))
-            table += [[row[0], equation, row[3], row[4], row[5]]]
+            equation = get_equation(json.loads(row[2]), json.loads(row[3]))
+            table += [[row[0], row[1], equation, row[4], row[5], row[6]]]
 
-        headers = ['Surface Composition', 'Equation', 'Reaction Energy',
+        headers = ['Surface Composition', 'Facet', 'Equation', 'Reaction Energy',
                    'Activation Energy', 'Sites']
         self.stdout.write(tabulate(table, headers) + '\n')
 

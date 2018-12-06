@@ -45,6 +45,7 @@ def test_file_organization_module():
         'keep_all_energies': True,
         'gas_dir': '',
         'use_cache': False,
+        'energy_corrections': {}
 
     })
 
@@ -71,6 +72,7 @@ def test_file_organization_module_non_keep():
         'keep_all_energies': False,
         'gas_dir': '',
         'use_cache': False,
+        'energy_corrections': {}        
 
     })
 
@@ -96,6 +98,7 @@ def test_file_organization_module_collect_only():
         'keep_all_energies': False,
         'gas_dir': '',
         'use_cache': False,
+        'energy_corrections': {}        
 
     })
 

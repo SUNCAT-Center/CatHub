@@ -55,6 +55,7 @@ class CommandLineTestCase(unittest.TestCase):
         runner = CliRunner()
         runner.invoke(db2server, ['--dbuser=postgres',
                                   'aayush/MontoyaChallenge2015.db'])
+
     def test3_cli_asedb(self):
         from cathub.cli import ase
         runner = CliRunner()
@@ -65,15 +66,24 @@ class CommandLineTestCase(unittest.TestCase):
         runner = CliRunner()
         runner.invoke(show_reactions, ['aayush/MontoyaChallenge2015.db'])
 
+    def test5_folder2db_from_organized(self):
+        from cathub.cli import organize, folder2db
+        runner = CliRunner()
+        runner.invoke(organize, ['unorganized', '--adsorbates', 'O,H2',
+                                 '--max-density-slab', '0.06'])
+        runner.invoke(folder2db, ['unorganized.organized/'])
+
     def test_reactions(self):
         from cathub.cli import reactions
         runner = CliRunner()
-        runner.invoke(reactions, ['-q chemicalComposition=~Co', '-q reactants=H'])
+        runner.invoke(
+            reactions, ['-q chemicalComposition=~Co', '-q reactants=H'])
 
     def test_publications(self):
         from cathub.cli import publications
         runner = CliRunner()
         runner.invoke(publications)
+
 
 if __name__ == '__main__':
     unittest.main()

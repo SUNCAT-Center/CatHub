@@ -97,7 +97,6 @@ def main(
         'products': ['CH2star@bridge']},
         {'reactants': ['CH4gas', '-0.5H2gas', 'star'],
         'products': ['CH3star@top']}]
-
     energy_corrections : dict, optional
         e.g. {'H2gas': 0.1}
     bulk_compositions  : list of str
@@ -149,8 +148,8 @@ def main(
 
     if not len(energy_corrections.keys()) == 0:
         energy_txt = publication_base + 'energy_corrections.txt'
-        with open(energy_txt, 'wb') as f:
-            yaml.dump(energy_corrections)
+        with open(energy_txt, 'w') as fe:
+            yaml.dump(energy_corrections, fe)
 
     def create(path):
         if not os.path.exists(path):

@@ -43,17 +43,22 @@ def construct_reference_system(
         add_hydrogen = True
 
     references = {}
+    sorted_candidates = [
+        'H2',
+        'H2O',
+        'NH3',
+        'N2',
+        'CH4',
+        'CO',
+        'H2S',
+        'HCl',
+        'O2']
     if candidates is None:
-        candidates = [
-            'H2',
-            'H2O',
-            'NH3',
-            'CH4',
-            'CO',
-            'H2S',
-            'HCl',
-            'N2',
-            'O2']
+        candidates = sorted_candidates
+    else:
+        odd_candidates = [c for c in candidates if c not in sorted_candidates]
+        candidates = [c for c in sorted_candidates if c in candidates] \
+            + odd_candidates
 
     added_symbols = []
     # go symbols in adsorbate
@@ -62,10 +67,9 @@ def construct_reference_system(
         added_symbols.append(symbol)
         for candidate in candidates:
             _symbols = ase.symbols.string2symbols(candidate)
-
             # Add partial adsorbate species
             # is subset of reference species
-            # and reference species is subset is subset
+            # and reference species
             # is subset of full adsorbate species set
             if set(added_symbols) <= set(list(references.keys()) + _symbols) \
                     and set(list(references.keys()) + _symbols) <= set(symbols) \
@@ -89,16 +93,17 @@ def construct_reference_system(
 
     sorted_references = []
     references = list(references.items())
+
     # put references in order so that each reference
     # only adds one one additional species in each step
-    while references:
-        for i, reference in enumerate(references):
-            if len(set(ase.symbols.string2symbols(reference[1])) -
-                    set(x[0] for x in sorted_references)) == 1:
-                sorted_references.append(references.pop(i))
-                break
+    # while references:
+    #     for i, reference in enumerate(references):
+    #         if len(set(ase.symbols.string2symbols(reference[1])) -
+    #                 set(x[0] for x in sorted_references)) == 1:
+    #             sorted_references.append(references.pop(i))
+    #             break
 
-    return sorted_references
+    return references
 
 
 def get_atomic_stoichiometry(references):
@@ -111,11 +116,11 @@ def get_atomic_stoichiometry(references):
     stoichiometry[:] = 0.
     key_index = {}
     for i, (key, species) in enumerate(references):
-
         # in case species uses a suffix like _gas
         species = species.split('_')[0]
-
         key_index[key] = i
+
+    for i, (key, species) in enumerate(references):
         composition = ase.symbols.string2symbols(species)
         for j, symbol in enumerate(composition):
             stoichiometry[i, key_index[symbol]] += 1

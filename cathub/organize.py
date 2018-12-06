@@ -2,8 +2,12 @@
 
 # builtin imports
 import pickle
+import json
+import yaml
+from yaml import Dumper
 import re
 import pprint
+import collections
 
 # A lot of functions from os.path
 # in python 2 moved to os. and changed
@@ -30,23 +34,10 @@ import numpy as np
 
 # local imports
 from .ase_tools import gas_phase_references, get_chemical_formula, \
-    symbols, collect_structures
+    get_reduced_chemical_formula, symbols, collect_structures
 import cathub.ase_tools
 
 np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
-
-PUBLICATION_TEMPLATE = """{
-    "title": "Test",
-    "authors": ["Doe"],
-    "journal": "",
-    "volume": "",
-    "number": "",
-    "pages": "",
-    "year": "2018",
-    "publisher": "",
-    "doi": "",
-    "tags": []
-}"""
 
 
 def fuzzy_match(structures, options):
@@ -69,6 +60,7 @@ def fuzzy_match(structures, options):
     if options.verbose:
         print("Group By Densities")
         print("===================")
+    print(options)
     for structure in structures:
         if options.include_pattern:
             if not re.search(
@@ -87,12 +79,18 @@ def fuzzy_match(structures, options):
                 continue
 
         # add more info from filename
+        print(structure.info['filename'])
         facet_match = re.search(
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
-        if facet_match:
+        site_match = [site_name for site_name in
+                      ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
+        if facet_match and options.facet_name == 'facet':
             structure.info['facet'] = facet_match.group()
         else:
-            structure.info['facet'] = options.facet_name or 'facet'
+            structure.info['facet'] = options.facet_name or ''
+
+        if site_match:
+            structure.info['site'] = site_match[0]
 
         density = len(structure) / structure.get_volume()
         if options.verbose:
@@ -114,6 +112,9 @@ def fuzzy_match(structures, options):
             if formula not in options.exclude_reference.split(','):
                 gas_phase_candidates.append(get_chemical_formula(structure))
                 reference_energy[formula] = structure.get_potential_energy()
+                if formula in options.energy_corrections.keys():
+                    reference_energy[formula] += \
+                        options.energy_corrections[formula]
                 if options.verbose:
                     print("           GAS", formula,
                           structure.info['filename'])
@@ -231,7 +232,7 @@ def fuzzy_match(structures, options):
                             print("Warning: trouble parsing {additions}, {e}"
                                   .format(additions=additions, e=e))
 
-                    equal_formula = get_chemical_formula(
+                    equal_formula = get_reduced_chemical_formula(
                         ase.atoms.Atoms(equal))
 
                     # check if we have some additions of subtractions
@@ -264,6 +265,7 @@ def fuzzy_match(structures, options):
                         # TODO: len(gas_phase_candidates) >= symbols
                         if len(gas_phase_candidates)  \
                            >= len(difference_symbols):
+                            print('Collecting gas phase references')
                             references = \
                                 gas_phase_references \
                                 .construct_reference_system(
@@ -279,13 +281,14 @@ def fuzzy_match(structures, options):
                                     adsorbates, references,
                                 )
                         else:
+                            print('map to atomic numbers')
                             adsorbates = map(lambda x: ase.utils.formula_hill(
-                                            cathub.ase_tools.get_numbers_from_formula(x))
-                                    , adsorbates)
+                                cathub.ase_tools.get_numbers_from_formula(x)), adsorbates)
                             stoichiometry_factors = {}
                             if options.verbose:
                                 print(" ADSORBATES " + str(adsorbates))
-                                print(" GP_CANDIDATES " + str(gas_phase_candidates))
+                                print(" GP_CANDIDATES " +
+                                      str(gas_phase_candidates))
                             for adsorbate in adsorbates:
                                 if adsorbate in gas_phase_candidates:
                                     stoichiometry_factors \
@@ -330,18 +333,25 @@ def fuzzy_match(structures, options):
                             adsorbate=adsorbate,
                         )
 
-                        formula = '*@site' + str(key_count.get(key, 0)) + ' ->'
+                        formula = '*'
+
+                        #if surf1.info.get('site', None):
+                        #    formula += '@' + surf1.info['site']
+
+                        formula += ' ->'
 
                         if additions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(additions)) \
-                                + '*@site' + str(key_count.get(key, 0))
+                                    ase.atoms.Atoms(additions)) + '*'
+
                         if subtractions:
                             formula += ' ' + \
                                 get_chemical_formula(
-                                    ase.atoms.Atoms(subtractions)) \
-                                + '*@site' + str(key_count.get(key, 0))
+                                    ase.atoms.Atoms(subtractions)) + '*'
+
+                        if surf2.info.get('site', None):
+                            formula += '@' + surf2.info['site']
 
                         gas_phase_corrections = {}
 
@@ -391,15 +401,14 @@ def fuzzy_match(structures, options):
                                     or structure.info['filetype'],
                                     {}) \
                                 .setdefault(options.xc_functional, {}) \
-                                .setdefault(equal_formula + '_' + (
-                                    options.structure
-                                    or 'structure'
-                                    ), {}) \
+                                .setdefault(equal_formula + ('_' +
+                                                             options.structure
+                                                             or ''
+                                                             ), {}) \
                                 .setdefault(
-                                        options.facet_name
-                                        if options.facet_name != 'facet'
-                                        else surf1.info['facet']
-                                        , {}) \
+                                    options.facet_name
+                                    if options.facet_name != 'facet'
+                                    else surf1.info['facet'], {}) \
                                 .setdefault('empty_slab', surf1)
 
                             collected_energies[key] = energy
@@ -425,7 +434,7 @@ def fuzzy_match(structures, options):
                                 equal_formula + '_' + (
                                     options.structure
                                     or 'structure'), {}
-                                ).setdefault(
+                            ).setdefault(
                                 options.facet_name
                                 if options.facet_name != 'facet'
                                 else surf1.info['facet'],
@@ -433,11 +442,11 @@ def fuzzy_match(structures, options):
                                 equation,
                                 {})[adsorbate] = surf2
 
-    print("\n\nCollected Reaction Energies Data")
+    print("\n\nCollected Adsorption Energies Data")
     print("====================================")
     if options.verbose:
         pprint.pprint(collected_structures)
-    print("\n\nCollected Reaction Energies")
+    print("\n\nCollected Adsorption Energies")
     print("===========================")
     if len(collected_energies) == 0:
         print("Warning: no energies collected. Some ways to fix this:")
@@ -457,10 +466,12 @@ def fuzzy_match(structures, options):
 
     return collected_structures
 
+def dict_representer(dumper, data):
+    return dumper.represent_dict(data.items())
 
-def create_folders(options, structures, root='',
-                   publication_template=PUBLICATION_TEMPLATE):
+def create_folders(options, structures, publication_template, root=''):
     out_format = 'json'
+    Dumper.add_representer(collections.OrderedDict, dict_representer)
 
     for key in structures:
         if isinstance(structures[key], dict):
@@ -469,11 +480,22 @@ def create_folders(options, structures, root='',
             if Path(root).parent.as_posix() == '.':
                 # Have to explicitly convert Path to str
                 # to work under python 3.4
-                with open(str(
-                        Path(root).joinpath('publication.txt')),
-                        'w') as outfile:
-                    outfile.write(publication_template)
-            create_folders(options, structures[key], root=d)
+                with open(str(Path(root).joinpath('publication.txt')),
+                          'w') as outfile:
+                    yaml.dump(publication_template,
+                              outfile,
+                              indent=4,
+                              Dumper=Dumper)
+
+                if options.energy_corrections:
+                    with open(str(Path(root).joinpath('energy_corrections.txt')),
+                              'w') as outfile:
+                        yaml.dump(options.energy_corrections,
+                                  outfile
+                        )
+
+            create_folders(options, structures[key], publication_template={},
+                           root=d)
         else:
             ase.io.write(
                 str(Path(root).joinpath(key + '.' + out_format)),
@@ -500,17 +522,12 @@ def main(options):
                     options.gas_dir,
                     options.verbose,
                     level='**/*')
-                    )
+            )
         if options.use_cache:
             with open(pickle_file, 'wb') as outfile:
                 pickle.dump(structures, outfile)
 
-    if hasattr(cathub.ase_tools, 'PUBLICATION_TEMPLATE') \
-            and cathub.ase_tools.PUBLICATION_TEMPLATE:
-        publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
-    else:
-        publication_template = PUBLICATION_TEMPLATE
-
+    publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
     structures = fuzzy_match(structures, options)
     create_folders(options, structures,
                    root=options.foldername.strip('/') + '.organized',
