@@ -225,9 +225,8 @@ def get_publications(**kwargs):
 
 
 def get_ase_db():
-    ps = os.environ.get('DB_PASSWORD')
     return ase.db.connect(
-        'postgresql://catvisitor:{}@catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub'.format(ps))
+        'postgresql://catvisitor:eFjohbnD57WLYAJX@catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub')
 
 
 def get_atomsrow_by_id(unique_id):
