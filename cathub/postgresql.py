@@ -454,6 +454,8 @@ class CathubPostgreSQL:
             self.stdout.write('Transfer complete\n')
 
         if self.user == 'catroot':
+            if self.connection is None:
+                con.commit()
             self.delete_publication(pub_id, schema='upload')
 
         if self.connection is None:
