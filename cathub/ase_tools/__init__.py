@@ -209,7 +209,7 @@ def get_reaction_energy(structures, reaction, reaction_atoms, states,
     # Activation energy
     if 'TS' in structures.keys():
         # Is a different empty surface used for the TS?
-        if 'TSempty' in structure.keys():
+        if 'TSempty' in structures.keys():
             for key in reaction_atoms.keys():
                 if '' in reaction_atoms[key]:
                     index = reaction_atoms[key].index('')
