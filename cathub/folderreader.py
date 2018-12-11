@@ -350,7 +350,7 @@ class FolderReader:
         self.ase_ids.update({'bulk' + self.crystal: ase_id})
 
     def read_slab(self, root):
-        self.facet = root.split('/')[-1]
+        self.facet = root.split('/')[-1].split('_')[0]
         self.ase_facet = 'x'.join(list(self.facet))
 
         empty_structures = collect_structures(root)
