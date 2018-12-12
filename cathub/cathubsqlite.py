@@ -497,9 +497,8 @@ def check_ase_ids(values, ase_ids):
     for spec in ase_ids.keys():
         if '_' in spec:
             n_split += 1
-
     assert len(reaction_species) <= len(ase_values) + n_split, \
-        'ASE ids missing!'
+        'ASE ids missing in {}'.format(ase_ids)
     return
 
 

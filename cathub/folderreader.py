@@ -1,5 +1,5 @@
 from .cathubsqlite import CathubSQLite
-from .tools import get_bases, clear_prefactor, clear_state, get_pub_id
+from .tools import get_bases, clear_prefactor, clear_state, get_pub_id, extract_atoms
 from .ase_tools import collect_structures
 from . import ase_tools
 
@@ -146,6 +146,7 @@ class FolderReader:
                 self.read_reaction(root)
 
             if level == self.final_level:
+                self.root = root
                 self.read_energies(root)
                 if self.key_value_pairs_reaction is not None:
                     yield self.key_value_pairs_reaction
@@ -157,9 +158,14 @@ class FolderReader:
                     key_values['chemical_composition'],
                     key_values['reaction_energy'])
                 if id is None:
-                    id = db.write(key_values)
-                    self.stdout.write(
-                        '  Written to reaction db row id = {}\n'.format(id))
+                    try:
+                        id = db.write(key_values)
+                        self.stdout.write(
+                            '  Written to reaction db row id = {}\n'.format(id))
+                    except BaseException as e:
+                        self.raise_error(
+                            'Writing to db: {}. {}'.format(e, self.root))
+
                 elif self.update:
                     db.update(id, key_values)
                     self.stdout.write(
@@ -436,12 +442,6 @@ class FolderReader:
     def read_energies(self, root):
         self.key_value_pairs_reaction = None
 
-        """ Reset TS entry"""
-        if 'TS' in self.structures:
-            del self.structures['TS']
-        if 'TSempty' in self.structures:
-            del self.structures['TSempty']
-
         slab_structures = collect_structures(root)
 
         if len(slab_structures) == 0:
@@ -553,42 +553,97 @@ class FolderReader:
                 continue
 
             found = False
-            for key, mollist in self.reaction_atoms.items():
+            for key, mollist in self.reaction.items():
                 if found:
                     break
                 for n, molecule in enumerate(mollist):
                     if found:
                         break
-                    molecule_atn = ase_tools.get_numbers_from_formula(molecule)
+                    if not self.states[key][n] == 'star':  # only slab stuff
+                        continue
+                    if not self.structures[key][n] == '':  # allready found
+                        continue
+                    molecule = clear_state(clear_prefactor(molecule))
+                    if molecule == '':
+                        continue
+                    molecule_atn = sorted(
+                        ase_tools.get_numbers_from_formula(molecule))
+                    if slab.info['filename'] == molecule:
+                        if ads_atn == molecule_atn:
+                            found = True
+                            match_key = key
+                            match_n = n
+                            break
+                        else:
+                            raise_warning('Name of file does not match chemimcal formula: {}'
+                                          .format(slab.info['filename']))
+
                     for n_ads in range(1, 5):
                         mol_atn = sorted(molecule_atn * n_ads)
-                        if (ads_atn == mol_atn or len(ads_atn) == 0) and \
-                           self.states[key][n] == 'star':
-                            if not self.structures[key][n] == '':
-                                continue
-                            self.structures[key][n] = slab
-                            species = clear_prefactor(
-                                self.reaction[key][n])
-                            id, ase_id = ase_tools.check_in_ase(
-                                slab, self.cathub_db)
-                            key_value_pairs.update(
-                                {'species':
-                                 clear_state(
-                                     species),
-                                 'n': n_ads,
-                                 'site': str(self.sites.get(species, ''))})
-                            if ase_id is None:
-                                ase_id = ase_tools.write_ase(
-                                    slab, self.cathub_db, self.stdout,
-                                    self.user,
-                                    **key_value_pairs)
-                            elif self.update:
-                                ase_tools.update_ase(
-                                    self.cathub_db, id, self.stdout,
-                                    **key_value_pairs)
-                            self.ase_ids.update({species: ase_id})
+                        if (ads_atn == mol_atn or len(ads_atn) == 0):
+                            match_n_ads = n_ads
                             found = True
+                            match_key = key
+                            match_n = n
                             break
+                """
+                if not found:
+                    adsmollist = [clear_state(clear_prefactor(mol))
+                                  for i, mol in enumerate(mollist)
+                                  if self.states[key][i] == 'star'
+                                  and not clear_prefactor(self.reaction[key][i]) == 'star']
+                    adsmolidx = [i for i, mol in enumerate(mollist)
+                                 if self.states[key][i] == 'star'
+                                 and not clear_prefactor(self.reaction[key][i]) == 'star']
+                    adsmol = ''.join(adsmollist)
+                    molecule_atn = sorted(ase_tools.get_numbers_from_formula(adsmol))
+                    if ads_atn == molecule_atn:
+                        #print(self.structures)
+                        #print(self.reaction)
+                        #print(self.reaction_atoms)
+                        #print(self.states)
+                        #print(self.energy_corrections)
+                        reaction_entry = ''
+                        new_reaction = ''
+                        reaction_atom = extract_atoms(adsmol)
+                        state = 'star'
+                        energy_correction = 0
+                        for idx in adsmolidx:
+                            r_entry = clear_state(self.reaction[key][idx])
+                            reaction_entry += r_entry + '_'
+                            if self.energy_corrections.get(r_entry, None):
+                                energy_corrextion += self.energy_corrections[r_entry]
+                    #        del self.structures[key][i]
+                    #        del self.reaction[key][i],
+                    #        self.reaction_atoms[key][i],
+                    #        self.states[key][i],
+                    #        self.energy_corrections
+                """
+            if found:
+                key = match_key
+                n = match_n
+                n_ads = match_n_ads
+                self.structures[key][n] = slab
+                species = clear_prefactor(
+                    self.reaction[key][n])
+                id, ase_id = ase_tools.check_in_ase(
+                    slab, self.cathub_db)
+                key_value_pairs.update(
+                    {'species':
+                     clear_state(
+                         species),
+                     'n': n_ads,
+                     'site': str(self.sites.get(species, ''))})
+                if ase_id is None:
+                    ase_id = ase_tools.write_ase(
+                        slab, self.cathub_db, self.stdout,
+                        self.user,
+                        **key_value_pairs)
+                elif self.update:
+                    ase_tools.update_ase(
+                        self.cathub_db, id, self.stdout,
+                        **key_value_pairs)
+                self.ase_ids.update({species: ase_id})
 
             if n_ads > 1:
                 for key1, values in prefactor_scale.items():
@@ -638,27 +693,22 @@ class FolderReader:
                     self.states, prefactors_final,
                     self.prefactors_TS,
                     self.energy_corrections)
-
         except BaseException as e:
             message = "reaction energy failed for files in '{}'".format(root)
             self.raise_error(message + '\n' + str(e))
 
-        expr = -self.energy_limit < reaction_energy < self.energy_limit
-
-        if not ase_tools.debug_assert(
-                expr, 'reaction energy is wrong: {} eV: {}'
-                .format(reaction_energy, root),
-                self.debug):
-            return
-
-        expr = activation_energy is None \
-            or reaction_energy < activation_energy < self.energy_limit
-        if not ase_tools.debug_assert(expr,
-                                      'activation energy is wrong: {} eV: {}'
-                                      .format(activation_energy, root),
-                                      self.debug):
-            self.stdout.writey(self.structures, prefactors_final,
-                               self.prefactors_TS)
+        if not -self.energy_limit < reaction_energy < self.energy_limit:
+            self.raise_error('reaction energy is very large: {} eV \n'\
+                             .format(reaction_energy) +
+                             '  Folder: {}. \n'.format(root) +
+                             '  If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
+                             )
+        if activation_energy is not None:
+            if activation_energy < reaction_energy:
+                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV \n  Folder: {}'.format(activation_energy, reaction_energy, root))
+            if not activation_energy < self.energy_limit:
+                self.raise_error(' Very large activation energy: {} eV \n  Folder: {}'
+                                 .format(activation_energy, root))
 
         reaction_info = {'reactants': {},
                          'products': {}}
@@ -667,6 +717,14 @@ class FolderReader:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
                 reaction_info[key].update({r: self.prefactors[key][i]})
+
+        for ase_id in list(self.ase_ids.keys()):
+            if ase_id == 'star' or 'bulk' in ase_id:
+                continue
+            if not ase_id in list(reaction_info['reactants'].keys()) + \
+               list(reaction_info['products'].keys()):
+                del self.ase_ids[ase_id]
+
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
