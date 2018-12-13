@@ -449,6 +449,11 @@ class FolderReader:
                                .format(root=root))
             return
 
+        if 'TS' in self.structures:  #Delete old TS
+            del self.structures['TS']
+            del self.structures['TSempty']
+            del self.prefactors['TS']
+
         n_atoms = np.array([])
         ts_i = None
         tsempty_i = None
