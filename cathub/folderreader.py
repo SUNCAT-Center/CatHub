@@ -450,11 +450,15 @@ class FolderReader:
             return
 
         # Remove old species from ase_ids
+        all_reaction_species = list(self.reaction.values())[0] \
+            + list(self.reaction.values())[1]
+        all_reaction_species = [clear_prefactor(rs) for rs in
+                                all_reaction_species]
+
         for ase_id in list(self.ase_ids.keys()):
             if ase_id == 'star' or 'bulk' in ase_id:
                 continue
-            if not ase_id in list(reaction_info['reactants'].keys()) + \
-               list(reaction_info['products'].keys()):
+            if not ase_id in all_reaction_species:
                 del self.ase_ids[ase_id]
 
         if 'TS' in self.structures:  #Delete old TS
