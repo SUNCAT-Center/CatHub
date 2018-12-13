@@ -449,6 +449,14 @@ class FolderReader:
                                .format(root=root))
             return
 
+        # Remove old species from ase_ids
+        for ase_id in list(self.ase_ids.keys()):
+            if ase_id == 'star' or 'bulk' in ase_id:
+                continue
+            if not ase_id in list(reaction_info['reactants'].keys()) + \
+               list(reaction_info['products'].keys()):
+                del self.ase_ids[ase_id]
+
         if 'TS' in self.structures:  #Delete old TS
             del self.structures['TS']
             del self.structures['TSempty']
@@ -465,7 +473,6 @@ class FolderReader:
                 tsempty_i = i
             elif 'TS' in f:
                 ts_i = i
-
             chemical_composition_slabs = \
                 np.append(chemical_composition_slabs,
                           ase_tools.get_chemical_formula(slab, mode='all'))
@@ -703,10 +710,10 @@ class FolderReader:
             self.raise_error(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
-            self.raise_error('reaction energy is very large: {} eV \n'\
+            self.raise_error('reaction energy is very large: {} eV \n  '\
                              .format(reaction_energy) +
-                             '  Folder: {}. \n'.format(root) +
-                             '  If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
+                             'Folder: {}. \n  '.format(root) +
+                             'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
         if activation_energy is not None:
             if activation_energy < reaction_energy:
@@ -722,13 +729,6 @@ class FolderReader:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
                 reaction_info[key].update({r: self.prefactors[key][i]})
-
-        for ase_id in list(self.ase_ids.keys()):
-            if ase_id == 'star' or 'bulk' in ase_id:
-                continue
-            if not ase_id in list(reaction_info['reactants'].keys()) + \
-               list(reaction_info['products'].keys()):
-                del self.ase_ids[ase_id]
 
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
