@@ -1,4 +1,4 @@
-git+https://gitlab.com/ase/ase.git@9f1e944260bbd4bc04db35670f84a69a270451a6#egg=ase-3.16.3
+ase>=3.17
 numpy>=1.14
 click>=6.7
 future>=0.16
