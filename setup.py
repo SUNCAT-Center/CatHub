@@ -4,14 +4,13 @@ with open('requirements.txt', 'r') as f:
     requirements = f.readlines()
     git_requirements = [f.strip('\n') for f in requirements if 'git' in f]
     requirements = [f for f in requirements if 'git' not in f]
-    requirements += ['ase>=3.16.2']
 
 with open('README.md', 'r') as f:
     readme = f.read()
 
 setuptools.setup(
     name="Cathub",
-    version="0.1.1",
+    version="0.1.2",
     url="https://github.com/SUNCAT-Center/CatHub",
 
     author="Kirsten Winther",
@@ -29,7 +28,7 @@ setuptools.setup(
     entry_points={'console_scripts': ['cathub=cathub.cli:cli']},
     install_requires=requirements,
     python_requires='>=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*, !=3.4.*, <4',
-    dependency_links=git_requirements,
+    #dependency_links=git_requirements,
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

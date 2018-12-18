@@ -58,6 +58,17 @@ def execute_graphQL(query_string):
         print('Data fetched!')
     except BaseException:
         print(data)
+
+    # Load nested dictionaries
+    for i, node in enumerate(data['reactions']['edges']):
+        node = node['node']
+        for key, value in list(node.items()):
+            try:
+                value_dict = json.loads(value)
+                node[key] = value_dict
+            except (ValueError, TypeError):
+                pass
+
     return data
 
 
