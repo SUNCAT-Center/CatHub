@@ -66,7 +66,7 @@ def execute_graphQL(query_string):
             try:
                 value_dict = json.loads(value)
                 node[key] = value_dict
-            except (json.decoder.JSONDecodeError, TypeError):
+            except (ValueError, TypeError):
                 pass
 
     return data
