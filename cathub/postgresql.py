@@ -57,7 +57,12 @@ init_commands = [
     ase_id text REFERENCES systems(unique_id) ON DELETE CASCADE,
     id integer REFERENCES reaction(id) ON DELETE CASCADE,
     PRIMARY KEY (id, ase_id)
-    )"""
+    )""",
+
+    """CREATE TABLE log (
+    ase_id text PRIMARY KEY REFERENCES systems(unique_id) ON DELETE CASCADE,
+    logfile BYTEA,
+    )""",
 ]
 
 index_statements = [
@@ -150,6 +155,7 @@ class CathubPostgreSQL:
         self.stdout = stdout
 
     def _connect(self):
+        print(self.password)
         con = psycopg2.connect(host=self.server,
                                user=self.user,
                                password=self.password,
@@ -453,10 +459,10 @@ class CathubPostgreSQL:
                            argslist=reaction_system_values, page_size=1000)
             self.stdout.write('Transfer complete\n')
 
-        if self.user == 'catroot':
-            if self.connection is None:
-                con.commit()
-            self.delete_publication(pub_id, schema='upload')
+        #if self.user == 'catroot':
+        #    if self.connection is None:
+        #        con.commit()
+        #    self.delete_publication(pub_id, schema='upload')
 
         if self.connection is None:
             con.commit()

@@ -36,7 +36,7 @@ def show_reactions(dbfile):
 
 
 @cli.command()
-@click.argument('args',  default='', type=str),
+@click.argument('args',  default='', type=str)
 @click.option('--dbuser', default='catvisitor', type=str)
 @click.option('--dbpassword', default='eFjohbnD57WLYAJX', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
