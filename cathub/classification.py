@@ -38,20 +38,17 @@ def check_adsorbate(A, B):
 
     adsatoms = [atom for atom in B[12:]]
     ads0, ads1 = set(atom.symbol for atom in adsatoms)
-    dist_A = get_ads_dist(A, ads0, ads1)
-    dist_B = get_ads_dist(B, ads0, ads1)
+    #dist_A = get_ads_dist(A, ads0, ads1)
+    #dist_B = get_ads_dist(B, ads0, ads1)
 
-    if dist_B > 1.2 * dist_A:  # dissociation
-        print('DISSOCIATED')
-        dissociated = True
+    #if dist_B > 1.2 * dist_A:  # dissociation
+    #    print('DISSOCIATED')
+    #    dissociated = True
+    adsindex = np.argmin([atom.position[2]
+                          for atom in adsatoms])
 
-    adsatom = adsatoms[np.argmin([atom.position[2]
-                                  for atom in adsatoms])].symbol
-    removeads = [atom.symbol for atom in adsatoms
-                 if not atom.symbol == adsatom]
-    for ra in removeads:
-        del A[[atom.index for atom in A if atom.symbol == ra]]
-        del B[[atom.index for atom in B if atom.symbol == ra]]
+    del A[[atom.index + 12 for atom in adsatoms if not atom.index == adsindex]]
+    del B[[atom.index + 12 for atom in adsatoms if not atom.index == adsindex]]
 
     return dissociated, A, B
 
