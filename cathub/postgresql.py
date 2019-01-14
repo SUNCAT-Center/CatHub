@@ -220,7 +220,6 @@ class CathubPostgreSQL:
     def get_ase_db(self):
         if not self.connection:
             self._connect()
-        print(self.server_name)
         return ase.db.connect(self.server_name)
 
     def create_user(self, user, table_privileges=['ALL PRIVILEGES'],
