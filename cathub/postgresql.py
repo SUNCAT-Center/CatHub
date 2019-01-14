@@ -155,7 +155,6 @@ class CathubPostgreSQL:
         self.stdout = stdout
 
     def _connect(self):
-        print(self.password)
         con = psycopg2.connect(host=self.server,
                                user=self.user,
                                password=self.password,
