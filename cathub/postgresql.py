@@ -153,6 +153,9 @@ class CathubPostgreSQL:
         self.password = password
         self.stdin = stdin
         self.stdout = stdout
+        self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
+            self.user, self.password, self.server, self.database)
+
 
     def _connect(self):
         con = psycopg2.connect(host=self.server,
@@ -160,9 +163,6 @@ class CathubPostgreSQL:
                                password=self.password,
                                port=5432,
                                database=self.database)
-        self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
-            self.user, self.password, self.server, self.database)
-
         return con
 
     def __enter__(self):

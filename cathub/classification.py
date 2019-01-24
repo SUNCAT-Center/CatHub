@@ -52,6 +52,20 @@ def check_adsorbate(A, B):
 
     return dissociated, A, B
 
+def remove_extra_atoms(B):
+    if not len(B) > 13:
+        return B
+        
+    adsatoms = [atom for atom in B[12:]]                                                           
+    ads0, ads1 = set(atom.symbol for atom in adsatoms)    
+
+    adsindex = np.argmin([atom.position[2]
+                          for atom in adsatoms])
+
+    del B[[atom.index + 12 for atom in adsatoms if not atom.index == adsindex]]
+
+    return B
+    
 
 def is_desorbed(B):
     desorbed = False
@@ -308,8 +322,8 @@ def get_site(B):
 
     if dis > 0.5:
         f_a_s += '-tilt'
-        print('Warnign: A strong site match could not be found!')
-        print('  structure labeled as {}'.format(f_a_s))
+        #print('Warning: A strong site match could not be found!')
+        #print('  structure labeled as {}'.format(f_a_s))
 
     return f_a_s, s_t
 
