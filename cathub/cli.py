@@ -36,25 +36,24 @@ def show_reactions(dbfile):
 
 
 @cli.command()
+@click.argument('args',  default='', type=str)
 @click.option('--dbuser', default='catvisitor', type=str)
 @click.option('--dbpassword', default='eFjohbnD57WLYAJX', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
-@click.option('--args', '-a', default='', type=str,
-              help="""Arguments to the ase db cli client in one string.
-              For example: <cathub ase --args 'formula=Ag6In6H -s energy'>.
-              To see possible ase db arguments
-              run <cathub ase --args --help>""")
 def ase(dbuser, dbpassword, args, gui):
-    """Direct connection to atomic structures on the Catalysis-Hub
-       server with ase db cli"""
+    """Connection to atomic structures on the Catalysis-Hub
+       server with ase db cli.
+       Arguments to the the ase db cli client must be enclosed in one string.
+       For example: <cathub ase 'formula=Ag6In6H -s energy -L 200'>.
+       To see possible ase db arguments run <ase db --help>"""
     if dbuser == 'upload':
         dbpassword = 'cHyuuQH0'
     db = CathubPostgreSQL(user=dbuser, password=dbpassword)
     db._connect()
     server_name = db.server_name
     subprocess.call(
-        ('ase db {} {}'.format(server_name, args)).split())
+        ("ase db {} {}".format(server_name, args)).split())
     if gui:
         args = args.split('-')[0]
         subprocess.call(

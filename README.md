@@ -24,7 +24,7 @@ Querying the Surface Reactions database:
 
 Querying atomic structures on Catalysis Hub with ase db:
 
-    cathub ase --args AgSr --gui
+    cathub ase 'AgSr' --gui
 
 ## Uploading data
 

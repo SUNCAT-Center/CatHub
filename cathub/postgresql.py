@@ -57,7 +57,12 @@ init_commands = [
     ase_id text REFERENCES systems(unique_id) ON DELETE CASCADE,
     id integer REFERENCES reaction(id) ON DELETE CASCADE,
     PRIMARY KEY (id, ase_id)
-    )"""
+    )""",
+
+    """CREATE TABLE log (
+    ase_id text PRIMARY KEY REFERENCES systems(unique_id) ON DELETE CASCADE,
+    logfile BYTEA,
+    )""",
 ]
 
 index_statements = [
@@ -148,6 +153,9 @@ class CathubPostgreSQL:
         self.password = password
         self.stdin = stdin
         self.stdout = stdout
+        self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
+            self.user, self.password, self.server, self.database)
+
 
     def _connect(self):
         con = psycopg2.connect(host=self.server,
@@ -155,9 +163,6 @@ class CathubPostgreSQL:
                                password=self.password,
                                port=5432,
                                database=self.database)
-        self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
-            self.user, self.password, self.server, self.database)
-
         return con
 
     def __enter__(self):
@@ -214,7 +219,6 @@ class CathubPostgreSQL:
     def get_ase_db(self):
         if not self.connection:
             self._connect()
-        print(self.server_name)
         return ase.db.connect(self.server_name)
 
     def create_user(self, user, table_privileges=['ALL PRIVILEGES'],
@@ -453,10 +457,10 @@ class CathubPostgreSQL:
                            argslist=reaction_system_values, page_size=1000)
             self.stdout.write('Transfer complete\n')
 
-        if self.user == 'catroot':
-            if self.connection is None:
-                con.commit()
-            self.delete_publication(pub_id, schema='upload')
+        #if self.user == 'catroot':
+        #    if self.connection is None:
+        #        con.commit()
+        #    self.delete_publication(pub_id, schema='upload')
 
         if self.connection is None:
             con.commit()
