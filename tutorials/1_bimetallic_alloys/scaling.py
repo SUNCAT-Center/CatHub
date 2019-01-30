@@ -26,7 +26,7 @@ adsorption_site = '~'  # get all sites
 edges = []
 for adsorbate in [adsorbate1, adsorbate2]:
     data = get_reactions(n_results='all',
-                         pubId='WintherOpen2018',
+                         pubId='MamunHighT2019',
                          sites=adsorption_site,
                          reactants=references[adsorbate],
                          products=adsorbate,
@@ -54,8 +54,8 @@ for ads in [adsorbate1, adsorbate2]:
 for edge in edges:
     result = edge['node']
 
-    adsorbates = list(json.loads(result['products']).keys())
-    prefactor_adsorbate = list(json.loads(result['products']).values())[0]
+    adsorbates = list(result['products'].keys())
+    prefactor_adsorbate = list(result['products'].values())[0]
 
     # Only include results with one adsorbate
     if len(adsorbates) > 1 or prefactor_adsorbate > 1:  
@@ -63,7 +63,7 @@ for edge in edges:
     formula = result['surfaceComposition']
     adsorbate = adsorbates[0].replace('star', '') 
     e_ads = result['reactionEnergy']
-    sites = json.loads(result['sites'])
+    sites = result['sites']
     
     # get metal A, B and SB_symbol from formula
     A, B, SB_symbol = get_AB_from_formula(formula)
