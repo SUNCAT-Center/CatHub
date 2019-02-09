@@ -21,8 +21,8 @@ all_columns = {'reactions': ['chemicalComposition', 'surfaceComposition',
                                 'volume', 'number',
                                 'pages', 'year', 'publisher', 'doi', 'tags'],
                'reactionSystems': ['name', 'energyCorrection', 'aseId'],
-               'publicationSystems': ['pubId', 'aseId']}
-
+               'publicationSystems': ['pubId', 'aseId'],
+               'logs': ['Logtext']}
 
 def query(table='reactions',
           columns=['chemicalComposition',
@@ -32,17 +32,22 @@ def query(table='reactions',
           n_results=10,
           queries={},
           print_output=False):
+    
+    if table == 'logs': 
+        query_string = graphql_query(table=table, 
+                                     columns=columns,
+                                     queries=queries)
+    else:
+        query_string = graphql_query(table=table,
+                                     subtables=subtables,
+                                     columns=columns,
+                                     n_results=n_results,
+                                     queries=queries)
 
-    query_string = graphql_query(table=table,
-                                 subtables=subtables,
-                                 columns=columns,
-                                 n_results=n_results,
-                                 queries=queries)
-
-    return execute_graphQL(query_string)
+    return execute_graphQL(query_string, table=table)
 
 
-def execute_graphQL(query_string):
+def execute_graphQL(query_string, table=None):
     root = 'http://api.catalysis-hub.org/graphql'
     print('Connecting to database at {root}'.format(root=root))
     print('')
@@ -59,15 +64,16 @@ def execute_graphQL(query_string):
     except BaseException:
         print(data)
 
-    # Load nested dictionaries
-    for i, node in enumerate(data['reactions']['edges']):
-        node = node['node']
-        for key, value in list(node.items()):
-            try:
-                value_dict = json.loads(value)
-                node[key] = value_dict
-            except (ValueError, TypeError):
-                pass
+    if not table == 'logs':
+        # Load nested dictionaries
+        for i, node in enumerate(data['reactions']['edges']):
+            node = node['node']
+            for key, value in list(node.items()):
+                try:
+                    value_dict = json.loads(value)
+                    node[key] = value_dict
+                except (ValueError, TypeError):
+                    pass
 
     return data
 
@@ -82,11 +88,15 @@ def graphql_query(table='reactions',
 
     statement = '{'
     statement += '{}('.format(table)
-    if n_results != 'all':
-        statement += 'first: {}'.format(n_results)
+    if not table == 'logs':
+        if n_results != 'all':
+            statement += 'first: {}'.format(n_results)
     for key, value in queries.items():
         if isinstance(value, str):
-            statement += ', {}: "{}"'.format(key, value)
+            if table == 'logs':
+                statement += '{}: "{}"'.format(key, value)
+            else:
+                statement += ', {}: "{}"'.format(key, value)
         elif isinstance(value, bool):
             if value:
                 statement += ', {}: true'.format(key)
@@ -96,7 +106,10 @@ def graphql_query(table='reactions',
             statement += ', {}: {}'.format(key, value)
 
     statement += ') {\n'
-    statement += ' totalCount\n  edges {\n    node { \n'
+    if table == 'logs':
+        statement += ' edges {\n    node { \n'
+    else:
+        statement += ' totalCount\n  edges {\n    node { \n'
     for column in columns:
         column = map_column_names(column)
         statement += '      {}\n'.format(column)
@@ -234,6 +247,19 @@ def get_publications(**kwargs):
     return query(table='publications', columns=publication_columns,
                  queries=queries)
 
+def get_logfile(aseId=None, fname=None):
+
+    if aseId is not None:
+        queries = {'aseId': aseId}
+    columns = ['Logtext']
+
+    data = query(table='logs', columns=columns, queries=queries)
+
+    if fname:
+        with open(fname, 'w') as f:
+            f.write(data['logs']['edges'][0]['node']['Logtext'])
+            print('Data is written in {} file.'.format(fname))
+    return data 
 
 def get_ase_db():
     return ase.db.connect(
