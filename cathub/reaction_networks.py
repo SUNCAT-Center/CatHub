@@ -1,6 +1,8 @@
 import ase
 import ast
+import errno
 import json
+import os
 import pandas as pd
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
@@ -625,3 +627,12 @@ def unique_reactions(df):
     string_list = sorted(list(set(string_list)))
     reaction_list = [ast.literal_eval(entry) for entry in string_list]
     return(reaction_list)
+
+
+
+
+
+
+
+if __name__ == '__main__':
+    print('Executed without errors.')
