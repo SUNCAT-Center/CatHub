@@ -29,6 +29,7 @@ class UploadTestCase(unittest.TestCase):
             'number': '1',
             'pages': '23-42',
             'year': '2017',
+            'email': 'winther@stanford.edu',
             'publisher': 'ACS',
             'doi': '10.NNNN/....',
             'DFT_code': 'Quantum Espresso',
@@ -53,6 +54,7 @@ class UploadTestCase(unittest.TestCase):
         number = template_data['number']
         pages = template_data['pages']
         year = template_data['year']
+        email = template_data['email']
         publisher = template_data['publisher']
         doi = template_data['doi']
         dft_code = template_data['DFT_code']
@@ -70,6 +72,7 @@ class UploadTestCase(unittest.TestCase):
             number=number,
             pages=pages,
             year=year,
+            email=email,
             publisher=publisher,
             doi=doi,
             DFT_code=dft_code,

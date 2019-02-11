@@ -15,6 +15,7 @@ def main(
         title,
         authors,
         year,
+        email,
         journal='',
         volume='',
         number='',
@@ -54,6 +55,10 @@ def main(
         Author names, e.g. ['Doe, John', 'Einstein, Albert']
     year : str
         Year of (submission?)
+    email : str
+        email address of the person responsible for uploading.
+        Login at catalysis-hub.org currently only supports @gmail or 
+        Slack login email addresses.
     journal : str
         Publications journal name
     volume : str
@@ -137,6 +142,7 @@ def main(
                         'number': number,
                         'pages': pages,
                         'year': year,
+                        'email': email,
                         'publisher': publisher,
                         'doi': doi,
                         'tags': tags

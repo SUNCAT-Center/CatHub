@@ -7,7 +7,6 @@ def main(dbfile, write_reaction=True, write_ase=True,
          block_size=1000, start_block=0,
          user='catroot',
          password=None,
-         userhandle=None
          ):
 
     stdout.write('Starting db2server\n')

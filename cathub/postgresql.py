@@ -61,7 +61,7 @@ init_commands = [
 
     """CREATE TABLE log (
     ase_id text PRIMARY KEY REFERENCES systems(unique_id) ON DELETE CASCADE,
-    logfile BYTEA,
+    logfile BYTEA
     )""",
 ]
 
@@ -340,27 +340,27 @@ class CathubPostgreSQL:
 
         return self
 
-    def release(self, pub_ids=None, userhandle=None, from_schema='upload',
+    def release(self, pub_ids=None, email=None, from_schema='upload',
                 to_schema='public'):
         """ Transfer dataset from one schema to another"""
 
-        assert pub_ids or userhandle,\
-            "Specify either pub_ids or userhandle"
-        assert not (pub_ids and userhandle),\
-            "Specify either pub_ids or userhandle"
+        assert pub_ids or email,\
+            "Specify either pub_ids or email"
+        assert not (pub_ids and email),\
+            "Specify either pub_ids or email"
 
         con = self.connection or self._connect()
         cur = con.cursor()
         assert self.user in ['release', 'catroot', 'postgres'], \
             "You don't have permission to perform this operation"
 
-        if userhandle:
+        if email:
             cur.execute(
                 """SELECT distinct pub_id
                 FROM {from_schema}.reaction
                 WHERE username = '{username}'"""
                 .format(from_schema=from_schema,
-                        username=userhandle))
+                        username=email))
 
             pub_ids = [id[0] for id in cur.fetchall()]
 
