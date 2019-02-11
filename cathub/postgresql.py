@@ -61,7 +61,7 @@ init_commands = [
 
     """CREATE TABLE log (
     ase_id text PRIMARY KEY REFERENCES systems(unique_id) ON DELETE CASCADE,
-    logfile BYTEA,
+    logfile BYTEA
     )""",
 ]
 
