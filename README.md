@@ -38,7 +38,7 @@ As an alternative to cathub organize - create an empty organized folderstructure
 
 Reading folders into a local .db file:
 
-    cathub folder2db <foldername> --userhandle <slack-username or gmail-address>
+    cathub folder2db <foldername>
 
 Sending the data to the Catalysis Hub server:
 

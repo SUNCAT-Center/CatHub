@@ -43,7 +43,7 @@ class FolderReader:
 
     def __init__(self, folder_name, debug=False, strict=True, verbose=False,
                  update=True, energy_limit=5, stdin=sys.stdin,
-                 stdout=sys.stdout, userhandle=None):
+                 stdout=sys.stdout):
         self.debug = debug
         self.strict = strict
         self.verbose = verbose
@@ -52,8 +52,6 @@ class FolderReader:
 
         self.data_base, self.user, self.user_base \
             = get_bases(folder_name=folder_name)
-        if userhandle:
-            self.user = userhandle
         self.user_base_level = len(self.user_base.split("/"))
 
         self.pub_level = 1
@@ -267,6 +265,8 @@ class FolderReader:
         if pub_data['year'] is None:
             self.year = date.today().year
             pub_data.update({'year': self.year})
+        if pub_data['email']:
+            self.user = pub_data['email']
 
         self.pub_id = get_pub_id(self.title, self.authors, self.year)
         self.cathub_db = '{}{}.db'.format(self.data_base, self.pub_id)
