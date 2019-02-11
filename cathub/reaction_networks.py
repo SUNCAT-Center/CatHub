@@ -25,7 +25,7 @@ SUB = str.maketrans(num_dict)
 # usage of num_dict example: "H2SO4".translate(SUB)
 
 # Matplotlib settings.
-sns.set_style('whitegrid')
+sns.set_style('white')
 plt.rc('text', usetex=True)
 font = {'size':16}
 plt.rc('font',**font)
@@ -52,6 +52,7 @@ molecule_dict = {
     # Pressures in mbar, electronic energies in eV, taken from DOI: 10.1039/C0EE00071J
     # Vibrations: TangRevised2018 dataset
         'H2': {'electronic_energy': 0.00,
+               'overbinding_correction':0.00,
                'geometry': 'linear',
                'pressure': 302.96,
                'spin': 1,
@@ -63,25 +64,25 @@ molecule_dict = {
                 'spin' : 1,
                 'symmetrynumber' : 2,
                 'vibrations' : [1580]},
-        'CO': {'electronic_energy': 1.75,
+        'CO': {'electronic_energy': 0.17,
                 'geometry' : 'linear',
                 'pressure': 55.62,
                 'spin' : 0,
                 'symmetrynumber' : 2,
                 'vibrations' : [2170]},
-        'CO2': {'electronic_energy': 0.90,
+        'CO2': {'electronic_energy': 0.33,
                 'geometry' : 'linear',
                 'pressure': 1013.25,
                 'spin' : 0,
                 'symmetrynumber' : 2,
                 'vibrations' : [1333.0, 2349.0, 667.0, 667.0]},
-        'H2O': {'electronic_energy': 0.03,
+        'H2O': {'electronic_energy': 0.00,
                 'geometry': 'nonlinear',
                 'pressure': 35.34, # liquid water
                 'spin': 0,
                 'symmetrynumber': 2,
                 'vibrations': [3843, 3721, 1625]},
-        'CH4': {'electronic_energy': -1.22,
+        'CH4': {'electronic_energy': 0.00,
                 'geometry' : 'nonlinear',
                 'pressure': 20467,
                 'spin' : 0,
@@ -324,7 +325,7 @@ def proton_hydroxide_free_energy(pH=0, temperature=T_std):
     G_OH = G_H2O - G_H  # Do not need Kw when water equilibrated
     return(G_H, G_OH)
 
-def get_FEC(molecule_list, temperature, pressure_mbar='Default', electronic_energy='Default'):
+def get_FEC(molecule_list, temperature, pressure_mbar, electronic_energy='Default'):
     """Returns the Gibbs free energy corrections to be added to raw reaction energies.
 
     Parameters
@@ -366,10 +367,11 @@ def get_FEC(molecule_list, temperature, pressure_mbar='Default', electronic_ener
     return (FEC_sum)
 
 
-# REACTION SCHEME HERE
 
+
+# REACTION SCHEME HERE
 def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOstar'],
-                    potential=None, pH=None, temperature=T_std, pressure_mbar='Default'):
+                    potential=None, pH=None, temperature=273.15, pressure_mbar=1013.25):
     """Returns a dataframe with Gibbs free reaction energies.
 
     Parameters
@@ -441,10 +443,15 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
             reactant_FEC = get_FEC(all_reactants, temperature, pressure_mbar)
             product_FEC = get_FEC(all_products, temperature, pressure_mbar)
             FEC = product_FEC - reactant_FEC
+            print('Products: ' + str(products))
+
+            print('product_FEC: '+ str(product_FEC))
+            print('reactant_FEC: '+ str(reactant_FEC))
 
             # Calculate the energy with respect to the initial reactants.
             reaction_energy = previous_reaction_energy + df_tmp.iloc[0]['reaction_energy'] \
                               + FEC - proton_transfers * G_PE
+            # print('FEC : '+str(FEC))
             previous_reaction_energy = reaction_energy
             energies_system.append(reaction_energy)
         energies.append(energies_system)
@@ -462,7 +469,7 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
     return (df_new)
 
 def plot_reaction_scheme(df, show=False, potential = None, pH = None,
-                         temperature=T_std, pressure_mbar='Default', e_lim=None):
+                         temperature=273.15, pressure_mbar=1013.25, e_lim=None):
     """Returns a matplotlib object with the plotted reaction path.
 
     Parameters
@@ -482,7 +489,7 @@ def plot_reaction_scheme(df, show=False, potential = None, pH = None,
     """
     ncols = int((df.shape[0]/20)) +1
     fig_width = ncols + 1.5*len(df['intermediate_labels'][0])
-    figsize = (fig_width, 5)
+    figsize = (fig_width, 6)
     fig, ax = plt.subplots(figsize=figsize)
 
     lines = []
@@ -516,14 +523,25 @@ def plot_reaction_scheme(df, show=False, potential = None, pH = None,
     plt.xticks(np.arange(len(reaction_labels)) + 0.25, tuple(reaction_labels), rotation=45)
     # plt.tight_layout()
     if potential is not None and pH is not None:
-        ax.set_title('U = '+str(potential)+' eV vs. SHE; pH = '
-                     +str(pH)+'; \n T = '+str(temperature)
-                     +' K; p = '+str(pressure_mbar)+' mbar')
+        plt.title('U = '+str(potential)+' eV vs. SHE \n pH = '
+                     +str(pH)+' \n T = '+str(temperature)
+                     +' K \n p = '+str(pressure_mbar)+' mbar')
     else:
-        ax.set_title('T = '+str(temperature)+'; p = '+str(pressure_mbar)+' mbar')
+        plt.title('T = '+str(temperature)+' \n p = '+str(pressure_mbar)+' mbar')
     if show:
         plt.show()
     return(fig)
+
+
+
+plt.rc('text', usetex=True)
+font = {'size':18}
+plt.rc('font',**font)
+
+
+
+
+
 
 def select_data(db_file, slab=None, facet=None):
     """Gathers relevant data from SQL database generated by CATHUB.
