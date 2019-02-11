@@ -466,8 +466,14 @@ class FolderReader:
             del self.structures['TSempty']
             del self.prefactors['TS']
 
+        for k in list(self.structures.keys()):
+            if 'neb' in k:
+                del self.structures[k]
+
         n_atoms = np.array([])
         ts_i = None
+        neb_i_list = []
+        neb_name = {}
         tsempty_i = None
         chemical_composition_slabs = []
         breakloop = False
@@ -477,6 +483,9 @@ class FolderReader:
                 tsempty_i = i
             elif 'TS' in f:
                 ts_i = i
+            elif 'neb' in f:
+                neb_i_list += [i]
+                neb_name.update({str(i): f})
             chemical_composition_slabs = \
                 np.append(chemical_composition_slabs,
                           ase_tools.get_chemical_formula(slab, mode='all'))
@@ -566,6 +575,22 @@ class FolderReader:
                     ase_tools.update_ase(self.cathub_db, id, self.stdout,
                                          **key_value_pairs)
                 self.ase_ids.update({'TSemptystar': ase_id})
+                continue
+
+            if i in neb_i_list:
+                self.structures.update({neb_name[str[i]]: [slab]})
+                prefactor_scale.update({'TSempty': [1]})
+                key_value_pairs.update({'species': 'neb'})
+                if ase_id is None:
+                    ase_id = ase_tools.write_ase(slab,
+                                                 self.cathub_db,
+                                                 self.stdout,
+                                                 self.user,
+                                                 **key_value_pairs)
+                elif self.update:
+                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
+                                         **key_value_pairs)
+                self.ase_ids.update({neb_name[str[i]]: ase_id})
                 continue
 
             found = False
