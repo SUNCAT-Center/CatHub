@@ -62,12 +62,6 @@ def ase(dbuser, dbpassword, args, gui):
 
 @cli.command()
 @click.argument('folder_name')
-@click.option(
-    '--userhandle',
-    type=str,
-    default='anonymous',
-    show_default=True,
-    help='Slack username or google email address')
 @click.option('--debug',
               is_flag=True,
               show_default=True,
@@ -85,7 +79,7 @@ def ase(dbuser, dbpassword, args, gui):
     help="""Bounds for accepted absolute reaction energies in eV""")
 @click.option('--goto-reaction',
               help="""name of reaction folder to skip ahead to""")
-def folder2db(folder_name, userhandle, debug, energy_limit, skip_folders,
+def folder2db(folder_name, debug, energy_limit, skip_folders,
               goto_reaction):
     """Read folder and collect data in local sqlite3 database"""
 
@@ -95,7 +89,7 @@ def folder2db(folder_name, userhandle, debug, energy_limit, skip_folders,
         for sk in s.split(','):
             skip.append(sk)
     pub_id = _folder2db.main(folder_name, debug, energy_limit,
-                             skip, userhandle, goto_reaction)
+                             skip, goto_reaction)
     if pub_id:
         print('')
         print('')
@@ -340,7 +334,7 @@ def make_folders(template, custom_base):
     and contains the total potential energy of the calculation, such
     as .traj or .OUTCAR files.
 
-    After dumping your files, run `cathub folder2db <your folder> --userhandle=<your Slack or Gmail adress>`
+    After dumping your files, run `cathub folder2db <your folder>`
     to collect the data.
     """
 
@@ -409,7 +403,7 @@ def make_folders(template, custom_base):
     )
     pub_id = tools.get_pub_id(title, authors, year)
     print(
-        "Now dump your DFT output files into the folder, and run 'cathub folder2db {pub_id} --userhandle <your Slack of Gmail adress>'".format(**locals()))
+        "Now dump your DFT output files into the folder, and run 'cathub folder2db {pub_id}'".format(**locals()))
 
 
 @cli.command()
