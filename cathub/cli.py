@@ -376,6 +376,7 @@ def make_folders(template, custom_base):
         number = template_data['number']
         pages = template_data['pages']
         year = template_data['year']
+        email = template_data['']
         publisher = template_data['publisher']
         doi = template_data['doi']
         dft_code = template_data['DFT_code']
@@ -395,6 +396,7 @@ def make_folders(template, custom_base):
         number=number,
         pages=pages,
         year=year,
+        email=email,
         publisher=publisher,
         doi=doi,
         DFT_code=dft_code,
