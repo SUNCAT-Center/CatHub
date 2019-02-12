@@ -665,8 +665,9 @@ class FolderReader:
         # Check that all structures have been found
         structurenames = [s for s in list(self.structures.keys())
                           if s not in ['reactants', 'products']]
-        if k in ['reactants', 'products']:
-            structurenames += [s for s in self.structures[k] if s != '']
+        for k in ['reactants', 'products']:
+            structurenames += [s for s in self.structures[k] if s != ''
+                               and s is not None]
         only_neb = np.all(['neb' in s for s in structurenames])
 
         surface_composition = self.metal
