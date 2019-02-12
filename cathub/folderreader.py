@@ -485,17 +485,18 @@ class FolderReader:
                 ts_i = i
             elif 'neb' in f:
                 neb_i_list += [i]
-                neb_name.update({str(i): f})
-            chemical_composition_slabs = \
-                np.append(chemical_composition_slabs,
-                          ase_tools.get_chemical_formula(slab, mode='all'))
+                neb_name.update({str(i): os.path.basename(f)})
+            #chemical_composition_slabs = \
+            #    np.append(chemical_composition_slabs,
+            #              ase_tools.get_chemical_formula(slab, mode='all'))
             n_atoms = np.append(n_atoms, len(slab))
 
         empty = self.empty
         if not empty:
             reactant_entries = self.reaction['reactants'] + \
                 self.reaction['products']
-            if 'star' in reactant_entries:
+            if 'star' in reactant_entries and len(neb_i_list) == 0:
+                print(reactant_entries)
                 message = 'Empty slab needed for reaction!'
                 self.raise_error(message)
                 return
@@ -578,8 +579,7 @@ class FolderReader:
                 continue
 
             if i in neb_i_list:
-                self.structures.update({neb_name[str[i]]: [slab]})
-                prefactor_scale.update({'TSempty': [1]})
+                self.structures.update({neb_name[str(i)]: [slab]})
                 key_value_pairs.update({'species': 'neb'})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab,
@@ -590,7 +590,7 @@ class FolderReader:
                 elif self.update:
                     ase_tools.update_ase(self.cathub_db, id, self.stdout,
                                          **key_value_pairs)
-                self.ase_ids.update({neb_name[str[i]]: ase_id})
+                self.ase_ids.update({neb_name[str(i)]: ase_id})
                 continue
 
             found = False
@@ -627,39 +627,7 @@ class FolderReader:
                             match_key = key
                             match_n = n
                             break
-                """
-                if not found:
-                    adsmollist = [clear_state(clear_prefactor(mol))
-                                  for i, mol in enumerate(mollist)
-                                  if self.states[key][i] == 'star'
-                                  and not clear_prefactor(self.reaction[key][i]) == 'star']
-                    adsmolidx = [i for i, mol in enumerate(mollist)
-                                 if self.states[key][i] == 'star'
-                                 and not clear_prefactor(self.reaction[key][i]) == 'star']
-                    adsmol = ''.join(adsmollist)
-                    molecule_atn = sorted(ase_tools.get_numbers_from_formula(adsmol))
-                    if ads_atn == molecule_atn:
-                        #print(self.structures)
-                        #print(self.reaction)
-                        #print(self.reaction_atoms)
-                        #print(self.states)
-                        #print(self.energy_corrections)
-                        reaction_entry = ''
-                        new_reaction = ''
-                        reaction_atom = extract_atoms(adsmol)
-                        state = 'star'
-                        energy_correction = 0
-                        for idx in adsmolidx:
-                            r_entry = clear_state(self.reaction[key][idx])
-                            reaction_entry += r_entry + '_'
-                            if self.energy_corrections.get(r_entry, None):
-                                energy_corrextion += self.energy_corrections[r_entry]
-                    #        del self.structures[key][i]
-                    #        del self.reaction[key][i],
-                    #        self.reaction_atoms[key][i],
-                    #        self.states[key][i],
-                    #        self.energy_corrections
-                """
+
             if found:
                 key = match_key
                 n = match_n
@@ -699,44 +667,71 @@ class FolderReader:
                             prefactor_scale[key2][mol_i] *= supercell_factor
 
         # Check that all structures have been found
-        for key, structurelist in self.structures.items():
-            if '' in structurelist:
-                index = structurelist.index('')
-                molecule = clear_state(
-                    clear_prefactor(self.reaction[key][index]))
-                if self.states[key][index] == 'star':
-                    message = "Adsorbate '{}' not found for any structure files in '{}'."\
-                        .format(molecule, root) + \
-                        " Please check your adsorbate structures and the empty slab."
-                if self.states[key][index] == 'gas':
-                    message = "Gas phase molecule '{}' not found for any structure files in '{}'."\
-                        .format(molecule, self.gas_folder) + \
-                        " Please check your gas phase references."
-                self.raise_error(message)
-                return
+        structurenames = [s for s in list(self.structures.keys())
+                          if s not in ['reactants', 'products']]
+        if k in ['reactants', 'products']:
+            structurenames += [s for s in self.structures[k] if s != '']
+        only_neb = np.all(['neb' in s for s in structurenames])
 
         surface_composition = self.metal
         chemical_composition = ase_tools.get_chemical_formula(empty)
 
-        prefactors_final = copy.deepcopy(self.prefactors)
-        for key in self.prefactors:
-            for i, v in enumerate(self.prefactors[key]):
-                prefactors_final[key][i] = self.prefactors[key][i] * \
-                    prefactor_scale[key][i]
+        if only_neb:
+            neb_numbers = []
+            neb_energies = []
+            for key, structure in self.structures.items():
+                if key in  ['reactants', 'products']:
+                    continue
+                neb_no = int(key.split('.')[0].replace('neb', ''))
+                neb_numbers += [neb_no]
+                neb_energies += [structure[0].get_potential_energy()]
 
-        reaction_energy = None
-        activation_energy = None
-        try:
-            reaction_energy, activation_energy = \
-                ase_tools.get_reaction_energy(
-                    self.structures, self.reaction,
-                    self.reaction_atoms,
-                    self.states, prefactors_final,
-                    self.prefactors_TS,
-                    self.energy_corrections)
-        except BaseException as e:
-            message = "reaction energy failed for files in '{}'".format(root)
-            self.raise_error(message + '\n' + str(e))
+            initial = neb_energies[np.argmin(neb_numbers)]
+            final = neb_energies[np.argmax(neb_numbers)]
+            TS = np.max(neb_energies)
+
+            reaction_energy = final - initial
+            activation_energy = TS - initial
+
+            if activation_energy == 0 or activation_energy == reaction_energy:
+                activation_energy = None
+        else:
+            for key, structurelist in self.structures.items():
+                if '' in structurelist:
+                    index = structurelist.index('')
+                    molecule = clear_state(
+                        clear_prefactor(self.reaction[key][index]))
+                    if self.states[key][index] == 'star':
+                        message = "Adsorbate '{}' not found for any structure files in '{}'."\
+                            .format(molecule, root) + \
+                            " Please check your adsorbate structures and the empty slab."
+                    if self.states[key][index] == 'gas':
+                        message = "Gas phase molecule '{}' not found for any structure files in '{}'."\
+                            .format(molecule, self.gas_folder) + \
+                            " Please check your gas phase references."
+                    self.raise_error(message)
+                    return
+
+            prefactors_final = copy.deepcopy(self.prefactors)
+            for key in self.prefactors:
+                for i, v in enumerate(self.prefactors[key]):
+                    prefactors_final[key][i] = self.prefactors[key][i] * \
+                        prefactor_scale[key][i]
+
+            reaction_energy = None
+            activation_energy = None
+            try:
+                reaction_energy, activation_energy = \
+                    ase_tools.get_reaction_energy(
+                        self.structures, self.reaction,
+                        self.reaction_atoms,
+                        self.states, prefactors_final,
+                        self.prefactors_TS,
+                        self.energy_corrections)
+            except BaseException as e:
+                message = "reaction energy failed for files in '{}'"\
+                    .format(root)
+                self.raise_error(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
             self.raise_error('reaction energy is very large: {} eV \n  '\
