@@ -485,10 +485,7 @@ class FolderReader:
                 ts_i = i
             elif 'neb' in f:
                 neb_i_list += [i]
-                neb_name.update({str(i): os.path.basename(f)})
-            #chemical_composition_slabs = \
-            #    np.append(chemical_composition_slabs,
-            #              ase_tools.get_chemical_formula(slab, mode='all'))
+                neb_name.update({str(i): os.path.basename(f).split('.')[0]})
             n_atoms = np.append(n_atoms, len(slab))
 
         empty = self.empty
@@ -496,7 +493,6 @@ class FolderReader:
             reactant_entries = self.reaction['reactants'] + \
                 self.reaction['products']
             if 'star' in reactant_entries and len(neb_i_list) == 0:
-                print(reactant_entries)
                 message = 'Empty slab needed for reaction!'
                 self.raise_error(message)
                 return
