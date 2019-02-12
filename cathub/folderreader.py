@@ -673,12 +673,13 @@ class FolderReader:
         chemical_composition = ase_tools.get_chemical_formula(empty)
 
         if only_neb:
-            for ads in self.reaction_atoms['reactants']:
-                ads_atn = ase_tools.get_numbers_from_formula(ads)
-                for atn in ads_atn:
-                    empty_atn.remove(atn)
-            chemical_composition = \
-                ase_tools.get_formula_from_numbers(empty_atn, mode='metal')
+            if not self.empty:
+                for ads in self.reaction_atoms['reactants']:
+                    ads_atn = ase_tools.get_numbers_from_formula(ads)
+                    for atn in ads_atn:
+                        empty_atn.remove(atn)
+                chemical_composition = \
+                    ase_tools.get_formula_from_numbers(empty_atn, mode='metal')
             neb_numbers = []
             neb_energies = []
             for key, structure in self.structures.items():
