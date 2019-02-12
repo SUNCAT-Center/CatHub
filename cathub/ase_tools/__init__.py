@@ -36,6 +36,19 @@ PUBLICATION_TEMPLATE = collections.OrderedDict({
     'email': '',
     'publisher': 'ACS',
     'doi': '10.NNNN/....',
+})
+
+REACTION_TEMPLATE = collections.OrderedDict({
+    'title': 'Fancy title',
+    'authors': ['Doe, John', 'Einstein, Albert'],
+    'journal': 'JACS',
+    'volume': '1',
+    'number': '1',
+    'pages': '23-42',
+    'year': '2017',
+    'email': '',
+    'publisher': 'ACS',
+    'doi': '10.NNNN/....',
     'DFT_code': 'Quantum Espresso',
     'DFT_functionals': ['BEEF-vdW', 'HSE06'],
     'reactions': [
