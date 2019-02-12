@@ -185,8 +185,8 @@ def get_atomic_numbers(atoms):
     return list(atoms.get_atomic_numbers())
 
 
-def get_formula_from_numbers(numbers):
-    formula = Atoms(numbers).get_chemical_formula(mode='all')
+def get_formula_from_numbers(numbers, mode='all'):
+    formula = Atoms(numbers).get_chemical_formula(mode=mode)
     return formula
 
 

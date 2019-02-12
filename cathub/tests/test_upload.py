@@ -130,6 +130,9 @@ class UploadTestCase(unittest.TestCase):
         data = get_reactions(n_results=1, write_db=False,
                              reactants='CO', products='C')
 
+    def test8_read_folders_neb(self):
+        folder2db.main('{path}/AljamaMethanol2016'.format(path=path))
+
 
 if __name__ == '__main__':
     unittest.main()
