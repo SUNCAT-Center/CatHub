@@ -33,7 +33,7 @@ PUBLICATION_TEMPLATE = collections.OrderedDict({
     'number': '1',
     'pages': '23-42',
     'year': '2017',
-    'email': '',
+    'email': 'winther@stanford.edu',
     'publisher': 'ACS',
     'doi': '10.NNNN/....',
 })
@@ -46,7 +46,7 @@ REACTION_TEMPLATE = collections.OrderedDict({
     'number': '1',
     'pages': '23-42',
     'year': '2017',
-    'email': '',
+    'email': 'winther@stanford.edu',
     'publisher': 'ACS',
     'doi': '10.NNNN/....',
     'DFT_code': 'Quantum Espresso',
