@@ -1,0 +1,12 @@
+authors: ['Aljama, Hassan', 'Yoo, Jong Suk', 'N\orskov, Jens', 'Abild-Pedersen, Frank',
+  'Studt, Felix']
+doi: 10.1002/cctc.201601053
+email: winther@stanford.edu
+journal: null
+number: null
+pages: null
+publisher: ACS
+tags: []
+title: Methanol Partial Oxidation on Ag(111) from First Principles
+volume: null
+year: 2016
