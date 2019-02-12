@@ -196,7 +196,6 @@ def get_site_dict(B, ads_pos0):
             D[k]['sym'] = atomi.symbol + '_' + atom.symbol
             b_ind += 1
 
-    h_dist = np.linalg.norm(B.positions[11, :2] - B.positions[4, :2])
     h_ind = 1
     h4_ind = 1
 
@@ -329,6 +328,9 @@ def get_site(B):
 
 
 def get_info(A, B):
+
+    A = A[np.argsort(A.positions[:, 2])]
+    B = B[np.argsort(B.positions[:, 2])]
 
     dissociated, A, B = check_adsorbate(A, B)
 
