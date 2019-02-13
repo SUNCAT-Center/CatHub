@@ -443,10 +443,10 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
             reactant_FEC = get_FEC(all_reactants, temperature, pressure_mbar)
             product_FEC = get_FEC(all_products, temperature, pressure_mbar)
             FEC = product_FEC - reactant_FEC
-            print('Products: ' + str(products))
 
-            print('product_FEC: '+ str(product_FEC))
-            print('reactant_FEC: '+ str(reactant_FEC))
+            # print('Products: ' + str(products))
+            # print('product_FEC: '+ str(product_FEC))
+            # print('reactant_FEC: '+ str(reactant_FEC))
 
             # Calculate the energy with respect to the initial reactants.
             reaction_energy = previous_reaction_energy + df_tmp.iloc[0]['reaction_energy'] \
@@ -647,6 +647,27 @@ def unique_reactions(df):
     return(reaction_list)
 
 
+class ReactionNetwork():
+    def __init__(self, database_file):
+        """Sets up and plots reaction networks.
+
+        :type database_file: basestring
+        """
+
+        if not os.path.isfile(database_file):
+            raise FileNotFoundError(
+                errno.ENOENT, os.strerror(errno.ENOENT), database_file)
+
+        self.db = database_file
+        self.df = db_to_df(database_file)
+
+    def plot_network(self, intermediate_list, temperature=0, pressure=None, pH=0, potential=0):
+        self.df_react = reaction_scheme(self.df, reaction_intermediates=intermediate_list,
+                                 pH=pH, potential=potential, temperature=temperature,
+                                 pressure_mbar=pressure)
+        plot = plot_reaction_scheme(self.df_react, show=True,
+                                    pH=pH, potential=potential)
+        plot.show()
 
 
 
