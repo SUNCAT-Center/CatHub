@@ -223,10 +223,10 @@ def main(
                                 pass
 
     print('Folders were succesfully created under {}'.format(publication_base))
-    #print('')
+    # print('')
     #print('Printing output from "tree -F {}":'.format(publication_base))
-    #print('')
-    #subprocess.call(
+    # print('')
+    # subprocess.call(
     #    ('tree -F {}'.format(publication_base)).split())
 
 

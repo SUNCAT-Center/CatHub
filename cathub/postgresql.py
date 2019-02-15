@@ -156,7 +156,6 @@ class CathubPostgreSQL:
         self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
             self.user, self.password, self.server, self.database)
 
-
     def _connect(self):
         con = psycopg2.connect(host=self.server,
                                user=self.user,
@@ -457,7 +456,7 @@ class CathubPostgreSQL:
                            argslist=reaction_system_values, page_size=1000)
             self.stdout.write('Transfer complete\n')
 
-        #if self.user == 'catroot':
+        # if self.user == 'catroot':
         #    if self.connection is None:
         #        con.commit()
         #    self.delete_publication(pub_id, schema='upload')

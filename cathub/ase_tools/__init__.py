@@ -79,6 +79,7 @@ def get_chemical_formula(atoms, mode='metal'):
     except ValueError:
         return atoms.get_chemical_formula(mode='hill')
 
+
 def get_reduced_chemical_formula(atoms):
     numbers = atoms.numbers
     unique_numbers, counts = np.unique(numbers, return_counts=True)
@@ -133,9 +134,9 @@ def collect_structures(foldername, verbose=False, level='*'):
                               ))
                 except TypeError:
                     print("Warning: Could not read {posix_filename}"
-                            .format(
-                                posix_filename=posix_filename,
-                                ))
+                          .format(
+                              posix_filename=posix_filename,
+                          ))
 
                 except StopIteration:
                     print("Warning: StopIteration {posix_filename} hit."
@@ -193,7 +194,6 @@ def get_formula_from_numbers(numbers, mode='all'):
 def get_numbers_from_formula(formula):
     atoms = Atoms(formula)
     return get_atomic_numbers(atoms)
-
 
 
 def get_reaction_energy(structures, reaction, reaction_atoms, states,
@@ -254,6 +254,7 @@ def get_reaction_energy(structures, reaction, reaction_atoms, states,
         activation_energy = None
 
     return reaction_energy, activation_energy
+
 
 def get_layers(atoms):
     tolerance = 0.01

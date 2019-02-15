@@ -461,7 +461,7 @@ class FolderReader:
             if not ase_id in all_reaction_species:
                 del self.ase_ids[ase_id]
 
-        if 'TS' in self.structures:  #Delete old TS
+        if 'TS' in self.structures:  # Delete old TS
             del self.structures['TS']
             del self.structures['TSempty']
             del self.prefactors['TS']
@@ -684,7 +684,7 @@ class FolderReader:
             neb_numbers = []
             neb_energies = []
             for key, structure in self.structures.items():
-                if key in  ['reactants', 'products']:
+                if key in ['reactants', 'products']:
                     continue
                 neb_no = int(key.split('.')[0].replace('neb', ''))
                 neb_numbers += [neb_no]
@@ -738,14 +738,15 @@ class FolderReader:
                 self.raise_error(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
-            self.raise_error('reaction energy is very large: {} eV \n  '\
+            self.raise_error('reaction energy is very large: {} eV \n  '
                              .format(reaction_energy) +
                              'Folder: {}. \n  '.format(root) +
                              'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
         if activation_energy is not None:
             if activation_energy < reaction_energy:
-                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV \n  Folder: {}'.format(activation_energy, reaction_energy, root))
+                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV \n  Folder: {}'.format(
+                    activation_energy, reaction_energy, root))
             if not activation_energy < self.energy_limit:
                 self.raise_error(' Very large activation energy: {} eV \n  Folder: {}'
                                  .format(activation_energy, root))
