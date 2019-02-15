@@ -346,8 +346,8 @@ class SiteClassification:
 
         if dis > 0.5:
             primary_site += '-tilt'
-            #print('Warning: A strong site match could not be found!')
-            #print('  structure labeled as {}'.format(primary_site))
+            print('Warning: A strong site match could not be found!')
+            print('  structure labeled as {}'.format(primary_site))
 
         return primary_site, site_type
 
@@ -361,12 +361,3 @@ def get_ads_dist(atoms, ads0, ads1='H'):
                              atoms.cell, pbc=True)
 
     return np.max(D_len)
-# def get_ads_slab_dist(atoms, ads0):
-#    index0 = [i for i in range(len(atoms)) if atoms[i].symbol == ads0]
-#    index1 = range(12)
-#    dist = []
-#    D, D_len = get_distances(atoms.positions[index0],
-#                             atoms.positions[index1],
-#                             atoms.cell, pbc=True)#
-#
-#    return np.min(D_len)

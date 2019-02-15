@@ -335,7 +335,7 @@ def fuzzy_match(structures, options):
 
                         formula = '*'
 
-                        #if surf1.info.get('site', None):
+                        # if surf1.info.get('site', None):
                         #    formula += '@' + surf1.info['site']
 
                         formula += ' ->'
@@ -466,8 +466,10 @@ def fuzzy_match(structures, options):
 
     return collected_structures
 
+
 def dict_representer(dumper, data):
     return dumper.represent_dict(data.items())
+
 
 def create_folders(options, structures, publication_template, root=''):
     out_format = 'json'
@@ -492,7 +494,7 @@ def create_folders(options, structures, publication_template, root=''):
                               'w') as outfile:
                         yaml.dump(options.energy_corrections,
                                   outfile
-                        )
+                                  )
 
             create_folders(options, structures[key], publication_template={},
                            root=d)

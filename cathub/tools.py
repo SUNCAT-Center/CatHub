@@ -10,8 +10,8 @@ def get_pub_id(title, authors, year):
         _first_word = title.split(' ')[0].split('_')[0]
 
     pub_id = authors[0].split(',')[0].split(' ')[0] + \
-                  _first_word + \
-                  str(year)
+        _first_word + \
+        str(year)
     return pub_id
 
 
@@ -124,6 +124,7 @@ def get_bases(folder_name):
     data_base = folder_name + '/'
     user_base = folder_name
     return data_base, user, user_base
+
 
 def clear_state(name):
     name = name.replace('*', '').replace('(g)', '')
