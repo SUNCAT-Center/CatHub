@@ -70,7 +70,6 @@ class SiteClassification:
         bond_dist0 = sum(Cradii)
 
         if bond_dist > cutoff * bond_dist0:
-            print(bond_dist, bond_dist0)
             print('DISSOCIATED: {} Ang > 1.2 * {} Ang'
                   .format(bond_dist, bond_dist0))
             dissociated = True
@@ -100,8 +99,6 @@ class SiteClassification:
         if dist_S > (cradii[self.B[-1].number] +
                      cradii[self.B[indexM].number]) * 2:
             print('DESORBED FROM SLAB')
-            print(cradii[self.B[-1].number] +
-                  cradii[self.B[indexM].number], dist_S)
             desorbed = True
         return desorbed
 
@@ -313,7 +310,6 @@ class SiteClassification:
 
         # Use top layer and adsorbate to map sites
         Dict = self.get_site_dict(ads_pos[:2])
-        # print(Dict)
 
         primary_site = None
         dis = self.B.get_cell()[0][0]
@@ -321,8 +317,6 @@ class SiteClassification:
 
         values = [np.linalg.norm(ads_pos[:2] - d['pos'][:2])
                   for d in list(Dict.values())]
-        # print(Dict.keys())
-        # print(values)
         if len(values) == 0:
             return 'N/A', ''
         idx = np.argmin(values)
@@ -342,7 +336,6 @@ class SiteClassification:
             site_type = Dict[kind]['sym']
 
         if primary_site == 'bridge':
-            print(Dict[kind]['sym'])
             site_type = Dict[kind]['sym'] + '|' + self.get_under_bridge()
 
         elif primary_site == 'hollow':
