@@ -30,11 +30,11 @@ class SiteClassification:
         self.ntop = natoms_top_layer
         self.nslab = natoms_slab
         self.B = B
+
         # Check if multiatomic adsorbates dissociates on surface
-
         self.dissociated = self.check_dissociated()
-        # Only keep the adsorbate closest to surface
 
+        # Only keep the adsorbate closest to surface
         B = self.remove_extra_atoms(B)
 
         # Sort layers according to z-position
