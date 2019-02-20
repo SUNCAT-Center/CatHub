@@ -347,7 +347,7 @@ def make_folders(template, custom_base):
         custom_base = os.path.abspath(os.path.curdir)
     template = custom_base + '/' + template
 
-    template_data = ase_tools.PUBLICATION_TEMPLATE
+    template_data = ase_tools.REACTION_TEMPLATE
     if not os.path.exists(template):
         with open(template, 'w') as outfile:
             outfile.write(

@@ -24,6 +24,7 @@ all_columns = {'reactions': ['chemicalComposition', 'surfaceComposition',
                'publicationSystems': ['pubId', 'aseId'],
                'logs': ['Logtext']}
 
+
 def query(table='reactions',
           columns=['chemicalComposition',
                    'reactants',
@@ -32,9 +33,9 @@ def query(table='reactions',
           n_results=10,
           queries={},
           print_output=False):
-    
-    if table == 'logs': 
-        query_string = graphql_query(table=table, 
+
+    if table == 'logs':
+        query_string = graphql_query(table=table,
                                      columns=columns,
                                      queries=queries)
     else:
@@ -125,10 +126,12 @@ def graphql_query(table='reactions',
 
     return statement
 
+
 def convert(name):
     import re
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
 
 def get_reactions(columns='all', n_results=20, write_db=False, **kwargs):
     """
@@ -136,7 +139,7 @@ def get_reactions(columns='all', n_results=20, write_db=False, **kwargs):
 
     Give key value strings as arguments
     """
-    if write_db or columns=='all':
+    if write_db or columns == 'all':
         columns = all_columns['reactions']
     queries = {}
     for key, value in kwargs.items():
@@ -219,7 +222,7 @@ def get_reactions(columns='all', n_results=20, write_db=False, **kwargs):
             unique_ids0 = [un[0] for un in unique_ids0]
             unique_ids = [un for un in unique_ids if un not in unique_ids0]
             for unique_id in list(set(unique_ids)):
-                #if ase_db.count('unique_id={}'.format(unique_id)) == 0:
+                # if ase_db.count('unique_id={}'.format(unique_id)) == 0:
                 atomsrow = get_atomsrow_by_id(unique_id)
                 ase_db.write(atomsrow)
 
@@ -247,6 +250,7 @@ def get_publications(**kwargs):
     return query(table='publications', columns=publication_columns,
                  queries=queries)
 
+
 def get_logfile(aseId=None, fname=None):
 
     if aseId is not None:
@@ -259,7 +263,8 @@ def get_logfile(aseId=None, fname=None):
         with open(fname, 'w') as f:
             f.write(data['logs']['edges'][0]['node']['Logtext'])
             print('Data is written in {} file.'.format(fname))
-    return data 
+    return data
+
 
 def get_ase_db():
     return ase.db.connect(

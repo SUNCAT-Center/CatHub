@@ -33,7 +33,20 @@ PUBLICATION_TEMPLATE = collections.OrderedDict({
     'number': '1',
     'pages': '23-42',
     'year': '2017',
-    'email': '',
+    'email': 'winther@stanford.edu',
+    'publisher': 'ACS',
+    'doi': '10.NNNN/....',
+})
+
+REACTION_TEMPLATE = collections.OrderedDict({
+    'title': 'Fancy title',
+    'authors': ['Doe, John', 'Einstein, Albert'],
+    'journal': 'JACS',
+    'volume': '1',
+    'number': '1',
+    'pages': '23-42',
+    'year': '2017',
+    'email': 'winther@stanford.edu',
     'publisher': 'ACS',
     'doi': '10.NNNN/....',
     'DFT_code': 'Quantum Espresso',
@@ -65,6 +78,7 @@ def get_chemical_formula(atoms, mode='metal'):
         return atoms.get_chemical_formula(mode=mode)
     except ValueError:
         return atoms.get_chemical_formula(mode='hill')
+
 
 def get_reduced_chemical_formula(atoms):
     numbers = atoms.numbers
@@ -120,9 +134,9 @@ def collect_structures(foldername, verbose=False, level='*'):
                               ))
                 except TypeError:
                     print("Warning: Could not read {posix_filename}"
-                            .format(
-                                posix_filename=posix_filename,
-                                ))
+                          .format(
+                              posix_filename=posix_filename,
+                          ))
 
                 except StopIteration:
                     print("Warning: StopIteration {posix_filename} hit."
@@ -172,15 +186,14 @@ def get_atomic_numbers(atoms):
     return list(atoms.get_atomic_numbers())
 
 
-def get_formula_from_numbers(numbers):
-    formula = Atoms(numbers).get_chemical_formula(mode='all')
+def get_formula_from_numbers(numbers, mode='all'):
+    formula = Atoms(numbers).get_chemical_formula(mode=mode)
     return formula
 
 
 def get_numbers_from_formula(formula):
     atoms = Atoms(formula)
     return get_atomic_numbers(atoms)
-
 
 
 def get_reaction_energy(structures, reaction, reaction_atoms, states,
@@ -241,6 +254,7 @@ def get_reaction_energy(structures, reaction, reaction_atoms, states,
         activation_energy = None
 
     return reaction_energy, activation_energy
+
 
 def get_layers(atoms):
     tolerance = 0.01
