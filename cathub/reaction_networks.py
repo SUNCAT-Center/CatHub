@@ -27,8 +27,9 @@ SUB = str.maketrans(num_dict)
 # Matplotlib settings.
 sns.set_style('white')
 plt.rc('text', usetex=True)
-font = {'size':16}
+font = {'size':18}
 plt.rc('font',**font)
+
 
 colors = ['#068587', '#F2B134', '#ED553B', '#C36894', '#46698D', '#a6cee3', '#fdbf6f',
       '#b2df8a', '#1f78b4', '#e31a1c', '#fb9a99', '#33a02c', '#112F41']
@@ -42,47 +43,59 @@ colors = colors*4
 
 # Physical constants.
 cm2ev = 0.0001239841
-electronicenergy = 0.0
-default_pressure = 0.3235 #mbar
-T_std = 273.15 # K
-p_std = 1013.25 # mbar
+R = 8.314472  # J/(mol K)
+F = 9.64853399 * (10 ** 4)  # C/mol
+z = 1.0  # n_electrons
+ln10 = 2.30258509  # log10 for pH
+
+StandardConditions = {
+    'temperature' : 273.15,  # K,
+    'pressure' : 1013.25,  # mbar
+    'pH' : 0,
+    'potential' : 0 # V vs RHE & SHE
+}
 
 # Dictionaries of molecular properties
 molecule_dict = {
     # Pressures in mbar, electronic energies in eV, taken from DOI: 10.1039/C0EE00071J
     # Vibrations: TangRevised2018 dataset
         'H2': {'electronic_energy': 0.00,
-               'overbinding_correction':0.00,
+               'overbinding':0.00,
                'geometry': 'linear',
                'pressure': 302.96,
                'spin': 1,
                'symmetrynumber': 2,
                'vibrations': [4329]},
         'O2': {'electronic_energy': 0.00,
+               'overbinding': 0.00,
                 'geometry' : 'linear',
-                'pressure': p_std,
+                'pressure': StandardConditions['pressure'],
                 'spin' : 1,
                 'symmetrynumber' : 2,
                 'vibrations' : [1580]},
-        'CO': {'electronic_energy': 0.17,
+        'CO': {'electronic_energy': 0.00,
+                'overbinding' : 0.17,
                 'geometry' : 'linear',
                 'pressure': 55.62,
                 'spin' : 0,
                 'symmetrynumber' : 2,
                 'vibrations' : [2170]},
-        'CO2': {'electronic_energy': 0.33,
+        'CO2': {'electronic_energy': 0.00,
+                'overbinding': 0.33,
                 'geometry' : 'linear',
                 'pressure': 1013.25,
                 'spin' : 0,
                 'symmetrynumber' : 2,
                 'vibrations' : [1333.0, 2349.0, 667.0, 667.0]},
         'H2O': {'electronic_energy': 0.00,
+                'overbinding': 0.00,
                 'geometry': 'nonlinear',
                 'pressure': 35.34, # liquid water
                 'spin': 0,
                 'symmetrynumber': 2,
                 'vibrations': [3843, 3721, 1625]},
         'CH4': {'electronic_energy': 0.00,
+                'overbinding': 0.00,
                 'geometry' : 'nonlinear',
                 'pressure': 20467,
                 'spin' : 0,
@@ -111,7 +124,7 @@ class Adsorbate:
         self.vibrations = self.molecule_dict[self.name]
         self.vib_energies = np.asarray(self.vibrations) * cm2ev
 
-    def get_helmholtz_energy(self, temperature=T_std, electronic_energy=0, verbose=False):
+    def get_helmholtz_energy(self, temperature, electronic_energy=0, verbose=False):
         """Returns the Helmholtz energy of an adsorbed molecule.
 
         Parameters
@@ -133,7 +146,7 @@ class Adsorbate:
         self.helmholtz_energy = thermo_object.get_helmholtz_energy(temperature=temperature, verbose=verbose)
         return (self.helmholtz_energy)
 
-    def get_internal_energy(self, temperature=T_std, electronic_energy=0, verbose=False):
+    def get_internal_energy(self, temperature, electronic_energy=0, verbose=False):
         """Returns the internal energy of an adsorbed molecule.
 
         Parameters
@@ -167,7 +180,7 @@ class GasMolecule:
         self.spin = molecule_dict[self.name]['spin']
         self.vibrations = molecule_dict[self.name]['vibrations']
 
-    def get_free_energy(self, temperature = T_std, p_mbar = 'Default', electronic_energy = 'Default'):
+    def get_free_energy(self, temperature, pressure = 'Default', electronic_energy = 'Default', overbinding = True):
         """Returns the internal energy of an adsorbed molecule.
 
         Parameters
@@ -176,7 +189,7 @@ class GasMolecule:
            temperature in K
         electronic_energy : numeric
            energy in eV
-        p_mbar : numeric
+        pressure : numeric
            pressure in mbar
 
         Returns
@@ -184,18 +197,21 @@ class GasMolecule:
         internal_energy : numeric
            Internal energy in eV
         """
-        if not temperature or not p_mbar: # either None or 0
+
+        if not temperature or not pressure: # either None or 0
             return(0)
         else:
             if electronic_energy == 'Default':
                 electronic_energy = molecule_dict[self.name]['electronic_energy']
+                if overbinding == True:
+                    electronic_energy += molecule_dict[self.name]['overbinding']
             else:
                 pass
-            if p_mbar == 'Default':
-                p_mbar = molecule_dict[self.name]['pressure']
+            if pressure == 'Default':
+                pressure = molecule_dict[self.name]['pressure']
             else:
                 pass
-            pressure = p_mbar * 100  # gives Pa
+            pressure = pressure * 100  # gives Pa
             ideal_gas_object = IdealGasThermo(vib_energies=self.get_vib_energies(),
                                               potentialenergy=electronic_energy,
                                               atoms=self.atom_object,
@@ -209,7 +225,7 @@ class GasMolecule:
             self.free_energy = energy
             return(self.free_energy)
 
-    def get_enthalpy(self, temperature = T_std, electronic_energy = 'Default'):
+    def get_enthalpy(self, temperature, electronic_energy = 'Default'):
         """Returns the internal energy of an adsorbed molecule.
 
         Parameters
@@ -229,6 +245,8 @@ class GasMolecule:
             return(0, 0, 0)
         if electronic_energy == 'Default':
             electronic_energy = molecule_dict[self.name]['electronic_energy']
+            if overbinding == True:
+                electronic_energy += molecule_dict[self.name]['overbinding']
         else:
             ideal_gas_object = IdealGasThermo(vib_energies=self.get_vib_energies(),
                                               potentialenergy=electronic_energy,
@@ -298,7 +316,7 @@ def auto_labels(df):
     # labels = list(set(labels))
     return(labels)
 
-def proton_hydroxide_free_energy(pH=0, temperature=T_std):
+def proton_hydroxide_free_energy(temperature, pressure, pH):
     """Returns the Gibbs free energy of proton in bulk solution.
 
     Parameters
@@ -306,26 +324,22 @@ def proton_hydroxide_free_energy(pH=0, temperature=T_std):
     pH : pH of bulk solution
     temperature : numeric
         temperature in K
-    p_mbar : numeric
+    pressure : numeric
        pressure in mbar
 
     Returns
     -------
     G_H, G_OH : Gibbs free energy of proton and hydroxide.
     """
-    R = 8.314472 # J/(mol K)
-    F = 9.64853399*(10**4) # C/mol
-    z = 1.0 # n_electrons
-    ln10 = 2.30258509 # log10 for pH
     H2 = GasMolecule('H2')
     H2O = GasMolecule('H2O')
-    G_H2 = H2.get_free_energy(temperature = temperature, p_mbar = 1013.25)
+    G_H2 = H2.get_free_energy(temperature = temperature, pressure = pressure)
     G_H2O = H2O.get_free_energy(temperature = temperature)
     G_H = (0.5*G_H2) - ((R*temperature)/(z*F))*ln10*pH
     G_OH = G_H2O - G_H  # Do not need Kw when water equilibrated
     return(G_H, G_OH)
 
-def get_FEC(molecule_list, temperature, pressure_mbar, electronic_energy='Default'):
+def get_FEC(molecule_list, temperature, pressure, electronic_energy='Default'):
     """Returns the Gibbs free energy corrections to be added to raw reaction energies.
 
     Parameters
@@ -333,14 +347,14 @@ def get_FEC(molecule_list, temperature, pressure_mbar, electronic_energy='Defaul
     molecule_list : list of strings
     temperature : numeric
         temperature in K
-    p_mbar : numeric
+    pressure : numeric
        pressure in mbar
 
     Returns
     -------
     G_H, G_OH : Gibbs free energy of proton and hydroxide.
     """
-    if not temperature or not pressure_mbar:
+    if not temperature or not pressure:
         return(0)
     else:
         molecule_list = [m for m in molecule_list if m != 'star']
@@ -349,15 +363,15 @@ def get_FEC(molecule_list, temperature, pressure_mbar, electronic_energy='Defaul
         for molecule in molecule_list:
             if 'gas' in molecule:
                 mol = GasMolecule(molecule.replace('gas', ''))
-                if pressure_mbar == 'Default':
+                if pressure == 'Default':
                     p = mol.pressure
                 else:
-                    p = pressure_mbar
+                    p = pressure
                 if electronic_energy == 'Default':
                     ee = mol.electronic_energy
                 else:
                     ee = electronic_energy
-                FEC = mol.get_free_energy(temperature=temperature, p_mbar=p, electronic_energy = ee)
+                FEC = mol.get_free_energy(temperature=temperature, pressure=p, electronic_energy = ee)
                 FEC_sum.append(FEC)
             if 'star' in molecule:
                 FEC = Adsorbate(molecule.replace('star', ''))
@@ -366,12 +380,9 @@ def get_FEC(molecule_list, temperature, pressure_mbar, electronic_energy='Defaul
         FEC_sum = sum(FEC_sum)
     return (FEC_sum)
 
-
-
-
 # REACTION SCHEME HERE
-def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOstar'],
-                    potential=None, pH=None, temperature=273.15, pressure_mbar=1013.25):
+def reaction_scheme(df, potential, pH, temperature, pressure,
+                    reaction_intermediates: list = ['COgas', 'COstar', 'CHOstar'],):
     """Returns a dataframe with Gibbs free reaction energies.
 
     Parameters
@@ -379,7 +390,7 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
     df : Pandas DataFrame generated by db_to_df
     temperature : numeric
         temperature in K
-    p_mbar : numeric
+    pressure : numeric
        pressure in mbar
     pH : PH in bulk solution
     potential : Electric potential vs. SHE in eV
@@ -413,7 +424,7 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
     if potential is not None and pH is not None:
         ne = 1.0
         G_PE = -ne * potential + \
-               proton_hydroxide_free_energy(pH=pH, temperature=temperature)[0]
+               proton_hydroxide_free_energy(temperature=temperature, pressure=pressure, pH=pH)[0]
         # print('G_PE: '+ str(G_PE))
     for lab in list(set(labels)):
         energies_system = [0.0]
@@ -440,8 +451,8 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
             # Get free energy corrections (FEC).
             all_reactants = list(df_tmp['reactants'])[0]
             all_products = list(df_tmp['products'])[0]
-            reactant_FEC = get_FEC(all_reactants, temperature, pressure_mbar)
-            product_FEC = get_FEC(all_products, temperature, pressure_mbar)
+            reactant_FEC = get_FEC(all_reactants, temperature, pressure)
+            product_FEC = get_FEC(all_products, temperature, pressure)
             FEC = product_FEC - reactant_FEC
 
             # print('Products: ' + str(products))
@@ -466,10 +477,9 @@ def reaction_scheme(df, reaction_intermediates: list = ['COgas', 'COstar', 'CHOs
     df_new['reaction_energy'] = energies
     df_new = df_new.sort_values(by=['facet', 'system'])
     df_new = df_new.reset_index(drop=True)
-    return (df_new)
+    return(df_new)
 
-def plot_reaction_scheme(df, show=False, potential = None, pH = None,
-                         temperature=273.15, pressure_mbar=1013.25, e_lim=None):
+def plot_reaction_scheme(df, temperature, pressure, potential, pH, e_lim=None):
     """Returns a matplotlib object with the plotted reaction path.
 
     Parameters
@@ -477,7 +487,7 @@ def plot_reaction_scheme(df, show=False, potential = None, pH = None,
     df : Pandas DataFrame generated by reaction_network
     temperature : numeric
         temperature in K
-    p_mbar : numeric
+    pressure : numeric
        pressure in mbar
     pH : PH in bulk solution
     potential : Electric potential vs. SHE in eV
@@ -491,6 +501,11 @@ def plot_reaction_scheme(df, show=False, potential = None, pH = None,
     fig_width = ncols + 1.5*len(df['intermediate_labels'][0])
     figsize = (fig_width, 6)
     fig, ax = plt.subplots(figsize=figsize)
+
+    if pressure == None:
+        pressure_label = '0'
+    else:
+        pressure_label = str(pressure)
 
     lines = []
     for j, energy_list in enumerate(df['reaction_energy']):
@@ -522,26 +537,14 @@ def plot_reaction_scheme(df, show=False, potential = None, pH = None,
     reaction_labels = [w.translate(SUB) for w in reaction_labels]
     plt.xticks(np.arange(len(reaction_labels)) + 0.25, tuple(reaction_labels), rotation=45)
     # plt.tight_layout()
+
     if potential is not None and pH is not None:
         plt.title('U = '+str(potential)+' eV vs. SHE \n pH = '
                      +str(pH)+' \n T = '+str(temperature)
-                     +' K \n p = '+str(pressure_mbar)+' mbar')
+                     +' K \n p = '+pressure_label+' mbar')
     else:
-        plt.title('T = '+str(temperature)+' \n p = '+str(pressure_mbar)+' mbar')
-    if show:
-        plt.show()
+        plt.title('T = '+str(temperature)+' \n p = '+pressure_label+' mbar')
     return(fig)
-
-
-
-plt.rc('text', usetex=True)
-font = {'size':18}
-plt.rc('font',**font)
-
-
-
-
-
 
 def select_data(db_file, slab=None, facet=None):
     """Gathers relevant data from SQL database generated by CATHUB.
@@ -569,7 +572,6 @@ def select_data(db_file, slab=None, facet=None):
     cur.execute(select_command)
     data = cur.fetchall()
     return(data)
-
 
 def db_to_df(db_file, slabs=None, facet=None):
     """Transforms database to data frame.
@@ -660,17 +662,29 @@ class ReactionNetwork():
 
         self.db = database_file
         self.df = db_to_df(database_file)
+        self.use_standard_conditions()
 
-    def plot_network(self, intermediate_list, temperature=0, pressure=None, pH=0, potential=0):
+    def use_standard_conditions(self):
+        self.temperature = StandardConditions['temperature']
+        self.pressure = StandardConditions['pressure']
+        self.pH = StandardConditions['pH']
+        self.potential = StandardConditions['potential']
+        return(True)
+
+    def set_conditions(self, temperature, pressure=None, pH=None, potential=None):
+        self.temperature = temperature
+        self.pressure = pressure
+        self.pH = pH
+        self.potential = potential
+        return(True)
+
+    def plot_network(self, intermediate_list):
         self.df_react = reaction_scheme(self.df, reaction_intermediates=intermediate_list,
-                                 pH=pH, potential=potential, temperature=temperature,
-                                 pressure_mbar=pressure)
-        plot = plot_reaction_scheme(self.df_react, show=True,
-                                    pH=pH, potential=potential)
-        plot.show()
-
-
-
+                                        temperature=self.temperature, pressure=self.pressure,
+                                        pH=self.pH, potential=self.potential)
+        plot = plot_reaction_scheme(self.df_react, temperature=self.temperature, pressure=self.pressure,
+                                        pH=self.pH, potential=self.potential)
+        return(plot)
 
 
 if __name__ == '__main__':
