@@ -281,6 +281,7 @@ class FolderReader:
         self.gas = {}
 
         for gas in gas_structures:
+            gas = gas[-1]
             ase_id = None
             found = False
 
@@ -336,7 +337,7 @@ class FolderReader:
                                .format(root=root))
             return
 
-        bulk = bulk_structures[0]
+        bulk = bulk_structures[0][-1]
         ase_id = None
         energy = ase_tools.get_energies([bulk])
 
@@ -375,7 +376,7 @@ class FolderReader:
             if 'TS' not in filename_collapse:
                 return
 
-        self.empty = empty_structures[0]
+        self.empty = empty_structures[0][-1]
 
         ase_id = None
         energy = ase_tools.get_energies([self.empty])
@@ -470,25 +471,27 @@ class FolderReader:
             if 'neb' in k:
                 del self.structures[k]
 
-        n_atoms = np.array([])
-        ts_i = None
+
         neb_i_list = []
         neb_name = {}
-        tsempty_i = None
-        chemical_composition_slabs = []
-        breakloop = False
         for i, slab in enumerate(slab_structures):
-            f = slab.info['filename']
-            if 'empty' in f and 'TS' in f:
-                tsempty_i = i
-            elif 'TS' in f:
-                ts_i = i
-            elif 'neb' in f:
-                neb_i_list += [i]
-                neb_name.update({str(i): os.path.basename(f).split('.')[0]})
-            n_atoms = np.append(n_atoms, len(slab))
+            if not isinstance(slab, list):
+                continue
+            f = slab[-1].info['filename']
+            if 'neb' in f:
+                if len(slab) > 1:
+                    del slab_structures[i]
+                    for si, s in enumerate(slab):
+                        s.info['filename'] = f
+                        slab_structures.append(s)
+                        index = len(slab_structures)
+                        neb_i_list += [index]
+                        neb_name.update({str(index): 'neb' + str(si)})
+            else:
+                slab_structures[i] = slab[-1]
 
         empty = self.empty
+
         if not empty:
             reactant_entries = self.reaction['reactants'] + \
                 self.reaction['products']
@@ -531,7 +534,12 @@ class FolderReader:
             """Atomic numbers of adsorbate"""
             ads_atn = copy.copy(atns)
             for atn in empty_atn * supercell_factor:
-                ads_atn.remove(atn)
+                try:
+                    ads_atn.remove(atn)
+                except ValueError as e:
+                    self.raise_error(
+                        'Empty slab: {} contains species not in: {}' \
+                        .format(empty.info['filename'], f))
             ads_atn = sorted(ads_atn)
             if ads_atn == [] and 'star' in self.ase_ids:
                 self.raise_warning("No adsorbates for structure: {}"
@@ -542,23 +550,7 @@ class FolderReader:
             id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
             key_value_pairs.update({'epot': ase_tools.get_energies([slab])})
 
-            if i == ts_i:  # transition state
-                self.structures.update({'TS': [slab]})
-                self.prefactors.update({'TS': [1]})
-                prefactor_scale.update({'TS': [1]})
-                key_value_pairs.update({'species': 'TS'})
-                if ase_id is None:
-                    ase_id = ase_tools.write_ase(slab, self.cathub_db,
-                                                 self.stdout,
-                                                 self.user,
-                                                 **key_value_pairs)
-                elif self.update:
-                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
-                                         **key_value_pairs)
-                self.ase_ids.update({'TSstar': ase_id})
-                continue
-
-            if i == tsempty_i:  # empty slab for transition state
+            if 'empty' in f and 'TS' in f:  # empty slab for transition state
                 self.structures.update({'TSempty': [slab]})
                 self.prefactors.update({'TSempty': [1]})
                 prefactor_scale.update({'TSempty': [1]})
@@ -572,6 +564,22 @@ class FolderReader:
                     ase_tools.update_ase(self.cathub_db, id, self.stdout,
                                          **key_value_pairs)
                 self.ase_ids.update({'TSemptystar': ase_id})
+                continue
+
+            elif 'TS' in f:  # transition state
+                self.structures.update({'TS': [slab]})
+                self.prefactors.update({'TS': [1]})
+                prefactor_scale.update({'TS': [1]})
+                key_value_pairs.update({'species': 'TS'})
+                if ase_id is None:
+                    ase_id = ase_tools.write_ase(slab, self.cathub_db,
+                                                 self.stdout,
+                                                 self.user,
+                                                 **key_value_pairs)
+                elif self.update:
+                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
+                                         **key_value_pairs)
+                self.ase_ids.update({'TSstar': ase_id})
                 continue
 
             if i in neb_i_list:
