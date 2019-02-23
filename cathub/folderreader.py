@@ -371,7 +371,7 @@ class FolderReader:
         elif n_empty > 1:
             self.raise_warning('More than one empty slab submitted at {root}'
                                .format(root=root))
-            filename_collapse = ''.join([empty.info['filename']
+            filename_collapse = ''.join([empty[-1].info['filename']
                                          for empty in empty_structures])
             if 'TS' not in filename_collapse:
                 return
@@ -472,22 +472,30 @@ class FolderReader:
                 del self.structures[k]
 
 
-        neb_i_list = []
-        neb_name = {}
-        for i, slab in enumerate(slab_structures):
-            if not isinstance(slab, list):
-                continue
+        neb_indices = [i for i, slab in enumerate(slab_structures) if 'neb' in
+                          slab[-1].info['filename']]
+        neb_names = {}
+
+        if len(neb_indices) == 1:
+            index = neb_indices[0]
+            slab = slab_structures[index]
             f = slab[-1].info['filename']
-            if 'neb' in f:
-                if len(slab) > 1:
-                    del slab_structures[i]
-                    for si, s in enumerate(slab):
-                        s.info['filename'] = f
-                        slab_structures.append(s)
-                        index = len(slab_structures)
-                        neb_i_list += [index]
-                        neb_name.update({str(index): 'neb' + str(si)})
-            else:
+            del slab_structures[index]
+            neb_indices = []
+            for i, s in enumerate(slab):
+                s.info['filename'] = f
+                slab_structures.append(s)
+                index = len(slab_structures)
+                neb_indices += [index]
+                neb_names.update({str(i): 'neb' + str(i)})
+
+        elif len(neb_indices) > 1:
+            for i in neb_indices:
+                f = slab_structures[i][-1].info['filename']
+                neb_names.update({str(i): os.path.basename(f).split('.')[0]})
+
+        for i, slab in enumerate(slab_structures):
+            if isinstance(slab, list):
                 slab_structures[i] = slab[-1]
 
         empty = self.empty
@@ -495,12 +503,13 @@ class FolderReader:
         if not empty:
             reactant_entries = self.reaction['reactants'] + \
                 self.reaction['products']
-            if 'star' in reactant_entries and len(neb_i_list) == 0:
+            if 'star' in reactant_entries and len(neb_indices) == 0:
                 message = 'Empty slab needed for reaction!'
                 self.raise_error(message)
                 return
             else:
                 empty = slab_structures[0]
+                #print(empty)
                 self.raise_warning("Using '{}' as a reference instead of empty slab"
                                    .format(empty.info['filename']))
         empty_atn = list(empty.get_atomic_numbers())
@@ -582,8 +591,8 @@ class FolderReader:
                 self.ase_ids.update({'TSstar': ase_id})
                 continue
 
-            if i in neb_i_list:
-                self.structures.update({neb_name[str(i)]: [slab]})
+            if i in neb_indices:
+                self.structures.update({neb_names[str(i)]: [slab]})
                 key_value_pairs.update({'species': 'neb'})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab,
@@ -594,7 +603,7 @@ class FolderReader:
                 elif self.update:
                     ase_tools.update_ase(self.cathub_db, id, self.stdout,
                                          **key_value_pairs)
-                self.ase_ids.update({neb_name[str(i)]: ase_id})
+                self.ase_ids.update({neb_names[str(i)]: ase_id})
                 continue
 
             found = False
