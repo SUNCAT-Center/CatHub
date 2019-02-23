@@ -42,8 +42,8 @@ np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
 
 def fuzzy_match(structures, options):
     # filter out cell with ill-defined unit cells
-    structures = [structure for structure in structures
-                  if structure.number_of_lattice_vectors == 3
+    structures = [structure[-1] for structure in structures
+                  if structure[-1].number_of_lattice_vectors == 3
                   ]
     # sort by density
     structures = sorted(structures,
