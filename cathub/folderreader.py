@@ -473,7 +473,7 @@ class FolderReader:
 
 
         neb_indices = [i for i, slab in enumerate(slab_structures) if 'neb' in
-                          slab[-1].info['filename']]
+                       slab[-1].info['filename']]
         neb_names = {}
 
         if len(neb_indices) == 1:
@@ -509,7 +509,6 @@ class FolderReader:
                 return
             else:
                 empty = slab_structures[0]
-                #print(empty)
                 self.raise_warning("Using '{}' as a reference instead of empty slab"
                                    .format(empty.info['filename']))
         empty_atn = list(empty.get_atomic_numbers())
@@ -703,6 +702,7 @@ class FolderReader:
             for key, structure in self.structures.items():
                 if key in ['reactants', 'products']:
                     continue
+
                 neb_no = int(key.split('.')[0].replace('neb', ''))
                 neb_numbers += [neb_no]
                 neb_energies += [structure[0].get_potential_energy()]
