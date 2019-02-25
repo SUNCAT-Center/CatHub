@@ -485,7 +485,7 @@ class FolderReader:
             for i, s in enumerate(slab):
                 s.info['filename'] = f
                 slab_structures.append(s)
-                index = len(slab_structures)
+                index = len(slab_structures) - 1
                 neb_indices += [index]
                 neb_names.update({str(i): 'neb' + str(i)})
 
@@ -500,18 +500,22 @@ class FolderReader:
 
         empty = self.empty
 
+        reactant_entries = self.reaction['reactants'] + \
+            self.reaction['products']
         if not empty:
-            reactant_entries = self.reaction['reactants'] + \
-                self.reaction['products']
             if 'star' in reactant_entries and len(neb_indices) == 0:
                 message = 'Empty slab needed for reaction!'
                 self.raise_error(message)
                 return
             else:
-                empty = slab_structures[0]
+                empty0 = slab_structures[0]
+                chemical_composition = ase_tools.get_chemical_formula(empty0)
                 self.raise_warning("Using '{}' as a reference instead of empty slab"
-                                   .format(empty.info['filename']))
-        empty_atn = list(empty.get_atomic_numbers())
+                                   .format(empty0.info['filename']))
+                empty_atn = list(empty0.get_atomic_numbers())
+        else:
+            chemical_composition = ase_tools.get_chemical_formula(empty)
+            empty_atn = list(empty.get_atomic_numbers())
 
         prefactor_scale = copy.deepcopy(self.prefactors)
         for key1, values in prefactor_scale.items():
@@ -520,7 +524,7 @@ class FolderReader:
         key_value_pairs = {}
 
         key_value_pairs.update({'name':
-                                ase_tools.get_chemical_formula(empty),
+                                chemical_composition,
                                 'facet': self.ase_facet,
                                 'state': 'star'})
 
@@ -540,19 +544,21 @@ class FolderReader:
                 supercell_factor = len(res_slab_atn) // len(empty_atn)
 
             """Atomic numbers of adsorbate"""
-            ads_atn = copy.copy(atns)
-            for atn in empty_atn * supercell_factor:
-                try:
-                    ads_atn.remove(atn)
-                except ValueError as e:
-                    self.raise_error(
-                        'Empty slab: {} contains species not in: {}' \
-                        .format(empty.info['filename'], f))
-            ads_atn = sorted(ads_atn)
-            if ads_atn == [] and 'star' in self.ase_ids:
-                self.raise_warning("No adsorbates for structure: {}"
+            ads_atn = []
+            if 'star' in reactant_entries and len(neb_indices) == 0:
+                ads_atn = copy.copy(atns)
+                for atn in empty_atn * supercell_factor:
+                    try:
+                        ads_atn.remove(atn)
+                    except ValueError as e:
+                        self.raise_error(
+                            'Empty slab: {} contains species not in: {}' \
+                                .format(empty.info['filename'], f))
+                ads_atn = sorted(ads_atn)
+                if ads_atn == []:
+                    self.raise_warning("No adsorbates for structure: {}"
                                    .format(f))
-                continue
+                    continue
 
             ase_id = None
             id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
@@ -604,6 +610,7 @@ class FolderReader:
                                          **key_value_pairs)
                 self.ase_ids.update({neb_names[str(i)]: ase_id})
                 continue
+            
 
             found = False
             for key, mollist in self.reaction.items():
@@ -678,6 +685,7 @@ class FolderReader:
                         if self.reaction[key2][mol_i] == 'star':
                             prefactor_scale[key2][mol_i] *= supercell_factor
 
+
         # Check that all structures have been found
         structurenames = [s for s in list(self.structures.keys())
                           if s not in ['reactants', 'products']]
@@ -685,9 +693,7 @@ class FolderReader:
             structurenames += [s for s in self.structures[k] if s != ''
                                and s is not None]
         only_neb = np.all(['neb' in s for s in structurenames])
-
         surface_composition = self.metal
-        chemical_composition = ase_tools.get_chemical_formula(empty)
 
         if only_neb:
             if not self.empty:
