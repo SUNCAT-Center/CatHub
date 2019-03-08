@@ -1,7 +1,7 @@
 import ase
 import ast
+import copy
 import errno
-import json
 import os
 import pandas as pd
 import matplotlib.patheffects as pe
@@ -20,7 +20,12 @@ from matplotlib.lines import Line2D
 # Global parameters.
 num_dict = {'0': '$_{0}$', '1': '$_{1}$', '2': '$_{2}$', '3': '$_{3}$', '4': '$_{4}$',
             '5': '$_{5}$', '6': '$_{6}$', '7': '$_{7}$', '8': '$_{8}$', '9': '$_{9}$'}
-SUB = str.maketrans(num_dict)
+def sub(sss):
+    for key, value in num_dict.items():
+        sss = sss.replace(key, value)
+    return(sss)
+
+# SUB = string.maketrans(num_dict)
 # usage of num_dict example: "H2SO4".translate(SUB)
 
 # Matplotlib settings.
@@ -34,7 +39,7 @@ colors = ['#068587', '#F2B134', '#ED553B', '#C36894', '#46698D', '#a6cee3', '#fd
       '#b2df8a', '#1f78b4', '#e31a1c', '#fb9a99', '#33a02c', '#112F41']
 edge_colors = []
 for i in range(4):
-    tmp = colors.copy()
+    tmp = copy.deepcopy(colors)
     random.shuffle(tmp)
     for x in tmp:
         edge_colors.append(x)
@@ -301,7 +306,7 @@ def auto_labels(df):
     systems = list(df.system)
     facets = list(df.facet)
     systems_labels = [w.replace('_', '\ ') for w in systems]
-    systems_labels = [w.translate(SUB) for w in systems_labels]
+    systems_labels = [sub(w) for w in systems_labels]
     systems_labels = [w.replace('}$$_{', '') for w in systems_labels]
     systems_labels = [w.replace('$', '') for w in systems_labels]
     systems_labels = ['$' + w + '$' for w in systems_labels]
@@ -381,7 +386,7 @@ def get_FEC(molecule_list, temperature, pressure, electronic_energy='Default'):
 
 # REACTION SCHEME HERE
 def reaction_scheme(df, potential, pH, temperature, pressure,
-                    reaction_intermediates: list = ['COgas', 'COstar', 'CHOstar'],):
+                    reaction_intermediates = ['COgas', 'COstar', 'CHOstar'],):
     """Returns a dataframe with Gibbs free reaction energies.
 
     Parameters
@@ -533,7 +538,7 @@ def plot_reaction_scheme(df, temperature, pressure, potential, pH, e_lim=None):
     ax.set_xlabel('Reaction coordinate')
     ax.set_ylabel('Reaction free energy (eV)')
     reaction_labels = df['intermediate_labels'][0]
-    reaction_labels = [w.translate(SUB) for w in reaction_labels]
+    reaction_labels = [sub(w) for w in reaction_labels]
     plt.xticks(np.arange(len(reaction_labels)) + 0.25, tuple(reaction_labels), rotation=45)
     # plt.tight_layout()
 
