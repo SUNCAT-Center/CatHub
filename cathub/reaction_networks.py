@@ -652,7 +652,6 @@ def unique_reactions(df):
 class ReactionNetwork():
     def __init__(self, database_file):
         """Sets up and plots reaction networks.
-
         :type database_file: basestring
         """
 
