@@ -8,7 +8,6 @@ import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
 import random
-import re
 
 import seaborn as sns
 import sqlite3 as sql
