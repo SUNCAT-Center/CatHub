@@ -119,12 +119,12 @@ def collect_structures(foldername, verbose=False, level='*'):
                 continue
             if filetype:
                 try:
-                    structure = ase.io.read(posix_filename)
-                    structure.info['filename'] = posix_filename
-                    structure.info['filetype'] = ase.io.formats.filetype(
+                    structure = ase.io.read(posix_filename, ':')
+                    structure[-1].info['filename'] = posix_filename
+                    structure[-1].info['filetype'] = ase.io.formats.filetype(
                         posix_filename)
                     try:
-                        structure.get_potential_energy()
+                        structure[-1].get_potential_energy()
                         # ensure that the structure has an energy
                         structures.append(structure)
                     except RuntimeError:
