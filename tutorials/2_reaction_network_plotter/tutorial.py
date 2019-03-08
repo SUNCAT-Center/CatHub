@@ -1,7 +1,7 @@
 import matplotlib
 import os
 import sys
-from reaction_networks import *
+from cathub.reaction_networks import *
 
 # %matplotlib inline
 
