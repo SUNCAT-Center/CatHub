@@ -25,7 +25,8 @@ init_commands = [
     year smallint,
     publisher text,
     doi text,
-    tags jsonb
+    tags jsonb,
+    stime numeric
     );""",
 
     """CREATE TABLE publication_system (
@@ -380,7 +381,6 @@ class CathubPostgreSQL:
                    WHERE pub_id = '{pub_id}')"""
                 .format(from_schema=from_schema,
                         mtime=mtime, pub_id=pub_id))
-
             columns = get_key_str('systems', start_index=1)
             cur.execute(
                 """INSERT INTO {schema}.systems ({columns})
@@ -394,7 +394,6 @@ class CathubPostgreSQL:
                         schema=to_schema,
                         columns=columns,
                         pub_id=pub_id))
-
             columns = get_key_str('publication', start_index=1)  # new id
             cur.execute(
                 """INSERT INTO {schema}.publication ({columns})
@@ -404,6 +403,13 @@ class CathubPostgreSQL:
                 .format(from_schema=from_schema,
                         schema=to_schema, columns=columns,
                         pub_id=pub_id))
+            cur.execute(
+            """UPDATE {schema}.publication SET
+                stime = {mtime}
+                WHERE pub_id = '{pub_id}'"""
+                .format(schema=to_schema,
+                        mtime=mtime, pub_id=pub_id))
+
             cur.execute(
                 """INSERT INTO {schema}.publication_system
                 SELECT *
