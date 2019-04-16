@@ -406,7 +406,7 @@ def get_reaction_from_folder(folder_name):
                         diff_sites = [site0, site]
                         sites.update({clean_mol: diff_sites})
                 reaction[key][n] = mol
-            if 'gas' not in mol and 'star' not in mol:
+            if not np.any([state in mol for state in ['gas', 'aq', 'star']]):
                 reaction[key][n] = mol + 'star'
 
     for key, mollist in reaction.items():
