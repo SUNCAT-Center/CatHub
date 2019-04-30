@@ -78,9 +78,9 @@ def check_reaction(reactants, products):
     list of reactants -> list of products
     """
     reactant_list = [reactant.split('@')[0].strip(
-        'star').strip('gas') for reactant in reactants]
+        'star').strip('gas').strip('aq') for reactant in reactants]
     product_list = [product.split('@')[0].strip(
-        'star').strip('gas') for product in products]
+        'star').strip('gas').strip('aq') for product in products]
 
     reactant_atoms = [extract_atoms(reactant) for reactant in reactant_list]
     product_atoms = [extract_atoms(product) for product in product_list]
@@ -128,7 +128,7 @@ def get_bases(folder_name):
 
 def clear_state(name):
     name = name.replace('*', '').replace('(g)', '')
-    name = name.replace('star', '').replace('gas', '')
+    name = name.replace('star', '').replace('gas', '').replace('aq', '')
     return name
 
 
@@ -182,6 +182,8 @@ def get_state(name):
         state = 'star'
     elif 'gas' in name:
         state = 'gas'
+    elif 'aq' in name:
+        state = 'aq'
     else:
         state = 'star'
     return state

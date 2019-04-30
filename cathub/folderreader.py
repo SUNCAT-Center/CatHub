@@ -692,7 +692,7 @@ class FolderReader:
         for k in ['reactants', 'products']:
             structurenames += [s for s in self.structures[k] if s != ''
                                and s is not None]
-        only_neb = np.all(['neb' in s for s in structurenames])
+        only_neb = np.any(['neb' in s for s in structurenames])
         surface_composition = self.metal
 
         if only_neb:
