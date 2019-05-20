@@ -363,12 +363,12 @@ def proton_hydroxide_free_energy(temperature, pressure, pH):
     """
     H2 = GasMolecule('H2')
     H2O = GasMolecule('H2O')
-    G_H2 = H2.get_free_energy(temperature = temperature, pressure = pressure)
-    G_H2O = H2O.get_free_energy(temperature = temperature)
+    G_H2 = H2.get_free_energy(temperature=temperature, pressure=pressure)
+    G_H2O = H2O.get_free_energy(temperature=temperature)
     G_H = (0.5*G_H2) - ((R*temperature)/(z*F))*ln10*pH
     G_OH = G_H2O - G_H  # Do not need Kw when water equilibrated
 
-    return G_H, G_OH
+    return G_H, G_OH, G_H2O
 
 
 def get_FEC(molecule_list,
