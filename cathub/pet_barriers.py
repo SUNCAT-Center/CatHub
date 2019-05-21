@@ -6,7 +6,7 @@ import seaborn as sns
 from scipy.optimize import curve_fit
 
 sns.set_style('white')
-sns.set_palette(sns.hls_palette(6, h=0.5,l=0.4,s=0.5))
+sns.set_palette(sns.hls_palette(6, h=0.5, l=0.4, s=0.5))
 font = {'size': 18}
 plt.rc('font', **font)
 
@@ -87,24 +87,24 @@ class PES:
                  U=None,
                  plot=False,
                  preset_donor=None):
-        self.preset_donor = preset_donor
+        self.a = a
+        self.De = De
+        self.morse_fit_error = None
         self.filepath = filepath
         self.position = position
         self.dHeq = dHeq
+        self.preset_donor = preset_donor
         self.df = None
         self.U = U
+
         if U is not None:
             self.gH = G_rel + self.U
         else:
             self.gH = G_rel
 
-        self.a = None
-        self.De = None
-        self.morse_fit_error = None
-
         # Check if position H2O/H3O and set up curves automatically
         if self.preset_donor is not None:
-            self.De = dG_H2_diss
+            self.De = dG_H2_diss - self.gH
             if self.preset_donor == 'H2O':
                 self.a = 1.70815017
             elif self.preset_donor == 'H3O+':
@@ -118,19 +118,17 @@ class PES:
             self.preprocess()
             self.normalize()
             self.fit_morse()
+            self.De -= self.gH
 
         # Set up from parameters
         elif De is not None and a is not None:
-            self.De = De
+            self.De -= (self.gH + self.U)
             self.a = a
             self.make_df()
 
         # Ensure data supply
         else:
             print('Provide Morse De and a, or filepath to data, see docstrings. ')
-
-        # Adjust potential well depth
-        self.gH -= self.De
 
         if plot:
             self.plot_morse()
@@ -158,8 +156,7 @@ class PES:
         return None
 
     def preprocess(self):
-        """Pre-processes the data by smoothing vacuum energy fluctuations and computing De.
-        """
+        """Pre-processes the data by smoothing vacuum energy fluctuations and computing De."""
         # Read in and preprocess data
         df = pd.read_csv(self.filepath, sep='\t', header=None)
         df.columns = ['distance', 'energy']
@@ -214,9 +211,9 @@ class PES:
         if r is None:
             r = self.df.distance
         if not self.position == 'left':
-            return self.De * (1 - np.exp(-self.a * (self.dHeq - r)))**2 + self.gH
+            return self.De * (1 - np.exp(-self.a * (self.dHeq - r)))**2 - self.De
         else:
-            return self.De * (1 - np.exp(-self.a * (r - self.dHeq)))**2 + self.gH
+            return self.De * (1 - np.exp(-self.a * (r - self.dHeq)))**2 - self.De
 
     def morse_norm(self, r):
         """
@@ -232,9 +229,9 @@ class PES:
 
         if self.filepath is not None:
             if self.position == 'left':
-                ax.plot(self.df.distance + self.dHeq, self.df.energy * self.De + self.gH)
+                ax.plot(self.df.distance + self.dHeq, self.df.energy * self.De + self.De)
             else:
-                ax.plot(self.dHeq - self.df.distance, self.df.energy * self.De + self.gH)
+                ax.plot(self.dHeq - self.df.distance, self.df.energy * self.De + self.De)
 
         x = np.linspace(-10, 10, 500)
         ax.plot(x, self.morse(r=x), '--',
@@ -304,7 +301,7 @@ class Energy:
         """
         if r is None:
             r = self.x
-        return self.left.De * (1 - np.exp(-self.left.a * (r - self.left.dHeq))) ** 2 + self.left.gH
+        return self.left.De * (1 - np.exp(-self.left.a * (r - self.left.dHeq))) ** 2 - self.left.De
 
     def morse_right(self, r=None):
         """
@@ -314,7 +311,7 @@ class Energy:
         """
         if r is None:
             r = self.x
-        return self.right.De * (1 - np.exp(-self.right.a * (self.right.dHeq - r))) ** 2 + self.right.gH
+        return self.right.De * (1 - np.exp(-self.right.a * (self.right.dHeq - r))) ** 2 - self.right.De
 
     def interception(self,
                      adiabatic=False,
@@ -371,10 +368,10 @@ class Energy:
                 ax.plot(self.r_corr, self.adia_right, label='adia-right')
                 ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
                         c='w', markeredgecolor='b', ls='',
-                        label='E$^{a}_{left}$ = %5.2f eV' % (self.Ea_ad_left))
+                        label='E$^{a}_{left}$ = %5.2f eV' % self.Ea_ad_left)
                 ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
                         c='w', markeredgecolor='b', ls='',
-                        label='E$^{a}_{right}$ = %5.2f eV' % (self.Ea_ad_right))
+                        label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_ad_right)
 
             ax.set_xlabel('Distance to right hydrogen position (Å)')
             ax.set_ylabel('Energy (eV)')
@@ -412,12 +409,12 @@ class Energy:
         gamma_right = self.right.morse_norm(self.right.dHeq - self.r_corr)    # 0.66-->0
 
         # Morse values
-        E_stretch_left = gamma_left * self.left.De + self.left.gH
-        E_stretch_right = gamma_right * self.right.De + self.right.gH
+        E_stretch_left = (gamma_left - 1) * self.left.De
+        E_stretch_right = (gamma_right - 1) * self.right.De
 
         # E_hyb
-        self.adia_left = E_stretch_left + gamma_left * (1-gamma_right) * (self.right.gH - E_stretch_left)
-        self.adia_right = E_stretch_right + gamma_right * (1-gamma_left) * (self.left.gH - E_stretch_right)
+        self.adia_left = E_stretch_left + gamma_left * (1-gamma_right) * (-self.right.De - E_stretch_left)
+        self.adia_right = E_stretch_right + gamma_right * (1-gamma_left) * (-self.left.De - E_stretch_right)
 
         yts_ad = [min(self.adia_left[i],self.adia_right[i]) for i, _ in enumerate(self.adia_right)]
         self.yint_ad, idx = max((val, idx) for (idx, val) in enumerate(yts_ad))
