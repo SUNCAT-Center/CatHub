@@ -239,8 +239,17 @@ class PES:
         """
         return (1 - np.exp(-self.a * r))**2
 
-    def plot_morse(self):
-        """Plots morse potential."""
+    def plot_morse(self,
+                   xlim=(-0,5),
+                   ylim=(-5,5),
+                   title=None):
+        """
+        Plots morse potential.
+        :param title: Figure title.
+        :param xlim: x-axis limits.
+        :param ylim: y-axis limits.
+        :return:
+        """
         fig, ax = plt.subplots()
         x = np.linspace(-10, 10, 500)
         ax.plot(x, self.morse(r=x), '--',
@@ -249,8 +258,9 @@ class PES:
         ax.set_xlabel('Distance d (Å)')
         ax.set_ylabel('Energy E (eV)')
         ax.legend()
-        ax.set_title(self.position + ' morse fit')
-        ax.set_ylim((-10, 10))
+        ax.set_title(title)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
         plt.show()
         return None
 
@@ -387,7 +397,7 @@ class Energy:
         """Calculates charge transfer coefficient for backward reaction."""
         if not self._beta:
             _ = self.interception()
-            self._beta_right = self.right.morse_norm(self.left.d_Heq-self.xint)
+            self._beta_right = self.right.morse_norm(self.xint-self.right.d_Heq)
         return self._beta_right
 
     def adiabatic_correction(self):
@@ -404,8 +414,8 @@ class Energy:
         E_stretch_right = (gamma_right - 1) * self.right.De
 
         # E_hyb
-        self.adia_left = E_stretch_left + gamma_left * (1-gamma_right) * (-self.right.De - E_stretch_left)
-        self.adia_right = E_stretch_right + gamma_right * (1-gamma_left) * (-self.left.De - E_stretch_right)
+        self.adia_left = E_stretch_left - gamma_left * (1-gamma_right) * (self.right.De + E_stretch_left)
+        self.adia_right = E_stretch_right - gamma_right * (1-gamma_left) * (self.left.De + E_stretch_right)
 
         yts_ad = [min(self.adia_left[i],self.adia_right[i]) for i, _ in enumerate(self.adia_right)]
         self.yint_ad, idx = max((val, idx) for (idx, val) in enumerate(yts_ad))
