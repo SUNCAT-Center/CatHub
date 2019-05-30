@@ -253,7 +253,7 @@ class PES:
         ax.plot(x, self.morse(r=x), '--',
                 label='Morse: a=%5.3f' % self.a)
         ax.axhline(color='k', zorder=0, lw=0.6)
-        ax.set_xlabel('Distance d (Å)')
+        ax.set_xlabel('Distance d ($\AA$)')
         ax.set_ylabel('Energy E (eV)')
         ax.legend()
         ax.set_title(title)
@@ -370,7 +370,7 @@ class Energy:
                         c='w', markeredgecolor='b', ls='',
                         label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_ad_right)
 
-            ax.set_xlabel('Distance to right proton donor position (Å)')
+            ax.set_xlabel('Distance to right proton donor position ($\AA$)')
             ax.set_ylabel('Energy (eV)')
 
             ax.set_xlim(xlim)
