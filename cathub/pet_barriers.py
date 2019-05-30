@@ -1,12 +1,11 @@
-#%%
-
 import matplotlib.pyplot as plt
 import numpy as np
 import os
 import pandas as pd
-from pathlib import Path
 import seaborn as sns
+
 from scipy.optimize import curve_fit
+from pathlib import Path
 
 sns.set_style('white')
 sns.set_palette(sns.hls_palette(6, h=0.5, l=0.4, s=0.5))
@@ -176,8 +175,8 @@ class PES:
 
     @classmethod
     def init_from_file(cls,
-                       filepath: str = None,
-                       position: str = 'left',
+                       filepath=None,
+                       position='left',
                        **kw):
         if Path(filepath).exists():
             df, De_U0 = preprocess(filepath, position)
@@ -192,8 +191,8 @@ class PES:
 
     @classmethod
     def init_from_parameters(cls,
-                             De_U0: float,
-                             a: float,
+                             De_U0,
+                             a,
                              **kw):
         return cls(De_U0=De_U0,
                    a=a,
@@ -201,7 +200,7 @@ class PES:
 
     @classmethod
     def init_from_database(cls,
-                           proton_donor: str ='H2O',
+                           proton_donor ='H2O',
                            **kw):
         h_dict = proton_donors[proton_donor]
         return cls(a=h_dict['a'],

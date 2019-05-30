@@ -1,10 +1,8 @@
 import ase
 import ast
 import copy
-import errno
 import os
 import pandas as pd
-from pathlib import Path
 import matplotlib.patheffects as pe
 import matplotlib.pyplot as plt
 import numpy as np
@@ -18,7 +16,7 @@ from ase.thermochemistry import IdealGasThermo
 from ase.thermochemistry import HarmonicThermo
 from matplotlib.lines import Line2D
 
-pd.set_option('display.max_columns',10)
+# pd.set_option('display.max_columns',10)
 
 # Global parameters.
 num_dict = {'0': '$_{0}$', '1': '$_{1}$', '2': '$_{2}$', '3': '$_{3}$', '4': '$_{4}$',
@@ -419,8 +417,8 @@ def get_FEC(molecule_list,
     return FEC_sum
 
 
-def get_list_from_df(df: pd.DataFrame,
-                     pattern: str):
+def get_list_from_df(df,
+                     pattern):
     if len(list(df.filter(regex=pattern))) > 0:
         s = df.filter(regex=pattern).iloc[:, 0]
         return list(s)
@@ -687,22 +685,22 @@ def get_unique_reactions(df):
 
 class ReactionNetwork:
     def __init__(self,
-                 df: pd.DataFrame=None,
-                 db: str=None,
-                 intermediates: list=None,
-                 betas: list=None,
-                 transition_states: list=None,
-                 df_react: pd.DataFrame=None,
-                 temperature: float='standard_conditions',
-                 pressure: float='standard_conditions',
-                 pH: float='standard_conditions',
-                 potential: float='standard_conditions',
-                 net_corrections: list=None,
-                 dft_corrections: list=None,
-                 field_corrections: list=None,
-                 overbinding_corrections: list=None,
-                 solvation_corrections: list=None,
-                 corrections: pd.DataFrame=None
+                 df=None,
+                 db=None,
+                 intermediates=None,
+                 betas=None,
+                 transition_states=None,
+                 df_react=None,
+                 temperature='standard_conditions',
+                 pressure='standard_conditions',
+                 pH='standard_conditions',
+                 potential='standard_conditions',
+                 net_corrections=None,
+                 dft_corrections=None,
+                 field_corrections=None,
+                 overbinding_corrections=None,
+                 solvation_corrections=None,
+                 corrections=None
     ):
         """ReactionNetwork object with analysis
         and plotting funcitonality.
@@ -752,7 +750,7 @@ class ReactionNetwork:
 
     @classmethod
     def init_from_df(cls,
-                     filepath: str = None,
+                     filepath = None,
                      **kw):
         if Path(filepath).exists():
             df_init = read_tsv_input(filepath)
@@ -761,7 +759,7 @@ class ReactionNetwork:
 
     @classmethod
     def init_from_db(cls,
-                     filepath: str = None,
+                     filepath = None,
                      **kw):
         if Path(filepath).exists():
             df_init_db = db_to_df(filepath)
@@ -1059,12 +1057,6 @@ class ReactionNetwork:
         return plot
 
 
-
-
-
-
-
-#%%
 
 if __name__ == '__main__':
     print('Executed without errors.')
