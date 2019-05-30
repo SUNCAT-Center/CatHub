@@ -374,7 +374,7 @@ class Energy:
                         c='w', markeredgecolor='b', ls='',
                         label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_ad_right)
 
-            ax.set_xlabel('Distance to right hydrogen position (Å)')
+            ax.set_xlabel('Distance to right proton donor position (Å)')
             ax.set_ylabel('Energy (eV)')
 
             ax.set_xlim(xlim)
