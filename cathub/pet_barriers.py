@@ -5,7 +5,6 @@ import pandas as pd
 import seaborn as sns
 
 from scipy.optimize import curve_fit
-from pathlib import Path
 
 sns.set_style('white')
 sns.set_palette(sns.hls_palette(6, h=0.5, l=0.4, s=0.5))
@@ -178,7 +177,7 @@ class PES:
                        filepath=None,
                        position='left',
                        **kw):
-        if Path(filepath).exists():
+        if os.path.isfile(filepath):
             df, De_U0 = preprocess(filepath, position)
             a, morse_fit_error = fit_morse(df)
             return cls(filepath=filepath,

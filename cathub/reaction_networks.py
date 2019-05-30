@@ -15,7 +15,6 @@ from ase.build import molecule
 from ase.thermochemistry import IdealGasThermo
 from ase.thermochemistry import HarmonicThermo
 from matplotlib.lines import Line2D
-from pathlib import Path
 
 # pd.set_option('display.max_columns',10)
 
@@ -753,7 +752,7 @@ class ReactionNetwork:
     def init_from_df(cls,
                      filepath=None,
                      **kw):
-        if Path(filepath).exists():
+        if os.path.isfile(filepath):
             df_init = read_tsv_input(filepath)
             return cls(df=df_init,
                        **kw)
@@ -762,7 +761,7 @@ class ReactionNetwork:
     def init_from_db(cls,
                      filepath=None,
                      **kw):
-        if Path(filepath).exists():
+        if os.path.isfile(filepath):
             df_init_db = db_to_df(filepath)
             return cls(df=df_init_db,
                        **kw)
