@@ -275,8 +275,6 @@ class Energy:
             but simply denotes where to position the morse potential.
         x: Distance points
         r_corr: Distance points between the two states
-        morse_left: Returns left morse energy values given distance values.
-        morse_right: Returns right morse energy values given distance values.
         Ea_left: Forward diabatic barrier in eV.
         Ea_right: Backwards diabatic barrier in eV.
         xint: Distance between hydrogen and left state at diabatic transition state in Angstroem.

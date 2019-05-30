@@ -15,6 +15,7 @@ from ase.build import molecule
 from ase.thermochemistry import IdealGasThermo
 from ase.thermochemistry import HarmonicThermo
 from matplotlib.lines import Line2D
+from pathlib import Path
 
 # pd.set_option('display.max_columns',10)
 
@@ -35,7 +36,6 @@ plt.rc('text', usetex=True)
 font = {'size': 18}
 plt.rc('font', **font)
 
-
 # colors = ['#068587', '#F2B134', '#ED553B', '#C36894', '#46698D', '#a6cee3', '#fdbf6f',
 #      '#b2df8a', '#1f78b4', '#e31a1c', '#fb9a99', '#33a02c', '#112F41']
 
@@ -49,7 +49,7 @@ for i in range(4):
     random.shuffle(tmp)
     for x in tmp:
         edge_colors.append(x)
-colors = colors*4
+colors = colors * 4
 
 # Physical constants.
 cm2ev = 0.0001239841
@@ -62,72 +62,74 @@ StandardConditions = {
     'temperature': 273.15,  # K,
     'pressure': 1013.25,  # mbar
     'pH': 0,
-    'potential': 0, # V vs RHE & SHE
-    'electronic_energy': 0.0 # eV
+    'potential': 0,  # V vs RHE & SHE
+    'electronic_energy': 0.0  # eV
 }
 
 # Dictionaries of molecular properties
 molecule_dict = {
     # Pressures in mbar, electronic energies in eV, taken from DOI: 10.1039/C0EE00071J
     # Vibrations: TangRevised2018 dataset
-        'H2': {'electronic_energy': StandardConditions['electronic_energy'],
-               'overbinding': 0.00,
-               'geometry': 'linear',
-               'pressure': 302.96,
-               'spin': 1,
-               'symmetrynumber': 2,
-               'vibrations': [4329]},
-        'O2': {'electronic_energy': StandardConditions['electronic_energy'],
-               'overbinding': 0.00,
-               'geometry': 'linear',
-               'pressure': StandardConditions['pressure'],
-               'spin': 1,
-               'symmetrynumber' : 2,
-               'vibrations': [1580]},
-        'CO': {'electronic_energy': StandardConditions['electronic_energy'],
-               'overbinding': 0.17,
-               'geometry': 'linear',
-               'pressure': 55.62,
-               'spin': 0,
-               'symmetrynumber' : 2,
-               'vibrations': [2170]},
-        'CO2': {'electronic_energy': StandardConditions['electronic_energy'],
-                'overbinding': 0.33,
-                'geometry': 'linear',
-                'pressure': 1013.25,
-                'spin': 0,
-                'symmetrynumber' : 2,
-                'vibrations': [1333.0, 2349.0, 667.0, 667.0]},
-        'H2O': {'electronic_energy': StandardConditions['electronic_energy'],
-                'overbinding': 0.00,
-                'geometry': 'nonlinear',
-                'pressure': 35.34, # liquid water
-                'spin': 0,
-                'symmetrynumber': 2,
-                'vibrations': [3843, 3721, 1625]},
-        'CH4': {'electronic_energy': StandardConditions['electronic_energy'],
-                'overbinding': 0.00,
-                'geometry': 'nonlinear',
-                'pressure': 20467,
-                'spin': 0,
-                'symmetrynumber': 2,
-                'vibrations': [2917, 1534, 1534, 3019, 3019, 3019, 1306, 1306, 1306]}}
+    'H2': {'electronic_energy': StandardConditions['electronic_energy'],
+           'overbinding': 0.00,
+           'geometry': 'linear',
+           'pressure': 302.96,
+           'spin': 1,
+           'symmetrynumber': 2,
+           'vibrations': [4329]},
+    'O2': {'electronic_energy': StandardConditions['electronic_energy'],
+           'overbinding': 0.00,
+           'geometry': 'linear',
+           'pressure': StandardConditions['pressure'],
+           'spin': 1,
+           'symmetrynumber': 2,
+           'vibrations': [1580]},
+    'CO': {'electronic_energy': StandardConditions['electronic_energy'],
+           'overbinding': 0.17,
+           'geometry': 'linear',
+           'pressure': 55.62,
+           'spin': 0,
+           'symmetrynumber': 2,
+           'vibrations': [2170]},
+    'CO2': {'electronic_energy': StandardConditions['electronic_energy'],
+            'overbinding': 0.33,
+            'geometry': 'linear',
+            'pressure': 1013.25,
+            'spin': 0,
+            'symmetrynumber': 2,
+            'vibrations': [1333.0, 2349.0, 667.0, 667.0]},
+    'H2O': {'electronic_energy': StandardConditions['electronic_energy'],
+            'overbinding': 0.00,
+            'geometry': 'nonlinear',
+            'pressure': 35.34,  # liquid water
+            'spin': 0,
+            'symmetrynumber': 2,
+            'vibrations': [3843, 3721, 1625]},
+    'CH4': {'electronic_energy': StandardConditions['electronic_energy'],
+            'overbinding': 0.00,
+            'geometry': 'nonlinear',
+            'pressure': 20467,
+            'spin': 0,
+            'symmetrynumber': 2,
+            'vibrations': [2917, 1534, 1534, 3019, 3019, 3019, 1306, 1306, 1306]}}
 
 # Vibrations of molecules on Cu(211) surface (TangRevised2018 data set)
 mol_Cu211_dict = {'C': [206.5, 437.3, 667.1],
-'CH': [375.2, 388.0, 508.7, 597.0, 604.4, 3064.2],
-'CO': [150.2, 158.6, 189.6, 314.6, 1879.2],
-'H2COH': [134.7, 199.3, 329.8, 385.9, 565.1, 837.4, 1083.4, 1111.6, 1316.6, 1438.7, 3011.9, 3091.1, 3698.4],
-'OCC': [206.5, 437.3, 667.1],
-'CH2': [324.2, 348.1, 430.7, 551.3, 636.3, 1335.6, 2978.9, 3056.6],
-'CHO': [86.3, 144.1, 207.5, 249.5, 417.8, 679.4, 1244.0, 1527.3, 2810.2],
-'HCOO': [104.2, 171.3, 258.3, 291.8, 337.2, 734.3, 1004.1, 1307.4, 1344.9, 1509.6, 2967.0],
-'HCOOH': [37.6, 76.8, 131.3, 165.7, 192.1, 622.5, 693.1, 1022.6, 1086.1, 1279.1, 1377.6, 1737.1, 3017.0, 3619.5],
-'CH3': [101.5, 198.0, 312.1, 561.0, 570.6, 1124.0, 1405.5, 1406.2, 2951.1, 3011.3, 3021.4],
-'HCOH': [24.7, 110.9, 171.7, 230.2, 438.8, 503.1, 952.9, 1193.8, 1248.7, 1424.7, 3003.4, 3438.9],
-'CHOH': [24.7, 110.9, 171.7, 230.2, 438.8, 503.1, 952.9, 1193.8, 1248.7, 1424.7, 3003.4, 3438.9],
-'COH': [105.4, 181.7, 252.7, 308.0, 341.6, 417.5, 1110.6, 1230.2, 3599.0],
-'COOH': [137.9, 157.8, 184.6, 240.3, 375.2, 625.4, 633.4, 942.1, 1233.0, 1663.1, 3510.4]}
+                  'CH': [375.2, 388.0, 508.7, 597.0, 604.4, 3064.2],
+                  'CO': [150.2, 158.6, 189.6, 314.6, 1879.2],
+                  'H2COH': [134.7, 199.3, 329.8, 385.9, 565.1, 837.4, 1083.4, 1111.6, 1316.6, 1438.7, 3011.9, 3091.1,
+                            3698.4],
+                  'OCC': [206.5, 437.3, 667.1],
+                  'CH2': [324.2, 348.1, 430.7, 551.3, 636.3, 1335.6, 2978.9, 3056.6],
+                  'CHO': [86.3, 144.1, 207.5, 249.5, 417.8, 679.4, 1244.0, 1527.3, 2810.2],
+                  'HCOO': [104.2, 171.3, 258.3, 291.8, 337.2, 734.3, 1004.1, 1307.4, 1344.9, 1509.6, 2967.0],
+                  'HCOOH': [37.6, 76.8, 131.3, 165.7, 192.1, 622.5, 693.1, 1022.6, 1086.1, 1279.1, 1377.6, 1737.1,
+                            3017.0, 3619.5],
+                  'CH3': [101.5, 198.0, 312.1, 561.0, 570.6, 1124.0, 1405.5, 1406.2, 2951.1, 3011.3, 3021.4],
+                  'HCOH': [24.7, 110.9, 171.7, 230.2, 438.8, 503.1, 952.9, 1193.8, 1248.7, 1424.7, 3003.4, 3438.9],
+                  'CHOH': [24.7, 110.9, 171.7, 230.2, 438.8, 503.1, 952.9, 1193.8, 1248.7, 1424.7, 3003.4, 3438.9],
+                  'COH': [105.4, 181.7, 252.7, 308.0, 341.6, 417.5, 1110.6, 1230.2, 3599.0],
+                  'COOH': [137.9, 157.8, 184.6, 240.3, 375.2, 625.4, 633.4, 942.1, 1233.0, 1663.1, 3510.4]}
 
 
 class Adsorbate:
@@ -200,9 +202,9 @@ class GasMolecule:
 
     def get_free_energy(self,
                         temperature,
-                        pressure = 'Default',
-                        electronic_energy = 'Default',
-                        overbinding = True):
+                        pressure='Default',
+                        electronic_energy='Default',
+                        overbinding=True):
         """Returns the internal energy of an adsorbed molecule.
 
         Parameters
@@ -220,8 +222,8 @@ class GasMolecule:
            Internal energy in eV
         """
 
-        if not temperature or not pressure: # either None or 0
-            return(0)
+        if not temperature or not pressure:  # either None or 0
+            return (0)
         else:
             if electronic_energy == 'Default':
                 electronic_energy = molecule_dict[self.name]['electronic_energy']
@@ -243,14 +245,14 @@ class GasMolecule:
             # Returns the Gibbs free energy, in eV, in the ideal gas
             # approximation at a specified temperature (K) and pressure (Pa).
             self.free_energy = ideal_gas_object.get_gibbs_energy(temperature=temperature,
-                                                       pressure=pressure, verbose=False)
+                                                                 pressure=pressure, verbose=False)
 
             return self.free_energy
 
     def get_enthalpy(self,
                      temperature,
                      electronic_energy='Default',
-                     overbinding = True):
+                     overbinding=True):
         """Returns the internal energy of an adsorbed molecule.
 
         Parameters
@@ -266,7 +268,7 @@ class GasMolecule:
         internal_energy : numeric
         Internal energy in eV
         """
-        if not temperature: # either None or 0
+        if not temperature:  # either None or 0
             return (0, 0, 0)
 
         if electronic_energy == 'Default':
@@ -314,7 +316,7 @@ def get_ZPE(viblist):
         l = viblist
     l = [float(w) for w in l]
 
-    return 0.5*sum(l)*cm2ev
+    return 0.5 * sum(l) * cm2ev
 
 
 def auto_labels(df):
@@ -366,10 +368,11 @@ def proton_hydroxide_free_energy(temperature, pressure, pH):
     H2O = GasMolecule('H2O')
     G_H2 = H2.get_free_energy(temperature=temperature, pressure=pressure)
     G_H2O = H2O.get_free_energy(temperature=temperature)
-    G_H = (0.5*G_H2) - ((R*temperature)/(z*F))*ln10*pH
+    G_H = (0.5 * G_H2) - ((R * temperature) / (z * F)) * ln10 * pH
     G_OH = G_H2O - G_H  # Do not need Kw when water equilibrated
 
     return G_H, G_OH, G_H2O
+
 
 def get_FEC(molecule_list,
             temperature,
@@ -391,7 +394,7 @@ def get_FEC(molecule_list,
     """
 
     if not temperature or not pressure:
-        return(0)
+        return (0)
 
     else:
         molecule_list = [m for m in molecule_list if m != 'star']
@@ -407,7 +410,7 @@ def get_FEC(molecule_list,
                     ee = mol.electronic_energy
                 else:
                     ee = electronic_energy
-                FEC = mol.get_free_energy(temperature=temperature, pressure=p, electronic_energy = ee)
+                FEC = mol.get_free_energy(temperature=temperature, pressure=p, electronic_energy=ee)
                 FEC_sum.append(FEC)
             if 'star' in molecule:
                 FEC = Adsorbate(molecule.replace('star', ''))
@@ -425,13 +428,13 @@ def get_list_from_df(df,
     else:
         return []
 
+
 def plot_reaction_scheme(df,
                          temperature,
                          pressure,
                          potential,
                          pH,
                          e_lim=None):
-
     """Returns a matplotlib object with the plotted reaction path.
 
     Parameters
@@ -450,8 +453,8 @@ def plot_reaction_scheme(df,
     fig: matplotlib object.
     """
 
-    ncols = int((df.shape[0]/20)) +1
-    fig_width = ncols + 1.5*len(df['intermediate_labels'][0])
+    ncols = int((df.shape[0] / 20)) + 1
+    fig_width = ncols + 1.5 * len(df['intermediate_labels'][0])
     figsize = (fig_width, 6)
     fig, ax = plt.subplots(figsize=figsize)
 
@@ -478,8 +481,8 @@ def plot_reaction_scheme(df,
                         dashes=(3, 2), color=colors[j], linewidth=1.)
             else:
                 if ts[i]:
-                    xts = [R[i-1][1], R[i][0], R[i+1][0]]
-                    yts = [energy_list[i-1], energy_list[i], energy_list[i+1]]
+                    xts = [R[i - 1][1], R[i][0], R[i + 1][0]]
+                    yts = [energy_list[i - 1], energy_list[i], energy_list[i + 1]]
                     z1 = np.polyfit(xts, yts, 2)
                     xp1 = np.linspace(xts[0], xts[2], 100)
                     p1 = np.poly1d(z1)
@@ -497,7 +500,7 @@ def plot_reaction_scheme(df,
                 else:
                     ax.plot(n, E[i], ls='-', color=colors[j], linewidth=3.25, solid_capstyle='round',
                             path_effects=[pe.Stroke(linewidth=6, foreground=edge_colors[j]), pe.Normal()])
-                    if i < len(R) - 1 and not ts[i+1]:
+                    if i < len(R) - 1 and not ts[i + 1]:
                         ax.plot([n[1], n[1] + 0.5], [E[i], E[i + 1]], ls='--',
                                 dashes=(3, 2), color=colors[j], linewidth=1.)
 
@@ -512,17 +515,17 @@ def plot_reaction_scheme(df,
     plt.xticks(np.arange(len(reaction_labels)) + 0.25, tuple(reaction_labels), rotation=45)
     # plt.tight_layout()
 
-    a = ax.get_xlim()[1]+0.05*ax.get_xlim()[1]
-    b = ax.get_ylim()[0]+0.05*ax.get_ylim()[1]
+    a = ax.get_xlim()[1] + 0.05 * ax.get_xlim()[1]
+    b = ax.get_ylim()[0] + 0.05 * ax.get_ylim()[1]
 
     if potential is not None and pH is not None:
         ax.text(a, b, 'U = ' + str(potential) + ' eV vs. SHE \n pH = '
-                     + str(pH)+' \n T = '+str(temperature)
-                     + ' K \n p = '+pressure_label + ' mbar', fontsize=12)
+                + str(pH) + ' \n T = ' + str(temperature)
+                + ' K \n p = ' + pressure_label + ' mbar', fontsize=12)
     else:
-        ax.text(a, b, 'T = '+str(temperature)
-                + ' \n p = '+pressure_label
-                + ' mbar',fontsize=12)
+        ax.text(a, b, 'T = ' + str(temperature)
+                + ' \n p = ' + pressure_label
+                + ' mbar', fontsize=12)
     plt.tight_layout()
     return fig
 
@@ -544,10 +547,10 @@ def select_data(db_file, slab=None, facet=None):
     cur = con.cursor()
     if slab and facet:
         select_command = 'select chemical_composition, facet, reactants, products, reaction_energy ' \
-                     'from reaction where facet='+str(facet)+' and chemical_composition LIKE "%'+slab+'%";'
+                         'from reaction where facet=' + str(facet) + ' and chemical_composition LIKE "%' + slab + '%";'
     elif slab and not facet:
         select_command = 'select chemical_composition, facet, reactants, products, reaction_energy ' \
-             'from reaction where chemical_composition LIKE "%'+slab+'%";'
+                         'from reaction where chemical_composition LIKE "%' + slab + '%";'
     else:
         select_command = 'select chemical_composition, facet, reactants, products, reaction_energy from reaction;'
     cur.execute(select_command)
@@ -560,17 +563,17 @@ def file_to_df(file_name):
 
     Parameters
     ----------
-    filename : Filename including path.
+    file_name : Filename including path.
 
     Returns
     -------
     df : pandas data frame
     """
     filename, file_extension = os.path.splitext(file_name)
-    if file_extension=='.csv':
-        df = pd.read_csv(file_name, sep=',', header=0).iloc[:,:]
-    elif file_extension=='.tsv':
-        df = pd.read_csv(file_name, sep='\t', header=0).iloc[:,:]
+    if file_extension == '.csv':
+        df = pd.read_csv(file_name, sep=',', header=0).iloc[:, :]
+    elif file_extension == '.tsv':
+        df = pd.read_csv(file_name, sep='\t', header=0).iloc[:, :]
     else:
         print('Please provide valid csv or tsv file format with header names.')
     return df
@@ -629,7 +632,6 @@ def db_to_df(db_file, slabs=None, facet=None):
 
 
 def read_tsv_input(infile):
-
     """Reads tsv-type of input. Input mut have all necessary column names.
 
     Parameters
@@ -652,11 +654,10 @@ def read_tsv_input(infile):
     df['labels'] = labs
     df = df.sort_values(by=['facet', 'system'])
     df = df.reset_index(drop=True)
-    return(df)
+    return (df)
 
 
 def get_unique_reactions(df):
-
     """Identifies unique elementary reactions in data frame.
 
     Parameters
@@ -668,7 +669,7 @@ def get_unique_reactions(df):
     reaction_list : List of unique elementary reactions.
     """
 
-    reaction_list =[]
+    reaction_list = []
     for idx, entry in enumerate(df['reactants']):
         reaction = []
         for x in entry:
@@ -701,7 +702,7 @@ class ReactionNetwork:
                  overbinding_corrections=None,
                  solvation_corrections=None,
                  corrections=None
-    ):
+                 ):
         """ReactionNetwork object with analysis
         and plotting funcitonality.
         Supply input file to initialize values.
@@ -750,7 +751,7 @@ class ReactionNetwork:
 
     @classmethod
     def init_from_df(cls,
-                     filepath = None,
+                     filepath=None,
                      **kw):
         if Path(filepath).exists():
             df_init = read_tsv_input(filepath)
@@ -759,7 +760,7 @@ class ReactionNetwork:
 
     @classmethod
     def init_from_db(cls,
-                     filepath = None,
+                     filepath=None,
                      **kw):
         if Path(filepath).exists():
             df_init_db = db_to_df(filepath)
@@ -838,7 +839,7 @@ class ReactionNetwork:
 
             m = max([len(x) for x in correction_list])
 
-            correction_list = [x if len(x) == m else [0.0]*m for x in correction_list]
+            correction_list = [x if len(x) == m else [0.0] * m for x in correction_list]
 
             if not self.net_corrections:
                 self.net_corrections = [sum(x) for x in zip(*correction_list)]
@@ -910,13 +911,13 @@ class ReactionNetwork:
 
         # intermediates
         df = pd.DataFrame({'intermediate': self.intermediates, 'betas': self.betas,
-                          'transition_state': self.transition_states})
+                           'transition_state': self.transition_states})
         n = df.shape[0]
 
         # corrections
         cols = ['net_corrections', 'dft_corrections', 'field_corrections',
                 'overbinding_corrections', 'solvation_corrections']
-        
+
         if self.corrections is None:
             df2 = pd.DataFrame(np.nan, index=[x for x in range(n)], columns=cols)
         else:
@@ -1055,7 +1056,6 @@ class ReactionNetwork:
         if show:
             plt.show()
         return plot
-
 
 
 if __name__ == '__main__':
