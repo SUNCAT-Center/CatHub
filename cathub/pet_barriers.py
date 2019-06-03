@@ -48,16 +48,11 @@ def file_to_df(file_name):
     return df
 
 
-def preprocess(filepath, position):
+def preprocess(filepath, position, smooth=False):
     """Pre-processes the data by smoothing vacuum energy fluctuations and normalizing the data."""
     # Read in and preprocess data
     df = pd.read_csv(filepath, sep='\t', header=None)
     df.columns = ['distance', 'energy']
-
-    # H2O ata are noisy at large d.
-    if not position == 'left':
-        for i in range(10):
-            df = smoothen(df)
 
     # Get dissociation energy and set Emin = 0
     df.energy = df.energy - df.energy.min()
@@ -75,6 +70,11 @@ def preprocess(filepath, position):
     else:
         df.distance = df.distance - dmin
 
+    # H2O data are noisy at large d.
+    if smooth:
+        for i in range(10):
+            df = smoothen(df)
+
     return df, De
 
 
@@ -85,6 +85,7 @@ def smoothen(df):
     :return: DataFrame with smooth data.
     """
     df_new = df.copy(deep=True)
+    df_new = df_new.sort_values(by='distance').reset_index(drop=True)
     for idx, entry in enumerate(df.energy):
         if idx == 0:
             previos_entry = entry
@@ -155,7 +156,8 @@ class PES:
             filepath=None,
             proton_donor=None,
             df=None,
-            morse_fit_error=None
+            morse_fit_error=None,
+            smooth=False
     ):
         self.position = position
         self.d_Heq = d_Heq
@@ -176,9 +178,10 @@ class PES:
     def init_from_file(cls,
                        filepath=None,
                        position='left',
+                       smooth=False,
                        **kw):
         if os.path.isfile(filepath):
-            df, De_U0 = preprocess(filepath, position)
+            df, De_U0 = preprocess(filepath, position, smooth)
             a, morse_fit_error = fit_morse(df)
             return cls(filepath=filepath,
                        position=position,
