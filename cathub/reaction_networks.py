@@ -19,9 +19,14 @@ from matplotlib.lines import Line2D
 # pd.set_option('display.max_columns',10)
 
 # Global parameters.
+
+# Numerical subscript
 num_dict = {'0': '$_{0}$', '1': '$_{1}$', '2': '$_{2}$', '3': '$_{3}$', '4': '$_{4}$',
             '5': '$_{5}$', '6': '$_{6}$', '7': '$_{7}$', '8': '$_{8}$', '9': '$_{9}$'}
 
+# File extensions for dataframes
+extdict = {'.csv': ',',
+           '.tsv': '\t'}
 
 def sub(sss):
     for key, value in num_dict.items():
@@ -557,24 +562,24 @@ def select_data(db_file, slab=None, facet=None):
     return data
 
 
-def file_to_df(file_name):
-    """Read in file and return pandas data_frame.
-
-    Parameters
-    ----------
-    file_name : Filename including path.
-
-    Returns
-    -------
-    df : pandas data frame
+def file_to_df(filename):
     """
-    filename, file_extension = os.path.splitext(file_name)
-    if file_extension == '.csv':
-        df = pd.read_csv(file_name, sep=',', header=0).iloc[:, :]
-    elif file_extension == '.tsv':
-        df = pd.read_csv(file_name, sep='\t', header=0).iloc[:, :]
-    else:
-        print('Please provide valid csv or tsv file format with header names.')
+    :param filename: Full path to file including filename.
+    :return: df pd.DataFrame
+    """
+
+
+    if not os.path.isfile(filename):
+        raise FileNotFoundError
+
+
+
+    filepath, file_extension = os.path.splitext(filename)
+    if not file_extension in extdict.keys():
+        raise ValueError('Valid input formats are .csv and .tsv')
+    df = pd.read_csv(filename, sep=extdict[file_extension], header=0)
+    if 'Unnamed: 0' in df.columns:
+        df = df.drop(columns=['Unnamed: 0'], axis=1)
     return df
 
 
@@ -630,7 +635,7 @@ def db_to_df(db_file, slabs=None, facet=None):
     return df
 
 
-def read_tsv_input(infile):
+def read_df_input(infile):
     """Reads tsv-type of input. Input mut have all necessary column names.
 
     Parameters
@@ -639,21 +644,18 @@ def read_tsv_input(infile):
 
     df = file_to_df(infile)
 
-    for i, st in enumerate(df.reactants):
-        sl = st.split('+')
-        sl = [w.strip(' ') for w in sl]
-        df.at[i, 'reactants'] = sl
+    for case in ['reactants', 'products']:
+        for i, stringlist in enumerate(df[case]):
+            newlist = stringlist.strip("[]").split(',')
+            newlist = [w.strip(' \'\"') for w in newlist]
+            df.at[i, case] = newlist
 
-    for i, st in enumerate(df.products):
-        sl = st.split('+')
-        sl = [w.strip(' ') for w in sl]
-        df.at[i, 'products'] = sl
-
-    labs = auto_labels(df)
-    df['labels'] = labs
+    if 'labels' not in df.columns:
+        labs = auto_labels(df)
+        df['labels'] = labs
     df = df.sort_values(by=['facet', 'system'])
     df = df.reset_index(drop=True)
-    return (df)
+    return df
 
 
 def get_unique_reactions(df):
@@ -683,14 +685,24 @@ def get_unique_reactions(df):
     return reaction_list
 
 
+def input_length(list_of_lists):
+    list_of_lists = [[] if pl is None else pl for pl in list_of_lists]
+    list_lengths = [len(pl) for pl in list_of_lists]
+    if len(list(set(list_lengths))) > 2:
+        raise ValueError('Inconsistent set of parameters. '
+                         'Make sure all parameter lists provided have the same length.')
+    else:
+        return max(list_lengths)
+
+
 class ReactionNetwork:
     def __init__(self,
                  df=None,
                  db=None,
+                 intermediate_file=None,
                  intermediates=None,
                  betas=None,
                  transition_states=None,
-                 df_react=None,
                  temperature='standard_conditions',
                  pressure='standard_conditions',
                  pH='standard_conditions',
@@ -699,25 +711,36 @@ class ReactionNetwork:
                  dft_corrections=None,
                  field_corrections=None,
                  overbinding_corrections=None,
-                 solvation_corrections=None,
-                 corrections=None
+                 solvation_corrections=None
                  ):
         """ReactionNetwork object with analysis
         and plotting funcitonality.
         Supply input file to initialize values.
         """
 
-        # File-related attributes
+        # --- Data ---
         self.df = df
         self.db = db
+        self.intermediate_file = intermediate_file
 
-        # Reaction-related attributes
+        # --- Intermediate parameters ---
         self.intermediates = intermediates
         self.betas = betas
         self.transition_states = transition_states
-        self.df_react = df_react
 
-        # Conditions
+        self.net_corrections = net_corrections
+        self.dft_corrections = dft_corrections
+        self.field_corrections = field_corrections
+        self.overbinding_corrections = overbinding_corrections
+        self.solvation_corrections = solvation_corrections
+
+        self.corrections = None
+        self._intermediate_parameters = None
+
+        # --- Reaction conditions ---
+        self._reaction_conditions = None
+        self._df_react = None
+
         if temperature == 'standard_conditions':
             self.temperature = StandardConditions['temperature']
         else:
@@ -738,22 +761,12 @@ class ReactionNetwork:
         else:
             self.potential = potential
 
-        # Corrections
-        self.net_corrections = net_corrections
-        self.dft_corrections = dft_corrections
-        self.field_corrections = field_corrections
-        self.overbinding_corrections = overbinding_corrections
-        self.solvation_corrections = solvation_corrections
-        self.corrections = corrections
-
-        self._intermediate_parameters = None
-
     @classmethod
     def init_from_df(cls,
                      filepath=None,
                      **kw):
         if os.path.isfile(filepath):
-            df_init = read_tsv_input(filepath)
+            df_init = read_df_input(filepath)
             return cls(df=df_init,
                        **kw)
 
@@ -766,30 +779,7 @@ class ReactionNetwork:
             return cls(df=df_init_db,
                        **kw)
 
-    def read_corrections(self, filename):
-        df = file_to_df(filename)
-        self.intermediates = get_list_from_df(df=df, pattern='int')
-        self.betas = get_list_from_df(df=df, pattern='beta')
-        self.transition_states = get_list_from_df(df=df, pattern='tran')
-        self.set_corrections(net_corrections=get_list_from_df(df=df, pattern='net'),
-                             dft_corrections=get_list_from_df(df=df, pattern='dft'),
-                             field_corrections=get_list_from_df(df=df, pattern='field'),
-                             overbinding_corrections=get_list_from_df(df=df, pattern='bind'),
-                             solvation_corrections=get_list_from_df(df=df, pattern='sol'),
-                             )
-        return None
-
-    def write_corrections(self, filename):
-        _ = self.intermediate_parameters
-        _, file_extension = os.path.splitext(filename)
-        if file_extension == '.csv':
-            self._intermediate_parameters.to_csv(filename, header=True)
-        elif file_extension == '.tsv':
-            self._intermediate_parameters.to_csv(filename, sep='\t', header=True)
-        else:
-            print('Filename should have extension .tsv or .csv')
-        return None
-
+    # --- CONDITIONS ---
     def use_standard_conditions(self):
         self.temperature = StandardConditions['temperature']
         self.pressure = StandardConditions['pressure']
@@ -797,7 +787,12 @@ class ReactionNetwork:
         self.potential = StandardConditions['potential']
         return None
 
-    def set_conditions(self, temperature=None, pressure=None, pH=None, potential=None):
+    def set_conditions(self,
+                       temperature=None,
+                       pressure=None,
+                       pH=None,
+                       potential=None):
+
         if temperature is not None:
             self.temperature = temperature
         if pressure is not None:
@@ -808,6 +803,40 @@ class ReactionNetwork:
             self.potential = potential
         return None
 
+    @property
+    def reaction_conditions(self):
+        self._reaction_conditions = {'temperature': self.temperature,
+                                     'pressure': self.pressure,
+                                     'pH': self.pH,
+                                     'potential': self.potential}
+        return self._reaction_conditions
+
+    # --- INTERMEDIATE PARAMETERS---
+    def set_intermediates(self,
+                          intermediates=None,
+                          betas=None,
+                          transition_states=None):
+
+        if any([intermediates, betas, transition_states]):
+            # check for input consistency
+            _ = input_length([intermediates, betas, transition_states])
+            if intermediates:
+                self.intermediates = intermediates
+            if betas:
+                self.betas = betas
+            if transition_states:
+                self.transition_states = transition_states
+
+        # If not set previously, and also not provided now:
+        if not self.intermediates:
+            raise ValueError('No proper intermediate list supplied.')
+
+        if not self.betas:
+            self.betas = [0.0 for _ in self.intermediates]
+        if not self.transition_states:
+            self.transition_states = [False for _ in self.intermediates]
+        return None
+
     def set_corrections(self,
                         net_corrections=None,
                         dft_corrections=None,
@@ -815,15 +844,20 @@ class ReactionNetwork:
                         overbinding_corrections=None,
                         solvation_corrections=None):
 
+        # Set partial corrections
         self.net_corrections = net_corrections
         self.dft_corrections = dft_corrections
         self.field_corrections = field_corrections
         self.overbinding_corrections = overbinding_corrections
         self.solvation_corrections = solvation_corrections
 
-        if any([self.net_corrections, self.dft_corrections, self.field_corrections,
-                self.overbinding_corrections, self.solvation_corrections]):
+        # If no values are supplied at all, corrections remain None
+        if not any([self.net_corrections, self.dft_corrections, self.field_corrections,
+                    self.overbinding_corrections, self.solvation_corrections]):
+            self.corrections = None
 
+        # Otherwise create new dataframe of corrections
+        else:
             names = ['net_corrections',
                      'dft_corrections',
                      'field_corrections',
@@ -836,103 +870,98 @@ class ReactionNetwork:
                                self.overbinding_corrections,
                                self.solvation_corrections]
 
-            m = max([len(x) for x in correction_list])
+            # Check for input consistency
+            m = input_length(correction_list)
+            correction_list = [[] if sublist is None else sublist for sublist in correction_list]
+            correction_list = [pl if len(pl) == m else [0.0] * m for pl in correction_list]
 
-            correction_list = [x if len(x) == m else [0.0] * m for x in correction_list]
-
+            # Compute net corrections from sub-corrections if necessary
             if not self.net_corrections:
-                self.net_corrections = [sum(x) for x in zip(*correction_list)]
+                self.net_corrections = [sum(pl) for pl in zip(*correction_list)]
 
-            D = dict(zip(names, correction_list))
-            print(D)
-            self.corrections = pd.DataFrame(D)
-
-        else:
-            self.corrections = None
-
-        _ = self.intermediate_parameters
-
+            correction_dict = dict(zip(names, correction_list))
+            self.corrections = pd.DataFrame(correction_dict)
         return None
 
-    def set_intermediates(self,
-                          intermediates=None,
-                          betas=None,
-                          transition_states=None):
+    def intermediate_parameters_from_file(self, filename):
+        df = file_to_df(filename)
+        self.intermediate_file = filename
 
-        """Sets up intermediates and specifies whether it's an electrochemical step.
-        Either provide individual contributions or net contributions. If both are given,
-        only the net contributions are used.
+        # Intermediates
+        self.intermediates = get_list_from_df(df=df, pattern='intermediate')
+        self.betas = get_list_from_df(df=df, pattern='betas')
+        self.transition_states = get_list_from_df(df=df, pattern='transition_states')
 
-        intermediate_list: list of basestrings
-        transition_states: list of True and False
-        electrochemical_steps: list of True and False
-        betas = list of charge transfer coefficients
-        net_corrections: A sum of all contributions per intermediate.
-        """
+        # Set corrections
+        self.net_corrections = get_list_from_df(df=df, pattern='net_corrections')
+        self.dft_corrections = get_list_from_df(df=df, pattern='dft_corrections')
+        self.field_corrections = get_list_from_df(df=df, pattern='field_corrections')
+        self.overbinding_corrections = get_list_from_df(df=df, pattern='overbinding_corrections')
+        self.solvation_corrections = get_list_from_df(df=df, pattern='solvation_corrections')
 
-        if any([intermediates, betas, transition_states]):
-            if intermediates:
-                self.intermediates = intermediates
-            if betas:
-                self.betas = betas
-            if transition_states:
-                self.transition_states = transition_states
-
-        if not self.betas:
-            self.betas = [0.0 for _ in self.intermediates]
-
-        if not self.transition_states:
-            self.transition_states = [False for _ in self.intermediates]
-
-        if self.corrections is None:
-            self.net_corrections = [0.0 for _ in self.intermediates]
-
-        # check if all lists have same length:
-        props = [len(self.intermediates),
-                 len(self.net_corrections),
-                 len(self.transition_states),
-                 len(self.betas)]
-
-        if not len(set(props)) <= 1:
-            raise ValueError('intermediate, net_corrections, transition_states and '
-                             'betas all have to have the same length')
+        # Check resulting parameters
+        _ = self.intermediate_parameters
 
         return None
 
     @property
     def intermediate_parameters(self):
         if not self.intermediates:
-            print('Specify intermediates via the set_intermediate() function '
-                  'before setting intermediate parameters.')
-            return None
+            raise ValueError('Specify intermediates inquiring intermediate parameters.')
 
-        self.set_intermediates()
+        # Set generic intermediate parameters first
+        self.set_intermediates(intermediates=self.intermediates,
+                               betas=self.betas,
+                               transition_states=self.transition_states)
 
-        # intermediates
-        df = pd.DataFrame({'intermediate': self.intermediates, 'betas': self.betas,
-                           'transition_state': self.transition_states})
-        n = df.shape[0]
+        # Set corrections:
+        self.set_corrections(net_corrections=self.net_corrections,
+                             dft_corrections=self.dft_corrections,
+                             field_corrections=self.field_corrections,
+                             overbinding_corrections=self.overbinding_corrections,
+                             solvation_corrections=self.solvation_corrections)
 
-        # corrections
-        cols = ['net_corrections', 'dft_corrections', 'field_corrections',
-                'overbinding_corrections', 'solvation_corrections']
-
+        # If no corrections have been supplied at any time:
         if self.corrections is None:
-            df2 = pd.DataFrame(np.nan, index=[x for x in range(n)], columns=cols)
-        else:
-            df2 = self.corrections
+            self.net_corrections = [0.0 for _ in self.intermediates]
 
-        # merge both
-        self._intermediate_parameters = pd.concat([df, df2], sort=False, axis=1)
+        # At this point all values should have the same length
+        all_generic_params = [len(self.intermediates),
+                              len(self.transition_states),
+                              len(self.betas),
+                              len(self.net_corrections)]
+        if len(set(all_generic_params)) > 1:
+            raise ValueError('Intermediate list, transition_states, betas and net_corrections are inconsistent.')
+
+        # Finally join intermediates and corrections.
+        df_int = pd.DataFrame({'intermediate': self.intermediates, 'betas': self.betas,
+                           'transition_state': self.transition_states})
+        if self.corrections is None:
+            cols = ['net_corrections', 'dft_corrections', 'field_corrections',
+                    'overbinding_corrections', 'solvation_corrections']
+            df_corr = pd.DataFrame(np.nan, index=[x for x in range(df_int.shape[0])], columns=cols)
+        else:
+            df_corr = self.corrections
+
+        # Merge intermediates and corrections
+        self._intermediate_parameters = pd.concat([df_int, df_corr], sort=False, axis=1)
 
         return self._intermediate_parameters
 
+    def write_intermediate_parameters(self, filename):
+        _ = self.intermediate_parameters
+        _, file_extension = os.path.splitext(filename)
+        if file_extension not in extdict.keys():
+            raise ValueError('Filename should have extension .tsv or .csv')
+        self._intermediate_parameters.to_csv(filename, sep=extdict[file_extension], header=True)
+        return None
+
+    # --- REACTIONS ---
     @property
     def unique_reactions(self):
         """Analyses reaction networks and returns unique elementary reactions. """
         return get_unique_reactions(self.df)
 
-    # REACTION SCHEME
     def reaction_scheme(self,
                         df,
                         temperature,
@@ -957,7 +986,8 @@ class ReactionNetwork:
         df : DataFrame suitable for plotting.
         """
 
-        self.set_intermediates()
+        # Ensure consistent input
+        _ = self.intermediate_parameters
 
         # set reaction scheme
         reactions = self.intermediates
@@ -1043,18 +1073,21 @@ class ReactionNetwork:
         df_new['system'] = surface
         df_new['transition_states'] = transition_states
         df_new = df_new.sort_values(by=['facet', 'system'])
-        self.df_react = df_new.reset_index(drop=True)
-        return self.df_react
+        self._df_react = df_new.reset_index(drop=True)
+        return self._df_react
 
-    def plot_network(self, show=False):
-        self.reaction_scheme(self.df, potential=self.potential, pH=self.pH,
-                             temperature=self.temperature, pressure=self.pressure)
+    def plot_network(self):
+        _ = self.reaction_scheme(df=self.df,
+                             potential=self.potential,
+                             pH=self.pH,
+                             temperature=self.temperature,
+                             pressure=self.pressure)
 
-        plot = plot_reaction_scheme(self.df_react, temperature=self.temperature, pressure=self.pressure,
-                                    pH=self.pH, potential=self.potential)
-        if show:
-            plt.show()
-        return plot
+        return plot_reaction_scheme(self._df_react,
+                                    temperature=self.temperature,
+                                    pressure=self.pressure,
+                                    pH=self.pH,
+                                    potential=self.potential)
 
 
 if __name__ == '__main__':
