@@ -6,26 +6,28 @@ import seaborn as sns
 
 from scipy.optimize import curve_fit
 
-sns.set_style('white')
-sns.set_palette(sns.hls_palette(6, h=0.5, l=0.4, s=0.5))
+# Plotting settings
+plt.rc('text', usetex=True)
 font = {'size': 18}
 plt.rc('font', **font)
 
+sns.set_style('white')
+sns.set_palette(sns.hls_palette(8, h=0.5, l=0.4, s=0.5))
+
 # Etot(H) - 1/2 Etot(H2), DFT, QE, BEEF-vdW
-H2_dissociation_energy = 3.3087431266500005
-H2_zpe = 0.276
-dG_H2_diss = H2_dissociation_energy - 0.5*H2_zpe
+H2_dissociation_energy = 3.3087431266500005     # eV
+H2_zpe = 0.276      # eV
+dG_H2_diss = H2_dissociation_energy - 0.5*H2_zpe        # eV
 
 # # https://doi.org/10.1016/0022-2852(61)90111-4
 De_H2_exp = 4.7469853
 
 proton_donors = {
-    'H2O':  {'a': 1.70815017,
+    'H2O':  {'a': 3.4476896031249296,
              'De': dG_H2_diss},
-    'H3O+': {'a': 2.14555189,
+    'H3O+': {'a': 2.145551886772839,
              'De': dG_H2_diss}
     }
-
 
 def file_to_df(file_name):
     """Read in file and return pandas data_frame.
@@ -52,7 +54,11 @@ def preprocess(filepath, position, smooth=False):
     """Pre-processes the data by smoothing vacuum energy fluctuations and normalizing the data."""
     # Read in and preprocess data
     df = pd.read_csv(filepath, sep='\t', header=None)
-    df.columns = ['distance', 'energy']
+    if isinstance(df.iloc[0, -1], float):
+        df = pd.read_csv(filepath, sep='\t', header=None)
+        df.columns = ['distance', 'energy']
+    else:
+        df = pd.read_csv(filepath, sep='\t', header=0)
 
     # Get dissociation energy and set Emin = 0
     df.energy = df.energy - df.energy.min()
@@ -148,7 +154,7 @@ class PES:
     def __init__(
             self,
             position='left',
-            d_Heq=1.0,
+            deq=0.0,
             potential=0.0,
             g_rel=0.0,
             a=None,
@@ -157,10 +163,9 @@ class PES:
             proton_donor=None,
             df=None,
             morse_fit_error=None,
-            smooth=False
     ):
         self.position = position
-        self.d_Heq = d_Heq
+        self.d_Heq = deq
         self.U = potential
         self.g_rel = g_rel
 
@@ -187,8 +192,8 @@ class PES:
                        position=position,
                        De_U0=De_U0,
                        df=df,
-                       a=a,
-                       morse_fit_error=morse_fit_error,
+                       a=a[0],
+                       morse_fit_error=morse_fit_error[0],
                        **kw)
 
     @classmethod
@@ -202,7 +207,7 @@ class PES:
 
     @classmethod
     def init_from_database(cls,
-                           proton_donor ='H2O',
+                           proton_donor='H2O',
                            **kw):
         h_dict = proton_donors[proton_donor]
         return cls(a=h_dict['a'],
@@ -241,7 +246,7 @@ class PES:
         return (1 - np.exp(-self.a * r))**2
 
     def plot_morse(self,
-                   xlim=(-0,5),
+                   xlim=(-5,5),
                    ylim=(-5,5),
                    title=None):
         """
@@ -256,8 +261,8 @@ class PES:
         ax.plot(x, self.morse(r=x), '--',
                 label='Morse: a=%5.3f' % self.a)
         ax.axhline(color='k', zorder=0, lw=0.6)
-        ax.set_xlabel('Distance d ($\AA$)')
-        ax.set_ylabel('Energy E (eV)')
+        ax.set_xlabel('d ($\mathrm{\AA}$)')
+        ax.set_ylabel('E (eV)')
         ax.legend()
         ax.set_title(title)
         ax.set_xlim(xlim)
@@ -290,8 +295,11 @@ class Energy:
         self.left = left
         self.right = right
         self.r_corr = np.linspace(self.left.d_Heq, self.right.d_Heq, 1000)
-        self.adiabatic_correction()
-        self._beta = None
+        self.dG = np.abs(self.right.De - self.left.De)
+        # self.adiabatic_correction()
+        _ = self.diabatic_intercept()
+        _ = self.cross_coupling_correction()
+
 
     def morse_left(self, r=None):
         """
@@ -313,11 +321,11 @@ class Energy:
             r = self.x
         return self.right.De * (1 - np.exp(-self.right.a * (self.right.d_Heq - r))) ** 2 - self.right.De
 
-    def interception(self,
+    def plot_intercepts(self,
                      adiabatic=False,
-                     plot=False,
                      xlim=(0.5, 4.),
-                     ylim=(-7, 2.)):
+                     ylim=(-7, 2.),
+                     title=None):
         """
         Calculates and, if desired, plots interception between Morse potentials.
         :param adiabatic: Whether to calculate the interception with adiabatic correction.
@@ -328,66 +336,48 @@ class Energy:
         yint is the y position of the transition state (refer to potential well depth to
         get the activation energy)
         """
-        a = self.morse_left()
-        b = self.morse_right()
 
-        # Find intercept
-        xint_list = list(self.x[np.argwhere(np.diff(np.sign(a - b))).flatten()])
-        yint_list = []
-        for xi in xint_list:
-            yint_list.append(self.morse_left(r=xi))
+        fig, ax = plt.subplots(figsize=(8, 5))
 
-        if len(xint_list) == 1 and xint_list[0] < self.left.d_Heq:
-            self.xint = self.left.d_Heq
-            self.yint = -self.left.De
-        else:
-            yint_list = [a[0] for a in yint_list]
-            val, idx = min((val, idx) for (idx, val) in enumerate(yint_list))
-            self.xint = xint_list[idx]
-            self.yint = val
+        # Plot diabatic curves and intercept
+        ax.plot(self.x, self.morse_left(), ls='-.', label='left diabatic PES')
+        ax.plot(self.x, self.morse_right(), ls='--', label='right diabatic PES')
+        ax.plot([self.xint], [self.yint], marker='o', markersize=6.0,
+                c='grey', markeredgecolor='k', ls='',
+                label='E$^{a}_{left}$ = %5.2f eV' % self.Ea_di_left)
+        ax.plot([self.xint], [self.yint], marker='o', markersize=6.0,
+                c='grey', markeredgecolor='k', ls='',
+                label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_di_right)
 
-        self.Ea_left = self.yint + self.left.De
-        self.Ea_right = self.yint + self.right.De
+        # Plot adiabatic curves and intercept
+        if adiabatic:
+            ax.plot(self.r_corr, self.Vad, ls='-', label='adiabatic PES')
+            ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
+                    c='w', markeredgecolor='b', ls='',
+                    label='E$^{a}_{left}$ = %5.2f eV' % self.Ea_ad_left)
+            ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
+                    c='w', markeredgecolor='b', ls='',
+                    label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_ad_right)
 
-        if plot:
-            fig, ax = plt.subplots(figsize=(8, 5))
+        ax.set_xlabel(r'Distance to right proton donor position ($\mathrm{\AA}$)')
+        ax.set_ylabel('Energy (eV)')
 
-            # Plot diabatic curves and intercept
-            ax.plot(self.x, a, label='dia-left')
-            ax.plot(self.x, b, label='dia-right')
-            ax.plot([self.xint], [self.yint], marker='o', markersize=6.0,
-                    c='grey', markeredgecolor='k', ls='',
-                    label='E$^{a}_{left}$ = %5.2f eV' % self.Ea_left)
-            ax.plot([self.xint], [self.yint], marker='o', markersize=6.0,
-                    c='grey', markeredgecolor='k', ls='',
-                    label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_right)
+        ax.set_xlim(xlim)
+        ax.set_ylim(ylim)
 
-            # Plot adiabatic curves and intercept
-            if adiabatic:
-                ax.plot(self.r_corr, self.adia_left, label='adia-left')
-                ax.plot(self.r_corr, self.adia_right, label='adia-right')
-                ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
-                        c='w', markeredgecolor='b', ls='',
-                        label='E$^{a}_{left}$ = %5.2f eV' % self.Ea_ad_left)
-                ax.plot([self.xint_ad], [self.yint_ad], marker='o', markersize=6.0,
-                        c='w', markeredgecolor='b', ls='',
-                        label='E$^{a}_{right}$ = %5.2f eV' % self.Ea_ad_right)
+        ax.legend(loc=2, bbox_to_anchor=(1.0, 1.0))
 
-            ax.set_xlabel('Distance to right proton donor position ($\AA$)')
-            ax.set_ylabel('Energy (eV)')
+        if title is not None:
+            ax.set_title(title)
 
-            ax.set_xlim(xlim)
-            ax.set_ylim(ylim)
+        plt.tight_layout()
 
-            ax.legend(loc=2, bbox_to_anchor=(1.0, 1.0))
-            plt.show()
-        return self.xint, self.yint
+        return fig
 
     @ property
     def beta_left(self):
         """Calculates charge transfer coefficient for forward reaction."""
         if not self._beta:
-            _ = self.interception()
             self._beta_left = self.left.morse_norm(self.xint-self.left.d_Heq)
         return self._beta_left
 
@@ -395,11 +385,40 @@ class Energy:
     def beta_right(self):
         """Calculates charge transfer coefficient for backward reaction."""
         if not self._beta:
-            _ = self.interception()
             self._beta_right = self.right.morse_norm(self.xint-self.right.d_Heq)
         return self._beta_right
 
-    def adiabatic_correction(self):
+    def diabatic_intercept(self):
+        # Find intercept
+        a = self.morse_right()
+        b = self.morse_left()
+        xint_list = list(self.x[np.argwhere(np.diff(np.sign(a - b))).flatten()])
+        yint_list = []
+        for xi in xint_list:
+            yint_list.append(self.morse_left(r=xi))
+
+        if len(xint_list) == 1:
+            self.xint = self.left.d_Heq
+            self.yint = -self.left.De
+        elif len(xint_list) > 1:
+            if isinstance(yint_list[0], np.ndarray):
+                yint_list = [a[0] for a in yint_list]
+            val, idx = min((val, idx) for (idx, val) in enumerate(yint_list))
+            self.xint = xint_list[idx]
+            self.yint = val
+        else:
+            raise ValueError
+
+        self.Ea_di_left = self.yint + self.left.De
+        self.Ea_di_right = self.yint + self.right.De
+
+        if max([self.Ea_di_left, self.Ea_di_right]) < self.dG:
+            self.Ea_di_left = 0.
+            self.Ea_di_right = 0.
+
+        return self.Ea_di_left, self.Ea_di_right
+
+    def adiabatic_correction(self):    # PREVIOUS VERSION; NOT IN USE!
         """
         Calculates the adiabatic curves, intercepts and activation barriers.
         :return: Forward and backward adiabatic activation energy.
@@ -422,6 +441,68 @@ class Energy:
 
         self.Ea_ad_left = self.yint_ad + self.left.De
         self.Ea_ad_right = self.yint_ad + self.right.De
+
+        if max([self.Ea_ad_left, self.Ea_ad_right]) < self.dG:
+            self.Ea_ad_left = 0.
+            self.Ea_ad_right = 0.
+
+        return self.Ea_ad_left, self.Ea_ad_right
+
+    def cross_coupling_correction_old(self):
+        """
+        Calculates the adiabatic curves, intercepts and activation barriers.
+        :return: Forward and backward adiabatic activation energy.
+        """
+        # Get Gamma values between 0 and -1 for all distances of interest
+        gamma_left = self.left.morse_norm(self.r_corr - self.left.d_Heq)       # -1-->0
+        gamma_right = self.right.morse_norm(self.right.d_Heq - self.r_corr)     # 0-->-1
+        self.gamma_left=gamma_left
+        self.gamma_right=gamma_right
+        Vdi_left = (-1)*(1-gamma_left)*self.left.De
+        Vdi_right = (-1)*(1-gamma_right)*self.right.De
+
+        # correction
+        self.V_coup = gamma_right*(1-gamma_left)*gamma_left*(1-gamma_right)*(self.right.De + self.left.De)
+        self.Vad = (Vdi_left+Vdi_right)/2 - np.sqrt(((Vdi_left-Vdi_right)/2)**2+self.V_coup)
+
+        self.yint_ad, idx = max((val, idx) for (idx, val) in enumerate(self.Vad))
+        self.xint_ad = self.r_corr[idx]
+
+        self.Ea_ad_left = self.yint_ad + self.left.De
+        self.Ea_ad_right = self.yint_ad + self.right.De
+
+        if max([self.Ea_ad_left, self.Ea_ad_right]) < self.dG:
+            self.Ea_ad_left = 0.
+            self.Ea_ad_right = 0.
+
+        return self.Ea_ad_left, self.Ea_ad_right
+
+    def cross_coupling_correction(self):
+        """
+        Calculates the adiabatic curves, intercepts and activation barriers.
+        :return: Forward and backward adiabatic activation energy.
+        """
+        # Get Gamma values between 0 and -1 for all distances of interest
+        gamma_left = self.left.morse_norm(self.r_corr - self.left.d_Heq)       # -1-->0
+        gamma_right = self.right.morse_norm(self.right.d_Heq - self.r_corr)     # 0-->-1
+        self.gamma_left=gamma_left
+        self.gamma_right=gamma_right
+        Vdi_left = (-1)*(1-gamma_left)*self.left.De
+        Vdi_right = (-1)*(1-gamma_right)*self.right.De
+
+        # correction
+        self.V_coup = gamma_right*(1-gamma_left)*self.right.De*gamma_left*(1-gamma_right)*self.left.De
+        self.Vad = (Vdi_left+Vdi_right)/2 - np.sqrt(((Vdi_left-Vdi_right)/2)**2+self.V_coup)
+
+        self.yint_ad, idx = max((val, idx) for (idx, val) in enumerate(self.Vad))
+        self.xint_ad = self.r_corr[idx]
+
+        self.Ea_ad_left = self.yint_ad + self.left.De
+        self.Ea_ad_right = self.yint_ad + self.right.De
+
+        if max([self.Ea_ad_left, self.Ea_ad_right]) < self.dG:
+            self.Ea_ad_left = 0.
+            self.Ea_ad_right = 0.
 
         return self.Ea_ad_left, self.Ea_ad_right
 
