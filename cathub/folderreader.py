@@ -541,7 +541,7 @@ class FolderReader:
             """Get supercell size relative to empty slab"""
             supercell_factor = 1
             if len(atns) > len(empty_atn) * 2:  # different supercells
-                supercell_factor = len(res_slab_atn) // len(empty_atn)
+                supercell_factor = len(atns) // len(empty_atn)
 
             """Atomic numbers of adsorbate"""
             ads_atn = []
