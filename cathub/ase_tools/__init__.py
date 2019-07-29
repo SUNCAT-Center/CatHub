@@ -173,6 +173,11 @@ def collect_structures(foldername, verbose=False, level='*'):
                         posix_filename=posix_filename,
                         e=e,
                     ))
+                except ase.io.formats.UnknownFileTypeError as e:
+                    print("Trouble reading {posix_filename}: {e}".format(
+                        posix_filename=posix_filename,
+                        e=e,
+                    ))
     return structures
 
 
