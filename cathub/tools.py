@@ -1,4 +1,5 @@
 import os
+from ase import Atoms
 
 
 def get_pub_id(title, authors, year):
@@ -23,27 +24,15 @@ def extract_atoms(molecule):
         return float(molecule)
     except BaseException:
         pass
-    atoms = ''
-    if not molecule[0].isalpha():
-        i = 0
-        while not molecule[i].isalpha():
-            i += 1
-        prefactor = float(molecule[:i])
-        if prefactor < 0:
-            prefactor = abs(prefactor)
-            sign = '-'
-        else:
-            sign = ''
-        molecule = molecule[i:]
-    else:
-        prefactor = 1
-        sign = ''
-    for k in range(len(molecule)):
-        if molecule[k].isdigit():
-            for j in range(int(molecule[k]) - 1):
-                atoms += molecule[k - 1]
-        else:
-            atoms += molecule[k]
+
+    sign = ''
+    molecule, prefactor = get_prefactor(molecule)
+    if prefactor < 0:
+        sign = '-'
+    prefactor = abs(prefactor)
+
+    atoms = Atoms(molecule)
+    atoms = atoms.get_chemical_formula(mode='all')
     if prefactor % 1 == 0:
         atoms *= int(prefactor)
     elif prefactor % 1 == 0.5:
@@ -55,7 +44,6 @@ def extract_atoms(molecule):
                 atoms += atoms_sort[n]
             if n % 2 == 0:
                 atoms += atoms_sort[n]
-
     return sign + ''.join(sorted(atoms))
 
 
@@ -143,8 +131,8 @@ def clear_prefactor(molecule):
     return molecule
 
 
-def get_atoms(molecule):
-    molecule = clear_state(molecule)
+def get_prefactor(molecule):
+
     if molecule == '':
         prefactor = 1
         return molecule, prefactor
@@ -163,16 +151,6 @@ def get_atoms(molecule):
         molecule = molecule[i:]
     else:
         prefactor = 1
-
-    temp = ''
-    for k in range(len(molecule)):
-        if molecule[k].isdigit():
-            for j in range(int(molecule[k]) - 1):
-                temp += molecule[k - 1]
-        else:
-            temp += molecule[k]
-
-    molecule = ''.join(sorted(temp))
 
     return molecule, prefactor
 

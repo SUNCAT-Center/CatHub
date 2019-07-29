@@ -9,7 +9,7 @@ import numpy as np
 import ase
 from ase.utils import formula_metal
 import copy
-from cathub.tools import get_atoms, get_state, clear_prefactor
+from cathub.tools import clear_state, get_state, clear_prefactor, get_prefactor
 
 # A lot of functions from os.path
 # in python 2 moved to os. and changed
@@ -417,6 +417,17 @@ def get_reaction_from_folder(folder_name):
             mollist.append(str(n_star) + 'star')
 
     return reaction, sites
+
+
+def get_atoms(molecule):
+    molecule = clear_state(molecule)
+    molecule, prefactor = get_prefactor(molecule)
+
+    atoms = Atoms(molecule)
+
+    molecule = atoms.get_chemical_formula(mode='all')
+
+    return molecule, prefactor
 
 
 def get_reaction_atoms(reaction):
