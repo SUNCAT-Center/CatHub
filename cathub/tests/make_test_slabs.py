@@ -7,12 +7,12 @@ import ase
 import ase.build
 import ase.lattice
 import ase.io
-import ase.lattice.surface
+import ase.build
 import ase.calculators.singlepoint
 
 path = os.path.abspath(os.path.join(os.path.dirname(__file__))) + '/unorganized/'
 
-slab1 = ase.lattice.surface.fcc111('Pt', [2, 2, 4], vacuum=10)
+slab1 = ase.build.fcc111('Pt', [2, 2, 4], vacuum=10)
 slab1.set_calculator(
         ase.calculators.singlepoint.SinglePointCalculator(
             atoms=slab1,
@@ -20,7 +20,7 @@ slab1.set_calculator(
             )
         )
 ase.io.write(path + 'empty_slab_111.traj', slab1)
-ase.lattice.surface.add_adsorbate(slab1, ase.atoms.Atoms('O'), height=1.5)
+ase.build.add_adsorbate(slab1, ase.atoms.Atoms('O'), height=1.5)
 slab1.set_calculator(
         ase.calculators.singlepoint.SinglePointCalculator(
             atoms=slab1,
