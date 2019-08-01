@@ -309,6 +309,7 @@ class FolderReader:
 
             self.ase_ids_gas.update({chemical_composition: ase_id})
             self.gas.update({chemical_composition: gas})
+            print(self.ase_ids_gas)
 
     def read_bulk(self, root):
         basename = os.path.basename(root)
@@ -410,7 +411,7 @@ class FolderReader:
 
         self.reaction_atoms, self.prefactors, self.prefactors_TS, \
             self.states = ase_tools.get_reaction_atoms(self.reaction)
-
+        print(self.reaction_atoms, self.ase_ids_gas.keys())
         """Create empty dictionaries"""
         r_empty = ['' for n in range(len(self.reaction_atoms['reactants']))]
         p_empty = ['' for n in range(len(self.reaction_atoms['products']))]
@@ -685,7 +686,6 @@ class FolderReader:
                         if self.reaction[key2][mol_i] == 'star':
                             prefactor_scale[key2][mol_i] *= supercell_factor
 
-
         # Check that all structures have been found
         structurenames = [s for s in list(self.structures.keys())
                           if s not in ['reactants', 'products']]
@@ -761,9 +761,9 @@ class FolderReader:
                 self.raise_error(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
-            self.raise_error('reaction energy is very large: {} eV \n  '
+            self.raise_error('reaction energy is very large ({} eV)'
                              .format(reaction_energy) +
-                             'Folder: {}. \n  '.format(root) +
+                             'for folder: {}. \n  '.format(root) +
                              'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
         if activation_energy is not None:

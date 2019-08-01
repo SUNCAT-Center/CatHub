@@ -12,7 +12,6 @@ setuptools.setup(
     name="Cathub",
     version="0.1.5",
     url="https://github.com/SUNCAT-Center/CatHub",
-
     author="Kirsten Winther",
     author_email="winther@stanford.edu",
 
@@ -28,7 +27,6 @@ setuptools.setup(
     entry_points={'console_scripts': ['cathub=cathub.cli:cli']},
     install_requires=requirements,
     python_requires='>=3.5',
-    # dependency_links=git_requirements,
     classifiers=[
         'Development Status :: 4 - Beta',
         'Intended Audience :: Developers',

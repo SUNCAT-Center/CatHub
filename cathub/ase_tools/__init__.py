@@ -4,26 +4,15 @@ from functools import reduce
 from fractions import gcd
 from ase import Atoms
 from ase.io import read
-# from ase.io.trajectory import convert
 import numpy as np
 import ase
 from ase.utils import formula_metal
 import copy
 from cathub.tools import clear_state, get_state, clear_prefactor, get_prefactor
 
-# A lot of functions from os.path
-# in python 2 moved to os. and changed
-# their signature. Pathlib can be
-# installed under python2.X with
-# pip install pathlib2 and is in
-# standard library in Python 3,
-# hence we use it as a compatiblity
-# library
-try:
-    from pathlib import Path
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
+from pathlib import Path
+Path().expanduser()
+
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': 'Fancy title',
@@ -300,35 +289,6 @@ def get_n_layers(atoms):
     return n
 
 
-def get_bulk_composition(atoms):
-    if len(np.unique(atoms.get_atomic_numbers())) == 1:
-        return atoms.get_chemical_symbols()[0]
-
-    layer_i = get_layers(atoms)
-    top_layer_i = np.max(layer_i)
-    compositions = []
-    for i in range(0, top_layer_i + 1):
-        atom_i = np.where(layer_i == top_layer_i - i)[0]
-        atoms_layer = atoms[atom_i]
-        if len(np.unique(atoms_layer.get_atomic_numbers())) == 1:
-            c = atoms_layer.get_chemical_symbols()[0]
-            compositions.append(c)
-        else:
-            c = atoms[atom_i].get_chemical_formula(mode='metal')
-            compositions.append(c)
-
-    compositions = np.array(compositions)
-    same_next_layer = compositions[1:] == compositions[:-1]
-    bulk_compositions = compositions[:-1][same_next_layer]
-
-    if len(bulk_compositions) > 0 and \
-       all(c == bulk_compositions[0] for c in bulk_compositions):
-        bulk_composition = bulk_compositions[0]
-    else:
-        bulk_composition = None
-    return bulk_composition
-
-
 def check_in_ase(atoms, ase_db, energy=None):
     """Check if entry is allready in ASE db"""
 
@@ -341,14 +301,9 @@ def check_in_ase(atoms, ase_db, energy=None):
     ids = []
     for row in rows:
         if formula == row.formula:
-            n += 1
-            ids.append(row.id)
-    if n > 0:
-        id = ids[0]
-        unique_id = db_ase.get(id)['unique_id']
-        return id, unique_id
-    else:
-        return None, None
+            return row.id, row.unique_id
+        
+    return None, None
 
 
 def _normalize_key_value_pairs_inplace(data):
@@ -380,27 +335,10 @@ def update_ase(db_file, identity, stdout, **key_value_pairs):
 
 def get_reaction_from_folder(folder_name):
     reaction = {}
-    if '__' in folder_name:  # Complicated reaction
-        if '-' in folder_name and '_-' not in folder_name:
-            # intermediate syntax
-            a, b = folder_name.split('-')
-            folder_name = a + '_-' + b
+    assert '__' in folder_name, "Please use __ as reaction arrow"
 
-        reaction.update({'reactants': folder_name.split('__')[0].split('_'),
-                         'products': folder_name.split('__')[1].split('_')})
-
-    elif '_' in folder_name:  # Standard format
-        AB, A, B = folder_name.split('_')
-        if '-' in A:
-            A = A.split('-')
-            A[1] = '-' + A[1]
-            products = [A[0], A[1], B]
-        else:
-            products = [A, B]
-        reaction.update({'reactants': [AB],
-                         'products': products})
-    else:
-        raise AssertionError('problem with folder {}'.format(folder_name))
+    reaction.update({'reactants': folder_name.split('__')[0].split('_'),
+                     'products': folder_name.split('__')[1].split('_')})
 
     sites = {}
     for key, mollist in reaction.items():
@@ -429,13 +367,13 @@ def get_reaction_from_folder(folder_name):
     return reaction, sites
 
 
-def get_atoms(molecule):
+def get_all_atoms(molecule):
     molecule = clear_state(molecule)
     molecule, prefactor = get_prefactor(molecule)
 
     atoms = Atoms(molecule)
 
-    molecule = atoms.get_chemical_formula(mode='all')
+    molecule = ''.join(sorted(atoms.get_chemical_formula(mode='all')))
 
     return molecule, prefactor
 
@@ -452,7 +390,7 @@ def get_reaction_atoms(reaction):
 
     for key, mollist in reaction.items():
         for molecule in mollist:
-            atoms, prefactor = get_atoms(molecule)
+            atoms, prefactor = get_all_atoms(molecule)
             reaction_atoms[key].append(atoms)
             prefactors[key].append(prefactor)
             state = get_state(molecule)
