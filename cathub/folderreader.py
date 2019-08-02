@@ -515,9 +515,9 @@ class FolderReader:
             chemical_composition = ase_tools.get_chemical_formula(empty)
             empty_atn = list(empty.get_atomic_numbers())
 
-        prefactor_scale = copy.deepcopy(self.prefactors)
-        for key1, values in prefactor_scale.items():
-            prefactor_scale[key1] = [1 for v in values]
+        self.prefactor_scale = copy.deepcopy(self.prefactors)
+        for key1, values in self.prefactor_scale.items():
+            self.prefactor_scale[key1] = [1 for v in values]
 
         key_value_pairs = {}
 
@@ -565,7 +565,7 @@ class FolderReader:
             if 'empty' in f and 'TS' in f:  # empty slab for transition state
                 self.structures.update({'TSempty': [slab]})
                 self.prefactors.update({'TSempty': [1]})
-                prefactor_scale.update({'TSempty': [1]})
+                self.prefactor_scale.update({'TSempty': [1]})
                 key_value_pairs.update({'species': ''})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab, self.cathub_db,
@@ -581,7 +581,7 @@ class FolderReader:
             elif 'TS' in f:  # transition state
                 self.structures.update({'TS': [slab]})
                 self.prefactors.update({'TS': [1]})
-                prefactor_scale.update({'TS': [1]})
+                self.prefactor_scale.update({'TS': [1]})
                 key_value_pairs.update({'species': 'TS'})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab, self.cathub_db,
@@ -655,24 +655,37 @@ class FolderReader:
                                          **key_value_pairs)
                 self.ase_ids.update({species: ase_id})
 
-            if n_ads > 1 and not self.prefactors[reaction_side][mol_index] == n_ads:
+            # For high coverage, re-balance chemical equation
+            if n_ads > 1 and not \
+               self.prefactors[reaction_side][mol_index] == n_ads:
                 for key1, states in self.states.items():
-                    indices = [i for i, s in enumerate(states) if
-                               s == 'gas']
-                    for i in indices:
-                        prefactor_scale[key1][i] = n_ads
+                    indices_gas = [i for i, s in enumerate(states) if
+                                   s == 'gas']
+                    for i in indices_gas:
+                        self.prefactor_scale[key1][i] = n_ads
 
+                    indices_ads = [i for i, s in enumerate(states) if
+                                   s == 'star' and not
+                                   self.reaction_atoms[key1][i] == '']
+                    for i in indices_ads:
+                        if key1 == reaction_side and i == mol_index:
+                            continue
+                        self.prefactor_scale[key1][i] = n_ads
+
+                    if len(indices_ads) > 0:
+                        n = len(indices_ads)
+                        self.add_empty_slabs(key1, - (n_ads - 1) * n)
+            # Assume adsorbate is balanced in equation, and balance empty slabs
             elif n_ads > 1 and self.prefactors[reaction_side][mol_index] == n_ads:
-                # Assume only adsorbate is repeated in equation
-                self.prefactors[reaction_side][mol_index] = 1
-                self.balance_slabs()
+                self.prefactor_scale[reaction_side][mol_index] = 1/n_ads
+                self.add_empty_slabs(reaction_side, n_ads - 1)
 
             if supercell_factor > 1:
                 for key1, states in self.states.items():
                     indices = [i for i, r in enumerate(self.reaction) if
                                r == 'star']
                     for i in indices:
-                        prefactor_scale[key2][mol_i] *= supercell_factor
+                        self.prefactor_scale[key1][mol_i] *= supercell_factor
 
         # Check that all structures have been found
         self.clear_extra_empty_slabs()
@@ -728,12 +741,12 @@ class FolderReader:
                     self.raise_error(message)
                     return
 
-            prefactors_final = copy.deepcopy(self.prefactors)
+            original_prefactors = copy.deepcopy(self.prefactors)
             for key in self.prefactors:
                 for i, v in enumerate(self.prefactors[key]):
-                    prefactors_final[key][i] = self.prefactors[key][i] * \
-                        prefactor_scale[key][i]
-            self.prefactors = prefactors_final
+                    self.prefactors[key][i] = original_prefactors[key][i] * \
+                        self.prefactor_scale[key][i]
+
             reaction_energy = None
             activation_energy = None
             try:
@@ -764,8 +777,7 @@ class FolderReader:
         for key in ['reactants', 'products']:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
-                reaction_info[key].update({r: self.prefactors[key][i]})
-
+                reaction_info[key].update({r: original_prefactors[key][i]})
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
@@ -910,6 +922,20 @@ class FolderReader:
         del self.prefactors[reaction_side][index]
         del self.prefactors_TS[reaction_side][index]
         del self.structures[reaction_side][index]
+
+    def add_empty_slabs(self, reaction_side, n_slabs):
+        found_slab = False
+        for key, atoms in self.reaction_atoms.items():
+            if '' in atoms:
+                found_slab = True
+                i = atoms.index('')
+                if key == reaction_side:
+                    self.prefactors[key][i] += n_slabs
+                else:  # substract from other side
+                    self.prefactors[key][i] -= n_slabs
+        if not found_slab:
+            self.append_reaction_entry(reaction_side,
+                                       n_ads - 1)
 
     def clear_extra_empty_slabs(self):
         n_r, n_p = self.get_n_empty_slabs()
