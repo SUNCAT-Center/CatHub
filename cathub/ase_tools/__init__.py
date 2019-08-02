@@ -195,100 +195,6 @@ def get_numbers_from_formula(formula):
     return get_atomic_numbers(atoms)
 
 
-def get_reaction_energy(structures, reaction, reaction_atoms, states,
-                        prefactors, prefactors_TS, energy_corrections):
-    energies = {}
-    for key in structures.keys():
-        energies.update({key: ['' for n in range(len(structures[key]))]})
-    for key, atoms_list in structures.items():
-        for i, atoms in enumerate(atoms_list):
-            try:
-                name = clear_prefactor(reaction[key][i])
-            except BaseException:
-                name = None
-            if name in energy_corrections.keys():
-                Ecor = energy_corrections[name]
-            else:
-                Ecor = 0
-            energies[key][i] = prefactors[key][i] * \
-                (atoms.get_potential_energy() + Ecor)
-
-    # Reaction energy:
-    energy_reactants = np.sum(energies['reactants'])
-    energy_products = np.sum(energies['products'])
-
-    reaction_energy = energy_products - energy_reactants
-
-    # Activation energy
-    if 'TS' in structures.keys():
-        # Is a different empty surface used for the TS?
-        if 'TSempty' in structures.keys():
-            for key in reaction_atoms.keys():
-                if '' in reaction_atoms[key]:
-                    index = reaction_atoms[key].index('')
-                    empty = structures[key][index]
-            tsempty = structures['TSempty'][0]
-            tsemptydiff = tsempty.get_potential_energy - \
-                empty.get_potential_energy()
-
-        for i, structure in enumerate(structures['reactants']):
-            try:
-                name = clear_prefactor(reaction['reactants'][i])
-            except BaseException:
-                name = None
-            if name in energy_corrections.keys():
-                Ecor = energy_corrections[name]
-            else:
-                Ecor = 0
-            energies['reactants'][i] = prefactors_TS['reactants'][i]\
-                * structure.get_potential_energy() + Ecor
-            if 'TSempty' in structures.keys() and \
-                    states['reactants'][i] == 'star':
-                energies['reactants'][i] += prefactors_TS['reactants'][i]\
-                    * tsemptydiff
-        energy_reactants = np.sum(energies['reactants'])
-        energy_TS = energies['TS'][0]
-        activation_energy = energy_TS - energy_reactants
-    else:
-        activation_energy = None
-
-    return reaction_energy, activation_energy
-
-
-def get_layers(atoms):
-    tolerance = 0.01
-    d = atoms.positions[:, 2]
-    keys = np.argsort(d)
-    ikeys = np.argsort(keys)
-    mask = np.concatenate(([True], np.diff(d[keys]) > tolerance))
-    layer_i = np.cumsum(mask)[ikeys]
-
-    if layer_i.min() == 1:
-        layer_i -= 1
-    return layer_i
-
-
-def get_surface_composition(atoms):
-    if len(np.unique(atoms.get_atomic_numbers())) == 1:
-        return atoms.get_chemical_symbols()[0]
-
-    layer_i = get_layers(atoms)
-    top_layer_i = np.max(layer_i)
-    atom_i = np.where(layer_i >= top_layer_i - 1)[0]
-
-    layer_atoms = atoms[atom_i]
-
-    surface_composition = layer_atoms.get_chemical_formula(mode='metal')
-
-    return surface_composition
-
-
-def get_n_layers(atoms):
-    layer_i = get_layers(atoms)
-    n = np.max(layer_i)
-    return n
-
-
 def check_in_ase(atoms, ase_db, energy=None):
     """Check if entry is allready in ASE db"""
 
@@ -302,7 +208,6 @@ def check_in_ase(atoms, ase_db, energy=None):
     for row in rows:
         if formula == row.formula:
             return row.id, row.unique_id
-        
     return None, None
 
 
@@ -312,7 +217,8 @@ def _normalize_key_value_pairs_inplace(data):
             data[key] = int(data[key])
 
 
-def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None, **key_value_pairs):
+def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None,
+              **key_value_pairs):
     """Connect to ASE db"""
     db_ase = ase.db.connect(db_file)
     _normalize_key_value_pairs_inplace(key_value_pairs)
@@ -376,80 +282,6 @@ def get_all_atoms(molecule):
     molecule = ''.join(sorted(atoms.get_chemical_formula(mode='all')))
 
     return molecule, prefactor
-
-
-def get_reaction_atoms(reaction):
-    reaction_atoms = {'reactants': [],
-                      'products': []}
-
-    prefactors = {'reactants': [],
-                  'products': []}
-
-    states = {'reactants': [],
-              'products': []}
-
-    for key, mollist in reaction.items():
-        for molecule in mollist:
-            atoms, prefactor = get_all_atoms(molecule)
-            reaction_atoms[key].append(atoms)
-            prefactors[key].append(prefactor)
-            state = get_state(molecule)
-            states[key].append(state)
-
-    prefactors_TS = copy.deepcopy(prefactors)
-
-    # Balance the number of slabs on each side of reaction
-    n_star = {'reactants': 0,
-              'products': 0}
-
-    for key, statelist in states.items():
-        for j, s in enumerate(statelist):
-            if s == 'star':
-                n_star[key] += prefactors[key][j]
-
-    n_r = n_star['reactants']
-    n_p = n_star['products']
-
-    diff = n_p - n_r
-    if abs(diff) > 0:
-        if diff > 0:  # add empty slabs to left-hand side
-            n_r += diff
-            key = 'reactants'
-        else:  # add to right-hand side
-            diff *= -1  # diff should be positive
-            n_p += diff
-            key = 'products'
-
-        if '' not in reaction_atoms[key]:
-            reaction[key].append('star')
-            prefactors[key].append(diff)
-            if key == 'reactants':
-                prefactors_TS[key].append(1)
-            states[key].append('star')
-            reaction_atoms[key].append('')
-        else:
-            index = states[key].index('star')
-            prefactors[key][index] += diff
-            if key == 'reactants':
-                prefactors_TS[key][index] += diff
-
-    if n_r > 1:  # Balance slabs for transition state
-        count_empty = 0
-        if '' in reaction_atoms['reactants']:
-            index = reaction_atoms['reactants'].index('')
-            count_empty = prefactors_TS['reactants'][index]
-            prefactors_TS['reactants'][index] = -(n_r - count_empty - 1)
-        else:
-            reaction_atoms['reactants'].append('')
-            prefactors['reactants'].append(0)
-            states['reactants'].append('star')
-            prefactors_TS['reactants'].append(-n_r + 1)
-    else:
-        if '' in reaction_atoms['reactants']:
-            index = reaction_atoms['reactants'].index('')
-            prefactors_TS['reactants'][index] = 1
-
-    return reaction_atoms, prefactors, prefactors_TS, states
 
 
 def debug_assert(expression, message, debug=False):
