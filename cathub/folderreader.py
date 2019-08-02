@@ -697,6 +697,7 @@ class FolderReader:
         only_neb = np.any(['neb' in s for s in structurenames])
         surface_composition = self.metal
 
+        original_prefactors = copy.deepcopy(self.prefactors)
         if only_neb:
             if not self.empty:
                 for ads in self.reaction_atoms['reactants']:
@@ -741,7 +742,6 @@ class FolderReader:
                     self.raise_error(message)
                     return
 
-            original_prefactors = copy.deepcopy(self.prefactors)
             for key in self.prefactors:
                 for i, v in enumerate(self.prefactors[key]):
                     self.prefactors[key][i] = original_prefactors[key][i] * \
