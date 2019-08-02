@@ -4,26 +4,15 @@ from functools import reduce
 from fractions import gcd
 from ase import Atoms
 from ase.io import read
-# from ase.io.trajectory import convert
 import numpy as np
 import ase
 from ase.utils import formula_metal
 import copy
 from cathub.tools import clear_state, get_state, clear_prefactor, get_prefactor
 
-# A lot of functions from os.path
-# in python 2 moved to os. and changed
-# their signature. Pathlib can be
-# installed under python2.X with
-# pip install pathlib2 and is in
-# standard library in Python 3,
-# hence we use it as a compatiblity
-# library
-try:
-    from pathlib import Path
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
+from pathlib import Path
+Path().expanduser()
+
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': 'Fancy title',
@@ -206,129 +195,6 @@ def get_numbers_from_formula(formula):
     return get_atomic_numbers(atoms)
 
 
-def get_reaction_energy(structures, reaction, reaction_atoms, states,
-                        prefactors, prefactors_TS, energy_corrections):
-    energies = {}
-    for key in structures.keys():
-        energies.update({key: ['' for n in range(len(structures[key]))]})
-    for key, atoms_list in structures.items():
-        for i, atoms in enumerate(atoms_list):
-            try:
-                name = clear_prefactor(reaction[key][i])
-            except BaseException:
-                name = None
-            if name in energy_corrections.keys():
-                Ecor = energy_corrections[name]
-            else:
-                Ecor = 0
-            energies[key][i] = prefactors[key][i] * \
-                (atoms.get_potential_energy() + Ecor)
-
-    # Reaction energy:
-    energy_reactants = np.sum(energies['reactants'])
-    energy_products = np.sum(energies['products'])
-
-    reaction_energy = energy_products - energy_reactants
-
-    # Activation energy
-    if 'TS' in structures.keys():
-        # Is a different empty surface used for the TS?
-        if 'TSempty' in structures.keys():
-            for key in reaction_atoms.keys():
-                if '' in reaction_atoms[key]:
-                    index = reaction_atoms[key].index('')
-                    empty = structures[key][index]
-            tsempty = structures['TSempty'][0]
-            tsemptydiff = tsempty.get_potential_energy - \
-                empty.get_potential_energy()
-
-        for i, structure in enumerate(structures['reactants']):
-            try:
-                name = clear_prefactor(reaction['reactants'][i])
-            except BaseException:
-                name = None
-            if name in energy_corrections.keys():
-                Ecor = energy_corrections[name]
-            else:
-                Ecor = 0
-            energies['reactants'][i] = prefactors_TS['reactants'][i]\
-                * structure.get_potential_energy() + Ecor
-            if 'TSempty' in structures.keys() and \
-                    states['reactants'][i] == 'star':
-                energies['reactants'][i] += prefactors_TS['reactants'][i]\
-                    * tsemptydiff
-        energy_reactants = np.sum(energies['reactants'])
-        energy_TS = energies['TS'][0]
-        activation_energy = energy_TS - energy_reactants
-    else:
-        activation_energy = None
-
-    return reaction_energy, activation_energy
-
-
-def get_layers(atoms):
-    tolerance = 0.01
-    d = atoms.positions[:, 2]
-    keys = np.argsort(d)
-    ikeys = np.argsort(keys)
-    mask = np.concatenate(([True], np.diff(d[keys]) > tolerance))
-    layer_i = np.cumsum(mask)[ikeys]
-
-    if layer_i.min() == 1:
-        layer_i -= 1
-    return layer_i
-
-
-def get_surface_composition(atoms):
-    if len(np.unique(atoms.get_atomic_numbers())) == 1:
-        return atoms.get_chemical_symbols()[0]
-
-    layer_i = get_layers(atoms)
-    top_layer_i = np.max(layer_i)
-    atom_i = np.where(layer_i >= top_layer_i - 1)[0]
-
-    layer_atoms = atoms[atom_i]
-
-    surface_composition = layer_atoms.get_chemical_formula(mode='metal')
-
-    return surface_composition
-
-
-def get_n_layers(atoms):
-    layer_i = get_layers(atoms)
-    n = np.max(layer_i)
-    return n
-
-
-def get_bulk_composition(atoms):
-    if len(np.unique(atoms.get_atomic_numbers())) == 1:
-        return atoms.get_chemical_symbols()[0]
-
-    layer_i = get_layers(atoms)
-    top_layer_i = np.max(layer_i)
-    compositions = []
-    for i in range(0, top_layer_i + 1):
-        atom_i = np.where(layer_i == top_layer_i - i)[0]
-        atoms_layer = atoms[atom_i]
-        if len(np.unique(atoms_layer.get_atomic_numbers())) == 1:
-            c = atoms_layer.get_chemical_symbols()[0]
-            compositions.append(c)
-        else:
-            c = atoms[atom_i].get_chemical_formula(mode='metal')
-            compositions.append(c)
-
-    compositions = np.array(compositions)
-    same_next_layer = compositions[1:] == compositions[:-1]
-    bulk_compositions = compositions[:-1][same_next_layer]
-
-    if len(bulk_compositions) > 0 and \
-       all(c == bulk_compositions[0] for c in bulk_compositions):
-        bulk_composition = bulk_compositions[0]
-    else:
-        bulk_composition = None
-    return bulk_composition
-
-
 def check_in_ase(atoms, ase_db, energy=None):
     """Check if entry is allready in ASE db"""
 
@@ -341,14 +207,8 @@ def check_in_ase(atoms, ase_db, energy=None):
     ids = []
     for row in rows:
         if formula == row.formula:
-            n += 1
-            ids.append(row.id)
-    if n > 0:
-        id = ids[0]
-        unique_id = db_ase.get(id)['unique_id']
-        return id, unique_id
-    else:
-        return None, None
+            return row.id, row.unique_id
+    return None, None
 
 
 def _normalize_key_value_pairs_inplace(data):
@@ -357,7 +217,8 @@ def _normalize_key_value_pairs_inplace(data):
             data[key] = int(data[key])
 
 
-def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None, **key_value_pairs):
+def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None,
+              **key_value_pairs):
     """Connect to ASE db"""
     db_ase = ase.db.connect(db_file)
     _normalize_key_value_pairs_inplace(key_value_pairs)
@@ -380,27 +241,10 @@ def update_ase(db_file, identity, stdout, **key_value_pairs):
 
 def get_reaction_from_folder(folder_name):
     reaction = {}
-    if '__' in folder_name:  # Complicated reaction
-        if '-' in folder_name and '_-' not in folder_name:
-            # intermediate syntax
-            a, b = folder_name.split('-')
-            folder_name = a + '_-' + b
+    assert '__' in folder_name, "Please use __ as reaction arrow"
 
-        reaction.update({'reactants': folder_name.split('__')[0].split('_'),
-                         'products': folder_name.split('__')[1].split('_')})
-
-    elif '_' in folder_name:  # Standard format
-        AB, A, B = folder_name.split('_')
-        if '-' in A:
-            A = A.split('-')
-            A[1] = '-' + A[1]
-            products = [A[0], A[1], B]
-        else:
-            products = [A, B]
-        reaction.update({'reactants': [AB],
-                         'products': products})
-    else:
-        raise AssertionError('problem with folder {}'.format(folder_name))
+    reaction.update({'reactants': folder_name.split('__')[0].split('_'),
+                     'products': folder_name.split('__')[1].split('_')})
 
     sites = {}
     for key, mollist in reaction.items():
@@ -429,89 +273,15 @@ def get_reaction_from_folder(folder_name):
     return reaction, sites
 
 
-def get_atoms(molecule):
+def get_all_atoms(molecule):
     molecule = clear_state(molecule)
     molecule, prefactor = get_prefactor(molecule)
 
     atoms = Atoms(molecule)
 
-    molecule = atoms.get_chemical_formula(mode='all')
+    molecule = ''.join(sorted(atoms.get_chemical_formula(mode='all')))
 
     return molecule, prefactor
-
-
-def get_reaction_atoms(reaction):
-    reaction_atoms = {'reactants': [],
-                      'products': []}
-
-    prefactors = {'reactants': [],
-                  'products': []}
-
-    states = {'reactants': [],
-              'products': []}
-
-    for key, mollist in reaction.items():
-        for molecule in mollist:
-            atoms, prefactor = get_atoms(molecule)
-            reaction_atoms[key].append(atoms)
-            prefactors[key].append(prefactor)
-            state = get_state(molecule)
-            states[key].append(state)
-
-    prefactors_TS = copy.deepcopy(prefactors)
-
-    # Balance the number of slabs on each side of reaction
-    n_star = {'reactants': 0,
-              'products': 0}
-
-    for key, statelist in states.items():
-        for j, s in enumerate(statelist):
-            if s == 'star':
-                n_star[key] += prefactors[key][j]
-
-    n_r = n_star['reactants']
-    n_p = n_star['products']
-
-    diff = n_p - n_r
-    if abs(diff) > 0:
-        if diff > 0:  # add empty slabs to left-hand side
-            n_r += diff
-            key = 'reactants'
-        else:  # add to right-hand side
-            diff *= -1  # diff should be positive
-            n_p += diff
-            key = 'products'
-
-        if '' not in reaction_atoms[key]:
-            reaction[key].append('star')
-            prefactors[key].append(diff)
-            if key == 'reactants':
-                prefactors_TS[key].append(1)
-            states[key].append('star')
-            reaction_atoms[key].append('')
-        else:
-            index = states[key].index('star')
-            prefactors[key][index] += diff
-            if key == 'reactants':
-                prefactors_TS[key][index] += diff
-
-    if n_r > 1:  # Balance slabs for transition state
-        count_empty = 0
-        if '' in reaction_atoms['reactants']:
-            index = reaction_atoms['reactants'].index('')
-            count_empty = prefactors_TS['reactants'][index]
-            prefactors_TS['reactants'][index] = -(n_r - count_empty - 1)
-        else:
-            reaction_atoms['reactants'].append('')
-            prefactors['reactants'].append(0)
-            states['reactants'].append('star')
-            prefactors_TS['reactants'].append(-n_r + 1)
-    else:
-        if '' in reaction_atoms['reactants']:
-            index = reaction_atoms['reactants'].index('')
-            prefactors_TS['reactants'][index] = 1
-
-    return reaction_atoms, prefactors, prefactors_TS, states
 
 
 def debug_assert(expression, message, debug=False):

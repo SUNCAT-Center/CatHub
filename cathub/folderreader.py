@@ -408,9 +408,7 @@ class FolderReader:
             .format('+'.join(self.reaction['reactants']),
                     '+'.join(self.reaction['products'])))
 
-        self.reaction_atoms, self.prefactors, self.prefactors_TS, \
-            self.states = ase_tools.get_reaction_atoms(self.reaction)
-
+        self.get_reaction_atoms()
         """Create empty dictionaries"""
         r_empty = ['' for n in range(len(self.reaction_atoms['reactants']))]
         p_empty = ['' for n in range(len(self.reaction_atoms['products']))]
@@ -471,7 +469,6 @@ class FolderReader:
             if 'neb' in k:
                 del self.structures[k]
 
-
         neb_indices = [i for i, slab in enumerate(slab_structures) if 'neb' in
                        slab[-1].info['filename']]
         neb_names = {}
@@ -502,6 +499,7 @@ class FolderReader:
 
         reactant_entries = self.reaction['reactants'] + \
             self.reaction['products']
+
         if not empty:
             if 'star' in reactant_entries and len(neb_indices) == 0:
                 message = 'Empty slab needed for reaction!'
@@ -517,9 +515,9 @@ class FolderReader:
             chemical_composition = ase_tools.get_chemical_formula(empty)
             empty_atn = list(empty.get_atomic_numbers())
 
-        prefactor_scale = copy.deepcopy(self.prefactors)
-        for key1, values in prefactor_scale.items():
-            prefactor_scale[key1] = [1 for v in values]
+        self.prefactor_scale = copy.deepcopy(self.prefactors)
+        for key1, values in self.prefactor_scale.items():
+            self.prefactor_scale[key1] = [1 for v in values]
 
         key_value_pairs = {}
 
@@ -552,12 +550,12 @@ class FolderReader:
                         ads_atn.remove(atn)
                     except ValueError as e:
                         self.raise_error(
-                            'Empty slab: {} contains species not in: {}' \
-                                .format(empty.info['filename'], f))
+                            'Empty slab: {} contains species not in: {}'
+                            .format(empty.info['filename'], f))
                 ads_atn = sorted(ads_atn)
                 if ads_atn == []:
                     self.raise_warning("No adsorbates for structure: {}"
-                                   .format(f))
+                                       .format(f))
                     continue
 
             ase_id = None
@@ -567,7 +565,7 @@ class FolderReader:
             if 'empty' in f and 'TS' in f:  # empty slab for transition state
                 self.structures.update({'TSempty': [slab]})
                 self.prefactors.update({'TSempty': [1]})
-                prefactor_scale.update({'TSempty': [1]})
+                self.prefactor_scale.update({'TSempty': [1]})
                 key_value_pairs.update({'species': ''})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab, self.cathub_db,
@@ -583,7 +581,7 @@ class FolderReader:
             elif 'TS' in f:  # transition state
                 self.structures.update({'TS': [slab]})
                 self.prefactors.update({'TS': [1]})
-                prefactor_scale.update({'TS': [1]})
+                self.prefactor_scale.update({'TS': [1]})
                 key_value_pairs.update({'species': 'TS'})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab, self.cathub_db,
@@ -610,7 +608,6 @@ class FolderReader:
                                          **key_value_pairs)
                 self.ase_ids.update({neb_names[str(i)]: ase_id})
                 continue
-            
 
             found = False
             for key, mollist in self.reaction.items():
@@ -628,65 +625,70 @@ class FolderReader:
                         continue
                     molecule_atn = sorted(
                         ase_tools.get_numbers_from_formula(molecule))
-                    if slab.info['filename'] == molecule:
-                        if ads_atn == molecule_atn:
-                            found = True
-                            match_key = key
-                            match_n = n
-                            break
-                        else:
-                            raise_warning('Name of file does not match chemimcal formula: {}'
-                                          .format(slab.info['filename']))
-
                     for n_ads in range(1, 5):
                         mol_atn = sorted(molecule_atn * n_ads)
                         if (ads_atn == mol_atn or len(ads_atn) == 0):
-                            match_n_ads = n_ads
                             found = True
-                            match_key = key
-                            match_n = n
+                            reaction_side = key
+                            mol_index = n
                             break
 
             if found:
-                key = match_key
-                n = match_n
-                n_ads = match_n_ads
-                self.structures[key][n] = slab
+                self.structures[reaction_side][mol_index] = slab
                 species = clear_prefactor(
-                    self.reaction[key][n])
-                id, ase_id = ase_tools.check_in_ase(
-                    slab, self.cathub_db)
+                    self.reaction[reaction_side][mol_index])
+                id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
                 key_value_pairs.update(
-                    {'species':
-                     clear_state(
-                         species),
+                    {'species': clear_state(species),
                      'n': n_ads,
                      'site': str(self.sites.get(species, ''))})
                 if ase_id is None:
-                    ase_id = ase_tools.write_ase(
-                        slab, self.cathub_db, self.stdout,
-                        self.user,
-                        **key_value_pairs)
+                    ase_id = ase_tools.write_ase(slab,
+                                                 self.cathub_db,
+                                                 self.stdout,
+                                                 self.user,
+                                                 **key_value_pairs)
                 elif self.update:
-                    ase_tools.update_ase(
-                        self.cathub_db, id, self.stdout,
-                        **key_value_pairs)
+                    ase_tools.update_ase(self.cathub_db,
+                                         id,
+                                         self.stdout,
+                                         **key_value_pairs)
                 self.ase_ids.update({species: ase_id})
 
-            if n_ads > 1:
-                for key1, values in prefactor_scale.items():
-                    for mol_i in range(len(values)):
-                        if self.states[key1][mol_i] == 'gas':
-                            prefactor_scale[key1][mol_i] = n_ads
+            # For high coverage, re-balance chemical equation
+            if n_ads > 1 and not \
+               self.prefactors[reaction_side][mol_index] == n_ads:
+                for key1, states in self.states.items():
+                    indices_gas = [i for i, s in enumerate(states) if
+                                   s == 'gas']
+                    for i in indices_gas:
+                        self.prefactor_scale[key1][i] = n_ads
+
+                    indices_ads = [i for i, s in enumerate(states) if
+                                   s == 'star' and not
+                                   self.reaction_atoms[key1][i] == '']
+                    for i in indices_ads:
+                        if key1 == reaction_side and i == mol_index:
+                            continue
+                        self.prefactor_scale[key1][i] = n_ads
+
+                    if len(indices_ads) > 0:
+                        n = len(indices_ads)
+                        self.add_empty_slabs(key1, - (n_ads - 1) * n)
+            # Assume adsorbate is balanced in equation, and balance empty slabs
+            elif n_ads > 1 and self.prefactors[reaction_side][mol_index] == n_ads:
+                self.prefactor_scale[reaction_side][mol_index] = 1/n_ads
+                self.add_empty_slabs(reaction_side, n_ads - 1)
 
             if supercell_factor > 1:
-                for key2, values in prefactor_scale.items():
-                    for mol_i in range(len(values)):
-                        if self.reaction[key2][mol_i] == 'star':
-                            prefactor_scale[key2][mol_i] *= supercell_factor
-
+                for key1, states in self.states.items():
+                    indices = [i for i, r in enumerate(self.reaction) if
+                               r == 'star']
+                    for i in indices:
+                        self.prefactor_scale[key1][mol_i] *= supercell_factor
 
         # Check that all structures have been found
+        self.clear_extra_empty_slabs()
         structurenames = [s for s in list(self.structures.keys())
                           if s not in ['reactants', 'products']]
         for k in ['reactants', 'products']:
@@ -695,6 +697,7 @@ class FolderReader:
         only_neb = np.any(['neb' in s for s in structurenames])
         surface_composition = self.metal
 
+        original_prefactors = copy.deepcopy(self.prefactors)
         if only_neb:
             if not self.empty:
                 for ads in self.reaction_atoms['reactants']:
@@ -739,31 +742,25 @@ class FolderReader:
                     self.raise_error(message)
                     return
 
-            prefactors_final = copy.deepcopy(self.prefactors)
             for key in self.prefactors:
                 for i, v in enumerate(self.prefactors[key]):
-                    prefactors_final[key][i] = self.prefactors[key][i] * \
-                        prefactor_scale[key][i]
+                    self.prefactors[key][i] = original_prefactors[key][i] * \
+                        self.prefactor_scale[key][i]
 
             reaction_energy = None
             activation_energy = None
             try:
                 reaction_energy, activation_energy = \
-                    ase_tools.get_reaction_energy(
-                        self.structures, self.reaction,
-                        self.reaction_atoms,
-                        self.states, prefactors_final,
-                        self.prefactors_TS,
-                        self.energy_corrections)
+                    self.get_reaction_energy()
             except BaseException as e:
                 message = "reaction energy failed for files in '{}'"\
                     .format(root)
                 self.raise_error(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
-            self.raise_error('reaction energy is very large: {} eV \n  '
+            self.raise_error('reaction energy is very large ({} eV)'
                              .format(reaction_energy) +
-                             'Folder: {}. \n  '.format(root) +
+                             'for folder: {}. \n  '.format(root) +
                              'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
         if activation_energy is not None:
@@ -780,8 +777,7 @@ class FolderReader:
         for key in ['reactants', 'products']:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
-                reaction_info[key].update({r: self.prefactors[key][i]})
-
+                reaction_info[key].update({r: original_prefactors[key][i]})
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
@@ -821,3 +817,186 @@ class FolderReader:
         for warning in self.warnings:
             self.stdout.write('    ' + warning + '\n')
         self.stdout.write('-------------------------------------------\n')
+
+    def get_reaction_atoms(self):
+        self.reaction_atoms = {'reactants': [],
+                               'products': []}
+
+        self.prefactors = {'reactants': [],
+                           'products': []}
+
+        self.states = {'reactants': [],
+                       'products': []}
+
+        for key, mollist in self.reaction.items():
+            for molecule in mollist:
+                atoms, prefactor = ase_tools.get_all_atoms(molecule)
+                self.reaction_atoms[key].append(atoms)
+                self.prefactors[key].append(prefactor)
+                state = ase_tools.get_state(molecule)
+                self.states[key].append(state)
+
+        self.prefactors_TS = copy.deepcopy(self.prefactors)
+
+        self.balance_slabs()
+
+    def balance_slabs(self):
+        """Balance the number of slabs on each side of reaction"""
+        n_r, n_p = self.get_n_slabs()
+
+        diff = n_p - n_r
+
+        if abs(diff) > 0:
+            if diff > 0:  # add empty slabs to left-hand side
+                n_r += diff
+                side = 'reactants'
+            elif diff < 0:  # add to right-hand side
+                diff *= -1  # diff should be positive
+                n_p += diff
+                side = 'products'
+
+            if '' not in self.reaction_atoms[side]:
+                self.append_reaction_entry(side, prefactor=diff,
+                                           prefactor_TS=1)
+            else:
+                index = self.reaction_atoms[side].index('')
+                self.prefactors[side][index] += diff
+                if side == 'reactants':
+                    self.prefactors_TS[side][index] += diff
+
+        if n_r > 1:  # Balance slabs for transition state
+            count_empty = 0
+            if '' in self.reaction_atoms['reactants']:
+                index = self.reaction_atoms['reactants'].index('')
+                count_empty = self.prefactors_TS['reactants'][index]
+                self.prefactors_TS['reactants'][index] = - \
+                    (n_r - count_empty - 1)
+            else:
+                self.append_reaction_entry('reactants', prefactor=0,
+                                           prefactor_TS=-n_r + 1)
+        else:
+            if '' in self.reaction_atoms['reactants']:
+                index = self.reaction_atoms['reactants'].index('')
+                self.prefactors_TS['reactants'][index] = 1
+
+    def get_n_slabs(self):
+        n_star = {'reactants': 0,
+                  'products': 0}
+
+        for key, statelist in self.states.items():
+            indices = [i for i, s in enumerate(statelist) if s == 'star']
+            for i in indices:
+                n_star[key] += self.prefactors[key][i]
+
+        return n_star['reactants'], n_star['products']
+
+    def get_n_empty_slabs(self):
+        n_star = {'reactants': 0,
+                  'products': 0}
+
+        for key, species in self.reaction_atoms.items():
+            indices = [i for i, s in enumerate(species) if s == '']
+            for i in indices:
+                n_star[key] += self.prefactors[key][i]
+
+        return n_star['reactants'], n_star['products']
+
+    def append_reaction_entry(self, reaction_side, prefactor,
+                              prefactor_TS=1, entry='star',
+                              atoms='', state='star'):
+
+        self.reaction[reaction_side].append(entry)
+        self.reaction_atoms[reaction_side].append(atoms)
+        self.prefactors[reaction_side].append(prefactor)
+        if reaction_side == 'reactants':
+            self.prefactors_TS[reaction_side].append(prefactor_TS)
+        self.states[reaction_side].append(state)
+
+    def delete_reaction_entry(self, reaction_side, index):
+
+        assert len(self.reaction[reaction_side]) == \
+            len(self.reaction_atoms[reaction_side])
+        del self.reaction[reaction_side][index]
+        del self.reaction_atoms[reaction_side][index]
+        del self.states[reaction_side][index]
+        del self.prefactors[reaction_side][index]
+        del self.prefactors_TS[reaction_side][index]
+        del self.structures[reaction_side][index]
+
+    def add_empty_slabs(self, reaction_side, n_slabs):
+        found_slab = False
+        for key, atoms in self.reaction_atoms.items():
+            if '' in atoms:
+                found_slab = True
+                i = atoms.index('')
+                if key == reaction_side:
+                    self.prefactors[key][i] += n_slabs
+                else:  # substract from other side
+                    self.prefactors[key][i] -= n_slabs
+        if not found_slab:
+            self.append_reaction_entry(reaction_side,
+                                       n_ads - 1)
+
+    def clear_extra_empty_slabs(self):
+        n_r, n_p = self.get_n_empty_slabs()
+        if n_r > 0 and n_p > 0:
+            diff = min([n_r, n_p])
+            for side, species in self.reaction_atoms.items():
+                i = species.index('')
+                self.prefactors[side][i] -= diff
+                if self.prefactors[side][i] == 0:
+                    self.delete_reaction_entry(side, i)
+
+    def get_reaction_energy(self):
+        energies = {}
+        for key in self.structures.keys():
+            energies.update(
+                {key: ['' for n in range(len(self.structures[key]))]})
+        for reaction_side, atoms_list in self.structures.items():
+            for i, atoms in enumerate(atoms_list):
+                Ecor = self.get_energy_correction(reaction_side, i)
+                energies[reaction_side][i] = self.prefactors[reaction_side][i] * \
+                    (atoms.get_potential_energy() + Ecor)
+
+        # Reaction energy:
+        energy_reactants = np.sum(energies['reactants'])
+        energy_products = np.sum(energies['products'])
+
+        reaction_energy = energy_products - energy_reactants
+
+        # Activation energy
+        if 'TS' in self.structures.keys():
+            # Is a different empty surface used for the TS?
+            if 'TSempty' in self.structures.keys():
+                for key in reaction_atoms.keys():
+                    if '' in reaction_atoms[key]:
+                        index = self.reaction_atoms[key].index('')
+                        empty = self.structures[key][index]
+                tsempty = self.structures['TSempty'][0]
+                tsemptydiff = tsempty.get_potential_energy - \
+                    empty.get_potential_energy()
+
+            for i, structure in enumerate(self.structures['reactants']):
+                Ecor = self.get_energy_correction('reactants', i)
+                energies['reactants'][i] = self.prefactors_TS['reactants'][i]\
+                    * structure.get_potential_energy() + Ecor
+                if 'TSempty' in self.structures.keys() and \
+                   self.states['reactants'][i] == 'star':
+                    energies['reactants'][i] += self.prefactors_TS['reactants'][i]\
+                        * tsemptydiff
+            energy_reactants = np.sum(energies['reactants'])
+            energy_TS = energies['TS'][0]
+            activation_energy = energy_TS - energy_reactants
+        else:
+            activation_energy = None
+
+        return reaction_energy, activation_energy
+
+    def get_energy_correction(self, reaction_side, index):
+        try:
+            name = clear_prefactor(self.reaction[reaction_side][index])
+        except BaseException:
+            name = None
+        Ecor = self.energy_corrections.get(name, 0)
+
+        return Ecor
