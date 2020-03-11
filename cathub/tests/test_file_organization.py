@@ -29,7 +29,7 @@ def test_file_organization():
 
 def test_file_organization_module():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'include_pattern': '.',
@@ -56,7 +56,7 @@ def test_file_organization_module():
 
 def test_file_organization_module_non_keep():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'dft_code': '',
@@ -82,7 +82,7 @@ def test_file_organization_module_non_keep():
 
 def test_file_organization_module_collect_only():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O','H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'dft_code': '',

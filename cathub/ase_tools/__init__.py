@@ -71,14 +71,18 @@ def get_chemical_formula(atoms, mode='metal'):
 
 def get_reduced_chemical_formula(atoms):
     numbers = atoms.numbers
+    reduced_numbers, den = get_reduced_numbers(numbers)
+    return formula_metal(reduced_numbers)
+
+
+def get_reduced_numbers(numbers):
     unique_numbers, counts = np.unique(numbers, return_counts=True)
     denominator = reduce(gcd, counts)
     reduced_numbers = []
     for i, atomic_number in enumerate(unique_numbers):
         reduced_count = int(counts[i] / denominator)
         reduced_numbers += [atomic_number] * reduced_count
-    return formula_metal(reduced_numbers)
-
+    return reduced_numbers, denominator
 
 def symbols(atoms):
     formula = get_chemical_formula(atoms)

@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 
 # builtin imports
+import cathub.ase_tools
+from .ase_tools import gas_phase_references, get_chemical_formula, \
+    get_reduced_chemical_formula, symbols, collect_structures
+import numpy as np
+import ase.io
+import ase.utils
+import ase.atoms
 import pickle
 import json
 import yaml
@@ -9,33 +16,13 @@ import re
 import pprint
 import collections
 
-# A lot of functions from os.path
-# in python 2 moved to os. and changed
-# their signature. Pathlib can be
-# installed under python2.X with
-# pip install pathlib2 and is in
-# standard library in Python 3,
-# hence we use it as a compatiblity
-# library
-try:
-    from pathlib import Path
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
-
+from pathlib import Path
+Path().expanduser()
 
 # other library imports
-import Levenshtein
-import ase.atoms
-import ase.utils
-import ase.io
-import numpy as np
 
 
 # local imports
-from .ase_tools import gas_phase_references, get_chemical_formula, \
-    get_reduced_chemical_formula, symbols, collect_structures
-import cathub.ase_tools
 
 np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
 
@@ -49,7 +36,10 @@ def fuzzy_match(structures, options):
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
                         )
-
+    # print(options.adsorbates)
+    #print([a for a in options.adsorbates])
+    adsorbate_numbers = [sorted(ase.atoms.Atoms(ads).numbers)
+                         for ads in options.adsorbates]  # .split(',')]
     # group in to bulk, surface, or bulk
     molecules, surfaces, bulks = [], [], []
     gas_phase_candidates = []
@@ -60,7 +50,6 @@ def fuzzy_match(structures, options):
     if options.verbose:
         print("Group By Densities")
         print("===================")
-    print(options)
     for structure in structures:
         if options.include_pattern:
             if not re.search(
@@ -79,7 +68,6 @@ def fuzzy_match(structures, options):
                 continue
 
         # add more info from filename
-        print(structure.info['filename'])
         facet_match = re.search(
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
         site_match = [site_name for site_name in
@@ -145,14 +133,15 @@ def fuzzy_match(structures, options):
         )
     )
     if options.verbose:
-        print("\n\nCANDIDATES {gas_phase_candidates}".format(
+        print("\n\n  Gas phase candidates: {gas_phase_candidates}".format(
             gas_phase_candidates=gas_phase_candidates,
         ))
 
     volume_groups = {}
     tolerance = 1e-5
     if options.verbose:
-        print("\n\nGROUP BY VOLUME\n\n")
+        print("\nGroup by volume")
+        print("===============")
     for surface in sorted(surfaces,
                           key=lambda x: x.get_volume(),):
         formula = symbols(surface)
@@ -163,291 +152,183 @@ def fuzzy_match(structures, options):
                 break
         else:
             volume_groups[surface.get_volume()] = [surface]
-            if options.verbose:
-                print(("\n=============== NEW VOLUME"
-                       " {volume} ============"
-                       ).format(volume=surface.get_volume()))
-        if options.verbose:
-            print(get_chemical_formula(surface))
 
     for volume in volume_groups:
         if options.verbose:
-            print("\nInspect volume {volume}\n".format(
-                volume=volume,
+            print("\nInspecting volume={volume}".format(
+                volume=volume.round(2),
             ))
         surfaces = volume_groups[volume]
         N = len(surfaces)
-        if N > 1:
-            distance = np.zeros((N, N), dtype=int)
-            distance[:] = 99
-            for i, structure1 in enumerate(surfaces):
-                formula1 = symbols(structure1)
-                for j, structure2 in enumerate(surfaces):
-                    if j >= i:
-                        formula2 = symbols(structure2)
-                        distance[i, j] = Levenshtein.distance(
-                            formula1, formula2)
+        # Order surfaces by number of atoms
+        surface_size = [len(s) for s in surfaces]
+        idx = np.argsort(surface_size)
+        surfaces = [surfaces[i] for i in idx]
 
-        for i, surf1 in enumerate(surfaces):
-            for j, surf2 in enumerate(surfaces):
-                f1 = symbols(surf1)
-                formula1 = get_chemical_formula(surf1)
-                f2 = symbols(surf2)
-                formula2 = get_chemical_formula(surf2)
-                if Levenshtein.distance(f1, f2) in range(1, 10):
-                    additions = ''
-                    subtractions = ''
-                    equal = ''
-                    opcodes = Levenshtein.opcodes(f1, f2)
-                    for tag, i1, i2, j1, j2 in opcodes:
-                        if tag == 'insert':
-                            additions += f2[j1:j2]
-                        elif tag == 'replace':
-                            additions += f2[j1:j2]
-                        elif tag == 'delete':
-                            subtractions += f2[j1:j2]
-                        elif tag == 'equal':
-                            equal += f1[i1:i2]
+        for i, surf_empty in enumerate(surfaces):
+            for j, surf_ads in enumerate(surfaces[i+1:]):
+                if options.verbose:
+                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
+                                                  get_chemical_formula(surf_ads)))
 
+                # Check for calculator parameter consistency
+                if surf_empty.calc and surf_ads.calc:
+                    if not surf_empty.calc.parameters == surf_ads.calc.parameters:
+                        if options.verbose:
+                            print("\nWarning: Not included."
+                                  " different calculator parameters detected for"
+                                  " {} vs {}".format(surf_empty.info['filename'],
+                                                     surf_ads.info['filename']))
+                        continue
+                elif options.verbose:
+                    print("\nWarning: No calculator information detected for"
+                          " {} vs {}".format(surf_empty.info['filename'],
+                                             surf_ads.info['filename']))
+                    # " \nPlease include calculator information when possible")
+
+                if not surf_ads.constraints == surf_empty.constraints:
+                    # will lead to errors if adsorbate is constrained
                     if options.verbose:
-                        print("    ADDITIONS " + str(additions))
-                        print("    SUBTRACTIONS " + str(subtractions))
+                        print("\nWarning: Not included."
+                              " different constraint settings detected for"
+                              " {} vs {}".format(surf_empty.info['filename'],
+                                                 surf_ads.info['filename']))
+                    continue
 
-                    try:
-                        subtractions = ''.join(
-                            sorted(
-                                ase.symbols.string2symbols(
-                                    subtractions)))
-                    except Exception as e:
-                        if options.verbose:
-                            print("Warning: trouble parsing {subtractions}:{e}"
-                                  .format(subtractions=subtractions, e=e))
-                    try:
-                        additions = ''.join(
-                            sorted(
-                                    ase.symbols.string2symbols(
-                                        additions)))
-                    except Exception as e:
-                        if options.verbose:
-                            print("Warning: trouble parsing {additions}, {e}"
-                                  .format(additions=additions, e=e))
+                atomic_num_ads = sorted(surf_ads.numbers)
+                atomic_num_surf = sorted(surf_empty.numbers)
 
-                    equal_formula = get_reduced_chemical_formula(
-                        ase.atoms.Atoms(equal))
+                equal_numbers = [
+                    n for n in atomic_num_ads if n in atomic_num_surf]
+                diff_numbers = [n for n in atomic_num_ads
+                                if not n in atomic_num_surf]
 
-                    # check if we have some additions of subtractions
-                    # and either one (or both) are in user specifid
-                    # adsorbates
-                    if (additions or subtractions) \
-                            and (not additions or
-                                 additions in options.adsorbates) \
-                            and (not subtractions or
-                                 subtractions in options.adsorbates):
+                # if not equal_numbers + diff_numbers == atomic_num_ads \
+                #   or len(diff_numbers) == 0:
+                #    continue
 
-                        dE = surf2.get_potential_energy() \
-                            - surf1.get_potential_energy()
-                        difference_symbols = \
-                            gas_phase_references.molecules2symbols(
-                                [additions, subtractions],
-                            )
+                equal_formula = get_reduced_chemical_formula(
+                    ase.atoms.Atoms(equal_numbers))
 
-                        adsorbates = []
-                        if additions:
-                            adsorbates.append(additions)
-                        if subtractions:
-                            adsorbates.append(subtractions)
+                adsorbate = get_reduced_chemical_formula(
+                    ase.atoms.Atoms(diff_numbers))
 
-                        if options.verbose:
-                            print("    ADDITIONS " + str(additions))
-                            print("    SUBTRACTIONS " + str(subtractions))
-                            print("    ADSORBATES " + str(adsorbates))
+                red_diff_numbers, rep = \
+                    cathub.ase_tools.get_reduced_numbers(diff_numbers)
 
-                        # TODO: len(gas_phase_candidates) >= symbols
-                        if len(gas_phase_candidates)  \
-                           >= len(difference_symbols):
-                            print('Collecting gas phase references')
-                            references = \
-                                gas_phase_references \
-                                .construct_reference_system(
-                                    difference_symbols,
-                                    gas_phase_candidates,
-                                    options,
-                                )
-                            if options.verbose:
-                                print(" REFERENCES " + str(references))
+                if not red_diff_numbers in adsorbate_numbers:
+                    index = adsorbate_numbers.index(red_diff_numbers)
+                    print("\nAdsorbate {} detected".format(options.adsorbates[index]),
+                          " Include by setting the --adsorbates options.")
 
-                            stoichiometry_factors =  \
-                                gas_phase_references.get_stoichiometry_factors(
-                                    adsorbates, references,
-                                )
-                        else:
-                            print('map to atomic numbers')
-                            adsorbates = map(lambda x: ase.utils.formula_hill(
-                                cathub.ase_tools.get_numbers_from_formula(x)), adsorbates)
-                            stoichiometry_factors = {}
-                            if options.verbose:
-                                print(" ADSORBATES " + str(adsorbates))
-                                print(" GP_CANDIDATES " +
-                                      str(gas_phase_candidates))
-                            for adsorbate in adsorbates:
-                                if adsorbate in gas_phase_candidates:
-                                    stoichiometry_factors \
-                                        .setdefault(adsorbate, {}) \
-                                        .setdefault(adsorbate, 1)
-                                else:
-                                    raise UserWarning((
-                                        "Could not construct stoichiometry"
-                                        " factors for {adsorbate}\n"
-                                        "from {candidates}."
-                                        "Please add more gas phase molecules"
-                                        " to your folder.\n"
-                                    ).format(
-                                        adsorbate=adsorbate,
-                                        candidates=gas_phase_candidates,
-                                    ))
+                dE = surf_ads.get_potential_energy() \
+                    - surf_empty.get_potential_energy()
 
-                        if options.verbose:
-                            print("STOICHIOMETRY FACTORS "
-                                  + str(stoichiometry_factors))
-                        if options.verbose:
-                            print("COLLECTED ENERGIES")
-                            print(collected_energies)
-                            print("    STOICH FACTORS " +
-                                  str(stoichiometry_factors) + "\n\n")
+                dE /= rep
 
-                        matching_keys = [
-                            _key for _key in collected_energies
-                            if _key.startswith(key)
-                        ]
+                references, prefactors = \
+                    gas_phase_references \
+                    .construct_reference_system(adsorbate,
+                                                gas_phase_candidates)
 
-                        adsorbate = get_chemical_formula(
-                            ase.atoms.Atoms(additions))
+                #stoich_factors = stoichiometry_factors[adsorbate]
+                formula = ''
 
-                        key = ("{equal_formula}"
-                               "({surface_facet})"
-                               "+{adsorbate}"
-                               ).format(
-                            formula=formula,
-                            equal_formula=equal_formula,
-                            surface_facet=surf1.info['facet'],
-                            adsorbate=adsorbate,
-                        )
+                for i, ref in enumerate(references):
+                    dE -= prefactors[i] * reference_energy[ref]
+                    pf = prefactors[i]
+                    if pf == 1.0:
+                        pf = ''
+                    elif pf.isdigit():
+                        pf = int(pf)
+                    formula += '{}{}gas_'.format(pf, ref)
 
-                        formula = '*'
+                formula += 'star__'
 
-                        # if surf1.info.get('site', None):
-                        #    formula += '@' + surf1.info['site']
+                site = surf_ads.info.get('site', None)
+                if site:
+                    formula += '{}@{}'.format(adsorbate, site)
+                else:
+                    formula += '{}star'.format(adsorbate)
 
-                        formula += ' ->'
+                key = ("{equal_formula}"
+                       "({surface_facet})"
+                       "+{adsorbate}").format(
+                           equal_formula=equal_formula,
+                           surface_facet=surf_empty.info['facet'],
+                           adsorbate=adsorbate)
 
-                        if additions:
-                            formula += ' ' + \
-                                get_chemical_formula(
-                                    ase.atoms.Atoms(additions)) + '*'
+                if abs(dE) < options.max_energy:
+                    energy = dE
+                    if options.verbose:
+                        print("      Adsorption energy found for {key}"
+                              .format(**locals()))
 
-                        if subtractions:
-                            formula += ' ' + \
-                                get_chemical_formula(
-                                    ase.atoms.Atoms(subtractions)) + '*'
+                    equation = (" {formula:30s}").format(
+                        formula=formula,
+                        equal_formula=equal_formula,
+                        surface_facet=surf_empty.info['facet']) \
+                        .replace(' ', '') \
+                        .replace('+', '_') \
+                        .replace('->', '__') \
+                        .replace('*', 'star') \
+                        .replace('(g)', 'gas')
 
-                        if surf2.info.get('site', None):
-                            formula += '@' + surf2.info['site']
+                    # We keep the empty structure whether or not
+                    # we keep all structures
+                    collected_structures \
+                        .setdefault(
+                            options.dft_code
+                            or structure.info['filetype'],
+                            {}) \
+                        .setdefault(options.xc_functional, {}) \
+                        .setdefault(equal_formula + ('_' +
+                                                     options.structure
+                                                     or ''
+                                                     ), {}) \
+                        .setdefault(
+                            options.facet_name
+                            if options.facet_name != 'facet'
+                            else surf_empty.info['facet'], {}) \
+                        .setdefault('empty_slab', surf_empty)
 
-                        gas_phase_corrections = {}
+                    collected_energies[key] = energy
+                    key_count[key] = key_count.get(key, 0) + 1
+                    # if options.verbose:
+                    # print(key)
+                    # print(collected_energies)
+                    #print(key in collected_energies)
+                    if not options.keep_all_energies:
+                        if energy > collected_energies.get(
+                                key, float("inf")):
+                            continue
 
-                        for adsorbate in adsorbates:
-                            stoich_factors = stoichiometry_factors[adsorbate]
-                            for ref in stoich_factors:
-                                dE -= stoich_factors[ref] * \
-                                    reference_energy[ref]
-                                gas_phase_corrections[ref] = \
-                                    gas_phase_corrections.get(
-                                        ref, 0) - stoich_factors[ref]
+                    # persist adsorbate slab structures
+                    ####################################
+                    collected_energies[key] = energy
+                    collected_structures.setdefault(
+                        options.dft_code
+                        or structure.info['filetype'],
+                        {}).setdefault(
+                        options.xc_functional,
+                        {}).setdefault(
+                        equal_formula + '_' + (
+                            options.structure
+                            or 'structure'), {}
+                    ).setdefault(
+                        options.facet_name
+                        if options.facet_name != 'facet'
+                        else surf_empty.info['facet'],
+                        {}).setdefault(
+                        equation,
+                        {})[adsorbate] = surf_ads
 
-                        for molecule, factor in gas_phase_corrections.items():
-                            if factor != 0:
-                                sign = ' + ' if factor < 0 else ' +- '
-                                if abs(factor - int(factor)) < 1e-3:
-                                    factor = str(abs(int(factor)))
-                                    if factor == '1':
-                                        factor = ''
-                                else:
-                                    factor = '{:.2f}'.format(abs(factor))
-
-                                fleft, fright = formula.split(' -> ')
-                                formula = fleft + sign + factor + \
-                                    molecule + '(g)' + ' -> ' + fright
-
-                        if abs(dE) < options.max_energy:
-                            energy = dE
-                            if options.verbose:
-                                print("KEY {key}".format(**locals()))
-                            equation = (" {formula:30s}"
-                                        ).format(
-                                formula=formula,
-                                equal_formula=equal_formula,
-                                surface_facet=surf1.info['facet']
-                            ) \
-                                .replace(' ', '') \
-                                .replace('+', '_') \
-                                .replace('->', '__') \
-                                .replace('*', 'star') \
-                                .replace('(g)', 'gas')
-                            # We keep the empty structure whether or not
-                            # we keep all structures
-                            collected_structures \
-                                .setdefault(
-                                    options.dft_code
-                                    or structure.info['filetype'],
-                                    {}) \
-                                .setdefault(options.xc_functional, {}) \
-                                .setdefault(equal_formula + ('_' +
-                                                             options.structure
-                                                             or ''
-                                                             ), {}) \
-                                .setdefault(
-                                    options.facet_name
-                                    if options.facet_name != 'facet'
-                                    else surf1.info['facet'], {}) \
-                                .setdefault('empty_slab', surf1)
-
-                            collected_energies[key] = energy
-                            key_count[key] = key_count.get(key, 0) + 1
-                            if options.verbose:
-                                print(key)
-                                print(collected_energies)
-                                print(key in collected_energies)
-                            if not options.keep_all_energies:
-                                if energy > collected_energies.get(
-                                        key, float("inf")):
-                                    continue
-
-                            # persist adsorbate slab structures
-                            ####################################
-                            collected_energies[key] = energy
-                            collected_structures .setdefault(
-                                options.dft_code
-                                or structure.info['filetype'],
-                                {}) .setdefault(
-                                options.xc_functional,
-                                {}) .setdefault(
-                                equal_formula + '_' + (
-                                    options.structure
-                                    or 'structure'), {}
-                            ).setdefault(
-                                options.facet_name
-                                if options.facet_name != 'facet'
-                                else surf1.info['facet'],
-                                {}) .setdefault(
-                                equation,
-                                {})[adsorbate] = surf2
-
-    print("\n\nCollected Adsorption Energies Data")
-    print("====================================")
-    if options.verbose:
-        pprint.pprint(collected_structures)
+    # if options.verbose:
+    #    print("\n\nCollected Adsorption Energies Data")
+    #    print("====================================")
+    #    pprint.pprint(collected_structures, compact=True, depth=4)
     print("\n\nCollected Adsorption Energies")
-    print("===========================")
+    print("=============================")
     if len(collected_energies) == 0:
         print("Warning: no energies collected. Some ways to fix this:")
         print("  * raise the allowed maximum reaction energy (default: 10 eV)")
