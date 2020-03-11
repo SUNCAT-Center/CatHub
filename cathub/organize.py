@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 
 # builtin imports
-import cathub.ase_tools
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     get_reduced_chemical_formula, symbols, collect_structures
-import numpy as np
-import ase.io
-import ase.utils
+import cathub.ase_tools
 import ase.atoms
+import ase.utils
+import ase.io
+import numpy as np
 import pickle
 import json
 import yaml
@@ -15,16 +15,11 @@ from yaml import Dumper
 import re
 import pprint
 import collections
-
+from random import randint
 from pathlib import Path
 Path().expanduser()
 
-# other library imports
-
-
 # local imports
-
-np.set_printoptions(threshold=500, linewidth=1800, edgeitems=80)
 
 
 def fuzzy_match(structures, options):
@@ -36,8 +31,6 @@ def fuzzy_match(structures, options):
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
                         )
-    # print(options.adsorbates)
-    #print([a for a in options.adsorbates])
     adsorbate_numbers = [sorted(ase.atoms.Atoms(ads).numbers)
                          for ads in options.adsorbates]  # .split(',')]
     # group in to bulk, surface, or bulk
@@ -48,7 +41,7 @@ def fuzzy_match(structures, options):
     key_count = {}
     collected_structures = {}
     if options.verbose:
-        print("Group By Densities")
+        print("\nGroup By Densities")
         print("===================")
     for structure in structures:
         if options.include_pattern:
@@ -82,7 +75,7 @@ def fuzzy_match(structures, options):
 
         density = len(structure) / structure.get_volume()
         if options.verbose:
-            print("  {density:10.3f} {filename}".format(
+            print("  {density:7.3f} {filename}".format(
                 density=density,
                 filename=structure.info['filename'],
             ))
@@ -104,7 +97,7 @@ def fuzzy_match(structures, options):
                     reference_energy[formula] += \
                         options.energy_corrections[formula]
                 if options.verbose:
-                    print("           GAS", formula,
+                    print("        GAS", formula,
                           structure.info['filename'])
 
         elif density < options.max_density_slab:
@@ -112,14 +105,14 @@ def fuzzy_match(structures, options):
             formula = get_chemical_formula(structure)
             surfaces.append(structure)
             if options.verbose:
-                print("           SURFACE", formula,
+                print("        SURFACE", formula,
                       structure.info['filename'])
         else:
             structure.info['state'] = 'bulk'
             bulks.append(structure)
 
             if options.verbose:
-                print("           BULK", formula, structure.info['filename'])
+                print("        BULK", formula, structure.info['filename'])
 
     # sort surfaces by volume to get difference facets
     surfaces = sorted(surfaces,
@@ -133,7 +126,7 @@ def fuzzy_match(structures, options):
         )
     )
     if options.verbose:
-        print("\n\n  Gas phase candidates: {gas_phase_candidates}".format(
+        print("\n\nGas phase candidates: {gas_phase_candidates}".format(
             gas_phase_candidates=gas_phase_candidates,
         ))
 
@@ -168,20 +161,20 @@ def fuzzy_match(structures, options):
         for i, surf_empty in enumerate(surfaces):
             for j, surf_ads in enumerate(surfaces[i+1:]):
                 if options.verbose:
-                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
-                                                  get_chemical_formula(surf_ads)))
+                    print('    {} vs {}'.format(get_chemical_formula(surf_empty),
+                                                get_chemical_formula(surf_ads)))
 
                 # Check for calculator parameter consistency
                 if surf_empty.calc and surf_ads.calc:
                     if not surf_empty.calc.parameters == surf_ads.calc.parameters:
                         if options.verbose:
-                            print("\nWarning: Not included."
+                            print("\        nWarning: Not included."
                                   " different calculator parameters detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
                         continue
                 elif options.verbose:
-                    print("\nWarning: No calculator information detected for"
+                    print("\n        Warning: No calculator information detected for"
                           " {} vs {}".format(surf_empty.info['filename'],
                                              surf_ads.info['filename']))
                     # " \nPlease include calculator information when possible")
@@ -189,7 +182,7 @@ def fuzzy_match(structures, options):
                 if not surf_ads.constraints == surf_empty.constraints:
                     # will lead to errors if adsorbate is constrained
                     if options.verbose:
-                        print("\nWarning: Not included."
+                        print("\        nWarning: Not included."
                               " different constraint settings detected for"
                               " {} vs {}".format(surf_empty.info['filename'],
                                                  surf_ads.info['filename']))
@@ -203,9 +196,9 @@ def fuzzy_match(structures, options):
                 diff_numbers = [n for n in atomic_num_ads
                                 if not n in atomic_num_surf]
 
-                # if not equal_numbers + diff_numbers == atomic_num_ads \
-                #   or len(diff_numbers) == 0:
-                #    continue
+                if not sorted(equal_numbers + diff_numbers) == sorted(atomic_num_ads) \
+                   or len(diff_numbers) == 0:
+                    continue
 
                 equal_formula = get_reduced_chemical_formula(
                     ase.atoms.Atoms(equal_numbers))
@@ -218,7 +211,7 @@ def fuzzy_match(structures, options):
 
                 if not red_diff_numbers in adsorbate_numbers:
                     index = adsorbate_numbers.index(red_diff_numbers)
-                    print("\nAdsorbate {} detected".format(options.adsorbates[index]),
+                    print("\n        Adsorbate {} detected".format(options.adsorbates[index]),
                           " Include by setting the --adsorbates options.")
 
                 dE = surf_ads.get_potential_energy() \
@@ -232,8 +225,7 @@ def fuzzy_match(structures, options):
                                                 gas_phase_candidates)
 
                 #stoich_factors = stoichiometry_factors[adsorbate]
-                formula = ''
-
+                equation = ''
                 for i, ref in enumerate(references):
                     dE -= prefactors[i] * reference_energy[ref]
                     pf = prefactors[i]
@@ -241,63 +233,51 @@ def fuzzy_match(structures, options):
                         pf = ''
                     elif pf.isdigit():
                         pf = int(pf)
-                    formula += '{}{}gas_'.format(pf, ref)
+                    equation += '{}{}gas_'.format(pf, ref)
 
-                formula += 'star__'
+                equation += 'star__'
 
                 site = surf_ads.info.get('site', None)
                 if site:
-                    formula += '{}@{}'.format(adsorbate, site)
+                    equation += '{}@{}'.format(adsorbate, site)
                 else:
-                    formula += '{}star'.format(adsorbate)
-
-                key = ("{equal_formula}"
-                       "({surface_facet})"
-                       "+{adsorbate}").format(
-                           equal_formula=equal_formula,
-                           surface_facet=surf_empty.info['facet'],
-                           adsorbate=adsorbate)
+                    equation += '{}star'.format(adsorbate)
 
                 if abs(dE) < options.max_energy:
+                    surface_ads = ("{equal_formula}"
+                                   "({surface_facet})"
+                                   "+{adsorbate}").format(
+                                       equal_formula=equal_formula,
+                                       surface_facet=surf_empty.info['facet'],
+                                       adsorbate=adsorbate)
+
                     energy = dE
                     if options.verbose:
-                        print("      Adsorption energy found for {key}"
+                        print("        Adsorption energy found for {surface_ads}"
                               .format(**locals()))
-
-                    equation = (" {formula:30s}").format(
-                        formula=formula,
-                        equal_formula=equal_formula,
-                        surface_facet=surf_empty.info['facet']) \
-                        .replace(' ', '') \
-                        .replace('+', '_') \
-                        .replace('->', '__') \
-                        .replace('*', 'star') \
-                        .replace('(g)', 'gas')
 
                     # We keep the empty structure whether or not
                     # we keep all structures
+                    dft_code = options.dft_code or structure.info['filetype']
+                    dft_functional = options.xc_functional
+                    # Use DFT potential energy to generate
+                    # Unique key for each empty surface.
+                    key = '{}_epot={}eV'.format(equal_formula,
+                                                surf_empty.get_potential_energy())
+
+                    facet = options.facet_name if options.facet_name != 'facet' \
+                        else surf_empty.info['facet']
                     collected_structures \
-                        .setdefault(
-                            options.dft_code
-                            or structure.info['filetype'],
-                            {}) \
-                        .setdefault(options.xc_functional, {}) \
-                        .setdefault(equal_formula + ('_' +
-                                                     options.structure
-                                                     or ''
-                                                     ), {}) \
-                        .setdefault(
-                            options.facet_name
-                            if options.facet_name != 'facet'
-                            else surf_empty.info['facet'], {}) \
+                        .setdefault(dft_code, {}) \
+                        .setdefault(dft_functional, {}) \
+                        .setdefault(key, {}) \
+                        .setdefault(facet, {}) \
                         .setdefault('empty_slab', surf_empty)
 
                     collected_energies[key] = energy
                     key_count[key] = key_count.get(key, 0) + 1
-                    # if options.verbose:
-                    # print(key)
-                    # print(collected_energies)
-                    #print(key in collected_energies)
+
+                    # Only write lowest energy system
                     if not options.keep_all_energies:
                         if energy > collected_energies.get(
                                 key, float("inf")):
@@ -306,22 +286,8 @@ def fuzzy_match(structures, options):
                     # persist adsorbate slab structures
                     ####################################
                     collected_energies[key] = energy
-                    collected_structures.setdefault(
-                        options.dft_code
-                        or structure.info['filetype'],
-                        {}).setdefault(
-                        options.xc_functional,
-                        {}).setdefault(
-                        equal_formula + '_' + (
-                            options.structure
-                            or 'structure'), {}
-                    ).setdefault(
-                        options.facet_name
-                        if options.facet_name != 'facet'
-                        else surf_empty.info['facet'],
-                        {}).setdefault(
-                        equation,
-                        {})[adsorbate] = surf_ads
+                    collected_structures[dft_code][dft_functional][key][facet]\
+                        .setdefault(equation, {})[adsorbate] = surf_ads
 
     # if options.verbose:
     #    print("\n\nCollected Adsorption Energies Data")
@@ -340,8 +306,8 @@ def fuzzy_match(structures, options):
         print("    --max-density-slab 0.03 ")
 
     for key, energy in collected_energies.items():
-        print("{key:40s}: {energy:.3f} eV".format(
-            key=key,
+        print("{key:15s}: {energy:.3f} eV".format(
+            key=key.split('_')[0],
             energy=energy,
         ))
 
@@ -388,6 +354,8 @@ def create_folders(options, structures, publication_template, root=''):
 
 
 def main(options):
+    print("Running Organize script")
+    print("=======================")
     pickle_file = options.foldername.strip().rstrip(
         '/').strip('.').rstrip('/') + '.cache.pckl'
 
@@ -412,7 +380,21 @@ def main(options):
 
     publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
     structures = fuzzy_match(structures, options)
+    if not structures:
+        return
+    root = options.foldername.strip('/') + '.organized/'
     create_folders(options, structures,
-                   root=options.foldername.strip('/') + '.organized',
+                   root=root,
                    publication_template=publication_template,
                    )
+
+    print("\nFile organization complete!"
+          " Files placed in '{}'".format(root))
+
+    print('\nInstructions:')
+    print('=============')
+    print("    1) Update the file '{root}publication.txt' with your publication info and email."
+          "\n\n    2) Make sure DFT-CODE and XC-FUNCTIONAL folder names are changed"
+          " with the right calculator information."
+          "\n\n    3) Run 'cathub folder2db {root}'".format(root=root),
+          "to create a local database of reaction energies.\n")
