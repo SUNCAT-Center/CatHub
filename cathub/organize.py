@@ -157,7 +157,6 @@ def fuzzy_match(structures, options):
         surface_size = [len(s) for s in surfaces]
         idx = np.argsort(surface_size)
         surfaces = [surfaces[i] for i in idx]
-
         for i, surf_empty in enumerate(surfaces):
             for j, surf_ads in enumerate(surfaces[i+1:]):
                 if options.verbose:
@@ -179,8 +178,11 @@ def fuzzy_match(structures, options):
                                              surf_ads.info['filename']))
                     # " \nPlease include calculator information when possible")
 
-                if not surf_ads.constraints == surf_empty.constraints:
-                    # will lead to errors if adsorbate is constrained
+                constraints_empty = [c.todict() for c in surf_empty.constraints]
+                constraints_ads = [c.todict() for c in surf_ads.constraints]
+                if not constraints_empty == constraints_ads:
+                    #print(surf_ads.constraints, surf_empty.constraints)
+                    # This will lead to errors if adsorbate is constrained!
                     if options.verbose:
                         print("\        nWarning: Not included."
                               " different constraint settings detected for"
@@ -210,8 +212,8 @@ def fuzzy_match(structures, options):
                     cathub.ase_tools.get_reduced_numbers(diff_numbers)
 
                 if not red_diff_numbers in adsorbate_numbers:
-                    index = adsorbate_numbers.index(red_diff_numbers)
-                    print("\n        Adsorbate {} detected".format(options.adsorbates[index]),
+                    #index = adsorbate_numbers.index(red_diff_numbers)
+                    print("\n        Adsorbate {} detected".format(adsorbate),
                           " Include by setting the --adsorbates options.")
 
                 dE = surf_ads.get_potential_energy() \
@@ -231,7 +233,7 @@ def fuzzy_match(structures, options):
                     pf = prefactors[i]
                     if pf == 1.0:
                         pf = ''
-                    elif pf.isdigit():
+                    elif str(pf).isdigit():
                         pf = int(pf)
                     equation += '{}{}gas_'.format(pf, ref)
 
@@ -274,18 +276,18 @@ def fuzzy_match(structures, options):
                         .setdefault(facet, {}) \
                         .setdefault('empty_slab', surf_empty)
 
-                    collected_energies[key] = energy
                     key_count[key] = key_count.get(key, 0) + 1
 
                     # Only write lowest energy system
                     if not options.keep_all_energies:
                         if energy > collected_energies.get(
-                                key, float("inf")):
+                                key, {}).get(adsorbate, float("inf")):
                             continue
 
                     # persist adsorbate slab structures
                     ####################################
-                    collected_energies[key] = energy
+                    collected_energies[key] = {}
+                    collected_energies[key][adsorbate] = energy
                     collected_structures[dft_code][dft_functional][key][facet]\
                         .setdefault(equation, {})[adsorbate] = surf_ads
 
@@ -305,10 +307,11 @@ def fuzzy_match(structures, options):
         print("  * raise the maximum density for slab structures")
         print("    --max-density-slab 0.03 ")
 
-    for key, energy in collected_energies.items():
-        print("{key:15s}: {energy:.3f} eV".format(
-            key=key.split('_')[0],
-            energy=energy,
+    for key, adsorbates in collected_energies.items():
+        for ads, energy in adsorbates.items():
+            print("{key:15s}: {energy:.3f} eV".format(
+                key=key.split('_')[0] + ads,
+                energy=energy,
         ))
 
     return collected_structures
