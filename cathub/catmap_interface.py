@@ -1,8 +1,8 @@
 import pandas as pd
 from sqlalchemy import create_engine 
 from ase.db import connect
-
 from tabulate import tabulate
+
 
 class CatmapInterface():
     def __init__(self, table_name, filename):
@@ -27,7 +27,7 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, critical_density):
+def write_energies(db_filepath, critical_density, reference_gases):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     table_name = 'systems'
@@ -37,14 +37,23 @@ def write_energies(db_filepath, critical_density):
     db = connect(str(db_filepath))
     gas_select_rows = [list(db.select(id=gas_id))[0] for gas_id in gas_ids]
     surface, site, species, formation_energies = [], [], [], []
+    reference_gas_energies = {}
+    for row in gas_select_rows:
+        if row.formula in reference_gases:
+            reference_gas_energies[row.formula] = row.energy
+
     for row in gas_select_rows:
         mass = row.mass
         volume = row.volume
-        if mass / volume < critical_density:
-            surface.append('None')
-            site.append('gas')
+        surface.append('None')
+        site.append('gas')
+        if row.formula in reference_gases:
+            relative_energy = 0.0
+        else:
+            relative_energy = row.energy
+
         species.append(row.formula)
-        formation_energies.append(f'{row.energy:.3f}')
+        formation_energies.append(f'{relative_energy:.3f}')
 
     df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
