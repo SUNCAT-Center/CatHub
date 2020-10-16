@@ -32,10 +32,12 @@ def db_to_dataframe(table_name, filename):
 def write_energies(db_filepath, critical_density, reference_gases):
     "Write formation energies to energies.txt after applying free energy corrections"
 
+    # identify system ids for gaseous species
     table_name = 'systems'
     df = db_to_dataframe(table_name, str(db_filepath))
     gas_ids = list(df.id[df.mass / df.volume < critical_density])
 
+    # record energies for reference gases
     db = connect(str(db_filepath))
     gas_select_rows = [list(db.select(id=gas_id))[0] for gas_id in gas_ids]
     surface, site, species, formation_energies = [], [], [], []
@@ -44,6 +46,7 @@ def write_energies(db_filepath, critical_density, reference_gases):
         if row.formula in reference_gases:
             reference_gas_energies[row.formula] = row.energy
 
+    # build dataframe data for gaseous species
     for row in gas_select_rows:
         mass = row.mass
         volume = row.volume
@@ -55,8 +58,24 @@ def write_energies(db_filepath, critical_density, reference_gases):
             chemical_symbols_dict = formula_to_chemical_symbols(row.formula)
             for chemical_symbol in chemical_symbols_dict.keys():
                 count = chemical_symbols_dict[chemical_symbol]
-                breakpoint()
-            relative_energy = row.energy
+
+            # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
+            if 'C' in chemical_symbols_dict:
+                x = chemical_symbols_dict['C']
+            else:
+                x = 0
+            if 'H' in chemical_symbols_dict:
+                y = chemical_symbols_dict['H']
+            else:
+                y = 0
+            if 'O' in chemical_symbols_dict:
+                z = chemical_symbols_dict['O']
+            else:
+                z = 0
+            relative_energy = (row.energy
+                               + (x - z) * reference_gas_energies['H2O']
+                               - x * reference_gas_energies['CO']
+                               - (x - z + y / 2) * reference_gas_energies['H2'])
 
         species.append(row.formula)
         formation_energies.append(f'{relative_energy:.3f}')
@@ -64,6 +83,7 @@ def write_energies(db_filepath, critical_density, reference_gases):
     df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
+    # write corrected energy data to file
     energies_filepath = db_filepath.parent / 'energies.txt'
     with open(energies_filepath, 'w') as energies_file:
         df.to_string(energies_file, index=False)
