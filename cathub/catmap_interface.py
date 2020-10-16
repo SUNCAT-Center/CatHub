@@ -29,7 +29,7 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, critical_density, reference_gases, dft_corrections, offset=None):
+def write_energies(db_filepath, critical_density, reference_gases, dft_corrections, offset, field_effects):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for gaseous species
@@ -81,8 +81,28 @@ def write_energies(db_filepath, critical_density, reference_gases, dft_correctio
         if row.formula in offset:
             relative_energy += offset[row.formula]
 
+        # Apply field effects
+        epsilon = field_effects['epsilon']
+        pH = field_effects['pH']
+        d = field_effects['d']
+        n = field_effects['n']
+        UM_PZC = field_effects['UM_PZC']
+        mu = field_effects['mu']
+        alpha = field_effects['alpha']
+
+        # U_RHE-scale field effect
+        U_SHE = epsilon * d + UM_PZC
+        U_RHE = U_SHE + 0.059 * pH
+        if row.formula in n:
+            relative_energy += n[row.formula] * U_RHE
+
+        # U_SHE-scale field effects
+        if row.formula in mu:
+            relative_energy += (mu[row.formula] * epsilon
+                                - 0.5 * alpha[row.formula] * epsilon**2)
+
         species.append(row.formula)
-        formation_energies.append(f'{relative_energy:.3f}')
+        formation_energies.append(f'{relative_energy:.5f}')
 
     df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
