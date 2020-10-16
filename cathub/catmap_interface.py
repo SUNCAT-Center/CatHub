@@ -29,7 +29,7 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, critical_density, reference_gases):
+def write_energies(db_filepath, critical_density, reference_gases, dft_corrections):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for gaseous species
@@ -44,7 +44,7 @@ def write_energies(db_filepath, critical_density, reference_gases):
     reference_gas_energies = {}
     for row in gas_select_rows:
         if row.formula in reference_gases:
-            reference_gas_energies[row.formula] = row.energy
+            reference_gas_energies[row.formula] = row.energy + dft_corrections[row.formula]
 
     # build dataframe data for gaseous species
     for row in gas_select_rows:
