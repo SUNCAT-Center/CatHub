@@ -840,7 +840,7 @@ class CathubPostgreSQL:
                     # write one row at the time until ase is updated
                     # db2.write(rows)
                     for row in rows:
-                        db2.write(row)
+                        db2.write(row, data=row.data)
 
                 nrows += len(rows)
                 t2 = time.time()
