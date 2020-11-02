@@ -29,13 +29,29 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_gas_energies(db_filepath, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects):
+def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects, write_gases, write_adsorbates):
+
+    df_out = pd.DataFrame(columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
+
+    if write_gases:
+        df_out = write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
+
+    if write_adsorbates:
+        df_out = write_adsorbate_energies(db_filepath, df_out)
+
+    # write corrected energy data to file
+    energies_filepath = db_filepath.parent / f'energies_f{field_effects["epsilon"]:.2e}.txt'
+    with open(energies_filepath, 'w') as energies_file:
+        df_out.to_string(energies_file, index=False)
+    return None
+
+def write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for gaseous species
     table_name = 'systems'
-    df = db_to_dataframe(table_name, str(db_filepath))
-    gas_ids = list(df.id[df.mass / df.volume < critical_density])
+    df1 = db_to_dataframe(table_name, str(db_filepath))
+    gas_ids = list(df1.id[df1.mass / df1.volume < critical_density])
     num_decimal_places = 5
 
     # record energies for reference gases
@@ -113,14 +129,10 @@ def write_gas_energies(db_filepath, critical_density, reference_gases, dummy_gas
         species.append(row.formula)
         formation_energies.append(f'{relative_energy:.{num_decimal_places}f}')
 
-    df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
-                      columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
-
-    # write corrected energy data to file
-    energies_filepath = db_filepath.parent / f'energies_f{epsilon:.2e}.txt'
-    with open(energies_filepath, 'w') as energies_file:
-        df.to_string(energies_file, index=False)
-    return None
+    df2 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
+                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
+    df_out = df_out.append(df2)
+    return df_out
 
 def formula_to_chemical_symbols(formula):
     "Return dictionary mapping chemical symbols to number of atoms"
