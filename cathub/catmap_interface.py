@@ -117,7 +117,7 @@ def write_gas_energies(db_filepath, critical_density, reference_gases, dummy_gas
                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
     # write corrected energy data to file
-    energies_filepath = db_filepath.parent / 'energies.txt'
+    energies_filepath = db_filepath.parent / f'energies_f{epsilon:.2e}.txt'
     with open(energies_filepath, 'w') as energies_file:
         df.to_string(energies_file, index=False)
     return None
