@@ -29,7 +29,7 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects, write_gases, write_adsorbates):
+def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
 
     df_out = pd.DataFrame(columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
@@ -37,7 +37,7 @@ def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, 
         df_out = write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies(db_filepath, df_out)
+        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters)
 
     # write corrected energy data to file
     energies_filepath = db_filepath.parent / f'energies_f{field_effects["epsilon"]:.2e}.txt'
@@ -128,6 +128,23 @@ def write_gas_energies(db_filepath, df_out, critical_density, reference_gases, d
 
         species.append(row.formula)
         formation_energies.append(f'{relative_energy:.{num_decimal_places}f}')
+
+    df2 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
+                       columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
+    df_out = df_out.append(df2)
+    return df_out
+
+def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters):
+    "Write formation energies to energies.txt after applying free energy corrections"
+
+    # identify system ids for adsorbate species
+    table_name = 'reaction'
+    df1 = db_to_dataframe(table_name, str(db_filepath))
+
+    desired_surface = adsorbate_parameters['desired_surface']
+    desired_facet = adsorbate_parameters['desired_facet']
+    df2 = df1.loc[df1['surface_composition'] == desired_surface]
+    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
 
     df2 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                        columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
