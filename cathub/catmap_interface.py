@@ -30,12 +30,12 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
+def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections, offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
 
     df_out = pd.DataFrame(columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
     if write_gases:
-        df_out = write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
+        df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections)
@@ -46,19 +46,14 @@ def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, 
         df_out.to_string(energies_file, index=False)
     return None
 
-def write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects):
+def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections, offset, field_effects):
     "Write formation energies to energies.txt after applying free energy corrections"
-
-    # identify system ids for gaseous species
-    table_name = 'systems'
-    df1 = db_to_dataframe(table_name, str(db_filepath))
-    gas_ids = list(df1.id[df1.mass / df1.volume < critical_density])
-    num_decimal_places = 5
 
     # record energies for reference gases
     db = connect(str(db_filepath))
-    gas_select_rows = [list(db.select(id=gas_id))[0] for gas_id in gas_ids]
+    gas_select_rows = list(db.select(state='gas'))
     surface, site, species, formation_energies = [], [], [], []
+    num_decimal_places = 5
     reference_gas_energies = {}
     for row in gas_select_rows:
         if row.formula in reference_gases:
@@ -130,9 +125,9 @@ def write_gas_energies(db_filepath, df_out, critical_density, reference_gases, d
         species.append(row.formula)
         formation_energies.append(f'{relative_energy:.{num_decimal_places}f}')
 
-    df2 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
+    df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                        columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
-    df_out = df_out.append(df2)
+    df_out = df_out.append(df)
     return df_out
 
 def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections):
