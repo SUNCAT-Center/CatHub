@@ -1,4 +1,5 @@
 import re
+import json
 
 import pandas as pd
 from sqlalchemy import create_engine 
@@ -37,7 +38,7 @@ def write_energies(db_filepath, critical_density, reference_gases, dummy_gases, 
         df_out = write_gas_energies(db_filepath, df_out, critical_density, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters)
+        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections)
 
     # write corrected energy data to file
     energies_filepath = db_filepath.parent / f'energies_f{field_effects["epsilon"]:.2e}.txt'
@@ -134,7 +135,7 @@ def write_gas_energies(db_filepath, df_out, critical_density, reference_gases, d
     df_out = df_out.append(df2)
     return df_out
 
-def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters):
+def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for adsorbate species
@@ -143,9 +144,81 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters):
 
     desired_surface = adsorbate_parameters['desired_surface']
     desired_facet = adsorbate_parameters['desired_facet']
-    df2 = df1.loc[df1['surface_composition'] == desired_surface]
+    df1 = df1.loc[df1['surface_composition'] == desired_surface]
     df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
+    
+    ## build dataframe data for adsorbate species
+    db = connect(str(db_filepath))
+    surface, site, species, formation_energies = [], [], [], []
+    num_decimal_places = 9
 
+    # simple reaction species: only one active product and filter out reactions without any adsorbed species
+    index_list = []
+    for index, product in enumerate(df1['products']):
+        if product.count('star') == 1 and 'star' not in json.loads(product):
+            index_list.append(index)
+    df2 = df1.iloc[index_list]
+
+    products_list = []
+    species_list = []
+    for index, products_string in enumerate(df2.products):
+        products_list.append(json.loads(products_string))
+        for product in products_list[-1]:
+            if 'star' in product:
+                species_list.append(product.replace('star', ''))
+    unique_species = sorted(list(set(species_list)), key=len)
+    for species_value in unique_species:
+        if '-' in desired_surface:
+            surface.append(desired_surface.split('-')[0])
+        else:
+            surface.append(desired_surface)
+        site.append(desired_facet)
+        species.append(species_value)
+
+        indices = [index for index, value in enumerate(species_list) if value == species_value]
+        facet_list = df2.facet.iloc[indices].tolist()
+        facet_wise_formation_energies = []
+        for index, reaction_index in enumerate(indices):
+            facet = facet_list[index]
+            # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation energy calculations.
+            # Thus, considering only reactions with specified adsorption site in this code.
+            if '-' in facet:
+                reaction_energy = df2.reaction_energy.iloc[reaction_index]
+    
+                product_energy = 0
+                for product in products_list[reaction_index]:
+                    if 'star' not in product:
+                        if 'gas' in product:
+                            gas_product = product.replace('gas', '')
+                            if gas_product not in reference_gases:
+                                row_index = df_out.index[df_out['Species Name'] == gas_product][0]
+                                product_energy += float(df_out['Formation Energy'].iloc[row_index]) * products_list[reaction_index][product]
+                                
+                            if gas_product in dft_corrections:
+                                product_energy += dft_corrections[gas_product] * products_list[reaction_index][product]
+        
+                reactant_energy = 0
+                reactants = json.loads(df2.reactants.iloc[reaction_index])
+                for reactant in reactants:
+                    if 'star' not in reactant:
+                        if 'gas' in reactant:
+                            gas_product = reactant.replace('gas', '')
+                            if gas_product not in reference_gases:
+                                row_index =  df_out.index[df_out['Species Name'] == gas_product][0]
+                                reactant_energy += float(df_out['Formation Energy'].iloc[row_index]) * reactants[reactant]
+                    
+                            if gas_product in dft_corrections:
+                                reactant_energy += dft_corrections[gas_product] * reactants[reactant]
+    
+                # Apply solvation energy corrections
+                if species_value in adsorbate_parameters['solvation_corrections']:
+                    facet_wise_formation_energies.append(reaction_energy + product_energy - reactant_energy + adsorbate_parameters['solvation_corrections'][species_value])
+                else:
+                    facet_wise_formation_energies.append(reaction_energy + product_energy - reactant_energy)
+
+        min_formation_energy = min(facet_wise_formation_energies)
+        formation_energies.append(f'{min_formation_energy:.{num_decimal_places}f}') 
+    
     df2 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                        columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
     df_out = df_out.append(df2)
