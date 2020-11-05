@@ -35,7 +35,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_ga
         df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, verbose)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases)
+        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects)
 
     # write corrected energy data to file
     system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
@@ -139,7 +139,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         print('\n')
     return df_out
 
-def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases):
+def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for adsorbate species
@@ -179,7 +179,7 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         site.append(desired_facet)
         species.append(species_value)
 
-        site_wise_formation_energies = get_formation_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters)
+        site_wise_formation_energies = get_formation_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
         min_formation_energy = min(site_wise_formation_energies)
         formation_energies.append(f'{min_formation_energy:.{num_decimal_places}f}') 
     
@@ -188,7 +188,7 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
     df_out = df_out.append(df3)
     return df_out
 
-def get_formation_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters):
+def get_formation_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute formation energies for a given species at all suitable adsorption sites"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -203,11 +203,11 @@ def get_formation_energies(df, species_list, species_value, products_list, refer
             reactants = json.loads(df.reactants.iloc[reaction_index])
             products = products_list[reaction_index]
             reaction_energy = df.reaction_energy.iloc[reaction_index]
-            formation_energy = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters)
+            formation_energy = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
             site_wise_formation_energies.append(formation_energy)
     return site_wise_formation_energies
 
-def get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters):
+def get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute formation energy for adsorbate in a given reaction"
     
     product_energy = 0
@@ -239,6 +239,26 @@ def get_adsorbate_formation_energy(species_value, reactants, products, reaction_
         formation_energy = reaction_energy + product_energy - reactant_energy + adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
     else:
         formation_energy = reaction_energy + product_energy - reactant_energy
+
+    # Apply field effects
+    epsilon = field_effects['epsilon']
+    pH = field_effects['pH']
+    d = field_effects['d']
+    n = field_effects['n']
+    UM_PZC = field_effects['UM_PZC']
+    mu = field_effects['mu']
+    alpha = field_effects['alpha']
+
+    # U_RHE-scale field effect
+    U_SHE = epsilon * d + UM_PZC
+    U_RHE = U_SHE + 0.059 * pH
+    if species_value in n:
+        formation_energy += n[species_value] * U_RHE
+
+    # U_SHE-scale field effects
+    if species_value in mu:
+        formation_energy += (mu[species_value] * epsilon
+                             - 0.5 * alpha[species_value] * epsilon**2)
     return formation_energy
 
 def formula_to_chemical_symbols(formula):
