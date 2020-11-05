@@ -1,5 +1,6 @@
 import re
 import json
+from pathlib import Path
 
 import pandas as pd
 from sqlalchemy import create_engine 
@@ -41,7 +42,9 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_ga
         df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases)
 
     # write corrected energy data to file
-    energies_filepath = db_filepath.parent / f'energies_f{field_effects["epsilon"]:.2e}.txt'
+    system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
+    Path.mkdir(system_dir_path, parents=True, exist_ok=True)
+    energies_filepath = system_dir_path / f'energies_f{field_effects["epsilon"]:.2e}.txt'
     with open(energies_filepath, 'w') as energies_file:
         df_out.to_string(energies_file, index=False)
     return None
