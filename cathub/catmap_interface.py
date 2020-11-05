@@ -9,15 +9,6 @@ from ase.data import chemical_symbols, atomic_numbers
 from tabulate import tabulate
 
 
-class CatmapInterface():
-    def __init__(self, table_name, filename):
-        self.df = db_to_dataframe(table_name, filename)
-        
-
-    def write_input(self):
-        # function to write input file
-        a = 1
-        
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
 
@@ -285,4 +276,3 @@ def formula_to_chemical_symbols(formula):
     for key in chemical_symbols_dict.keys():
         chemical_symbols_dict[key] = formula_unit_count * chemical_symbols_dict[key]
     return chemical_symbols_dict
-
