@@ -30,15 +30,15 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections, offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
+def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
 
     df_out = pd.DataFrame(columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
     if write_gases:
-        df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections, offset, field_effects)
+        df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections)
+        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases)
 
     # write corrected energy data to file
     energies_filepath = db_filepath.parent / f'energies_f{field_effects["epsilon"]:.2e}.txt'
@@ -46,7 +46,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections, o
         df_out.to_string(energies_file, index=False)
     return None
 
-def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections, offset, field_effects):
+def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # record energies for reference gases
@@ -57,7 +57,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
     reference_gas_energies = {}
     for row in gas_select_rows:
         if row.formula in reference_gases:
-            reference_gas_energies[row.formula] = row.energy + dft_corrections[row.formula]
+            reference_gas_energies[row.formula] = row.energy + dft_corrections_gases[row.formula]
 
     # build dataframe data for dummy gases
     dummy_gas_energy = 0.0
@@ -98,9 +98,9 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
                                - x * reference_gas_energies['CO']
                                - (x - z + y / 2) * reference_gas_energies['H2'])
 
-        # Apply offset
-        if row.formula in offset:
-            relative_energy += offset[row.formula]
+        # Apply BEEF DFT Helmholtz Offset
+        if row.formula in beef_dft_helmholtz_offset:
+            relative_energy += beef_dft_helmholtz_offset[row.formula]
 
         # Apply field effects
         epsilon = field_effects['epsilon']
@@ -130,7 +130,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
     df_out = df_out.append(df)
     return df_out
 
-def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections):
+def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for adsorbate species
@@ -189,8 +189,8 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
                                 row_index = df_out.index[df_out['Species Name'] == gas_product][0]
                                 product_energy += float(df_out['Formation Energy'].iloc[row_index]) * products_list[reaction_index][product]
                                 
-                            if gas_product in dft_corrections:
-                                product_energy += dft_corrections[gas_product] * products_list[reaction_index][product]
+                            if gas_product in dft_corrections_gases:
+                                product_energy += dft_corrections_gases[gas_product] * products_list[reaction_index][product]
         
                 reactant_energy = 0
                 reactants = json.loads(df2.reactants.iloc[reaction_index])
@@ -202,12 +202,12 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
                                 row_index =  df_out.index[df_out['Species Name'] == gas_product][0]
                                 reactant_energy += float(df_out['Formation Energy'].iloc[row_index]) * reactants[reactant]
                     
-                            if gas_product in dft_corrections:
-                                reactant_energy += dft_corrections[gas_product] * reactants[reactant]
+                            if gas_product in dft_corrections_gases:
+                                reactant_energy += dft_corrections_gases[gas_product] * reactants[reactant]
     
                 # Apply solvation energy corrections
-                if species_value in adsorbate_parameters['solvation_corrections']:
-                    facet_wise_formation_energies.append(reaction_energy + product_energy - reactant_energy + adsorbate_parameters['solvation_corrections'][species_value])
+                if species_value in adsorbate_parameters['solvation_corrections_adsorbates']:
+                    facet_wise_formation_energies.append(reaction_energy + product_energy - reactant_energy + adsorbate_parameters['solvation_corrections_adsorbates'][species_value])
                 else:
                     facet_wise_formation_energies.append(reaction_energy + product_energy - reactant_energy)
 
