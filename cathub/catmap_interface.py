@@ -173,21 +173,8 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         site.append(desired_facet)
         species.append(species_value)
 
-        indices = [index for index, value in enumerate(species_list) if value == species_value]
-        facet_list = df2.facet.iloc[indices].tolist()
-        facet_wise_formation_energies = []
-        for index, reaction_index in enumerate(indices):
-            facet = facet_list[index]
-            # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation energy calculations.
-            # Thus, considering only reactions with specified adsorption site in this code.
-            if '-' in facet:
-                reactants = json.loads(df2.reactants.iloc[reaction_index])
-                products = products_list[reaction_index]
-                reaction_energy = df2.reaction_energy.iloc[reaction_index]
-                formation_energy = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters)
-                facet_wise_formation_energies.append(formation_energy)
-
-        min_formation_energy = min(facet_wise_formation_energies)
+        site_wise_formation_energies = get_formation_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters)
+        min_formation_energy = min(site_wise_formation_energies)
         formation_energies.append(f'{min_formation_energy:.{num_decimal_places}f}') 
     
     df3 = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
@@ -195,7 +182,29 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
     df_out = df_out.append(df3)
     return df_out
 
+def get_formation_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters):
+    "Compute formation energies for a given species at all suitable adsorption sites"
+    
+    indices = [index for index, value in enumerate(species_list) if value == species_value]
+    facet_list = df.facet.iloc[indices].tolist()
+
+    site_wise_formation_energies = []
+    for index, reaction_index in enumerate(indices):
+        facet = facet_list[index]
+        # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation energy calculations.
+        # Thus, considering only reactions with specified adsorption site in this code.
+        if '-' in facet:
+            reactants = json.loads(df.reactants.iloc[reaction_index])
+            products = products_list[reaction_index]
+            reaction_energy = df.reaction_energy.iloc[reaction_index]
+            formation_energy = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters)
+            site_wise_formation_energies.append(formation_energy)
+
+    return site_wise_formation_energies
+
 def get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters):
+    "Compute formation energy for adsorbate in a given reaction"
+    
     product_energy = 0
     for product, num_units in products.items():
         if 'star' not in product:
