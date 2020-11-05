@@ -22,12 +22,17 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates):
+def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates, verbose=True):
 
     df_out = pd.DataFrame(columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
 
+    if verbose:
+        print('-------------------------------------------------------------')
+        print(f'###### {adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}: electric field strength = {field_effects["epsilon"]:.2f} V/A ######')
+        print('-------------------------------------------------------------\n')
+
     if write_gases:
-        df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects)
+        df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, verbose)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases)
@@ -40,18 +45,20 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_ga
         df_out.to_string(energies_file, index=False)
     return None
 
-def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects):
+def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, verbose):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # record energies for reference gases
     db = connect(str(db_filepath))
-    gas_select_rows = list(db.select(state='gas'))
+    gas_atoms_rows = list(db.select(state='gas'))
     surface, site, species, formation_energies = [], [], [], []
     num_decimal_places = 5
     reference_gas_energies = {}
-    for row in gas_select_rows:
-        if row.formula in reference_gases:
+    for row in gas_atoms_rows:
+        if row.formula in dft_corrections_gases:
             reference_gas_energies[row.formula] = row.energy + dft_corrections_gases[row.formula]
+        else:
+            reference_gas_energies[row.formula] = row.energy
 
     # build dataframe data for dummy gases
     dummy_gas_energy = 0.0
@@ -62,9 +69,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         formation_energies.append(f'{dummy_gas_energy:.{num_decimal_places}f}')
 
     # build dataframe data for gaseous species
-    for row in gas_select_rows:
-        mass = row.mass
-        volume = row.volume
+    for row in gas_atoms_rows:
         surface.append('None')
         site.append('gas')
         if row.formula in reference_gases:
@@ -122,6 +127,16 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
     df = pd.DataFrame(list(zip(surface, site, species, formation_energies)),
                        columns=['Surface Name', 'Site Name', 'Species Name', 'Formation Energy'])
     df_out = df_out.append(df)
+
+    if verbose:
+        table = []
+        print('Gas Phase Free Energy Correction:')
+        print('---------------------------------')
+        for index, species_name in enumerate(df['Species Name']):
+            beef_correction = dft_corrections_gases[species_name] if species_name in dft_corrections_gases else 0.0
+            table.append([species_name, f'{beef_correction:.{num_decimal_places}f}', df["Formation Energy"][index]])
+        print(tabulate(table, headers=["Species", "E_BEEF (eV)", "E_Formation (eV)"], tablefmt='psql', colalign=("right", "right", "right"), disable_numparse=True))
+        print('\n')
     return df_out
 
 def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases):
@@ -190,7 +205,6 @@ def get_formation_energies(df, species_list, species_value, products_list, refer
             reaction_energy = df.reaction_energy.iloc[reaction_index]
             formation_energy = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters)
             site_wise_formation_energies.append(formation_energy)
-
     return site_wise_formation_energies
 
 def get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters):
