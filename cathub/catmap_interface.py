@@ -104,17 +104,13 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         # Apply field effects
         epsilon = field_effects['epsilon']
         pH = field_effects['pH']
-        d = field_effects['d']
-        n = field_effects['n']
-        UM_PZC = field_effects['UM_PZC']
+        U_RHE = field_effects['U_RHE']
         mu = field_effects['mu']
         alpha = field_effects['alpha']
 
         # U_RHE-scale field effect
-        U_SHE = epsilon * d + UM_PZC
-        U_RHE = U_SHE + 0.059 * pH
-        if row.formula in n:
-            relative_energy += n[row.formula] * U_RHE
+#         U_SHE = epsilon * d + UM_PZC
+#         U_RHE = U_SHE + 0.059 * pH
 
         # U_SHE-scale field effects
         if row.formula in mu:
@@ -243,17 +239,22 @@ def get_adsorbate_formation_energy(species_value, reactants, products, reaction_
     # Apply field effects
     epsilon = field_effects['epsilon']
     pH = field_effects['pH']
-    d = field_effects['d']
-    n = field_effects['n']
-    UM_PZC = field_effects['UM_PZC']
+    U_RHE = field_effects['U_RHE']
     mu = field_effects['mu']
     alpha = field_effects['alpha']
 
     # U_RHE-scale field effect
-    U_SHE = epsilon * d + UM_PZC
-    U_RHE = U_SHE + 0.059 * pH
-    if species_value in n:
-        formation_energy += n[species_value] * U_RHE
+#     U_SHE = epsilon * d + UM_PZC
+#     U_RHE = U_SHE + 0.059 * pH
+
+    # x CO + y (H++e-) = CxH(y-2x+2z)Oz + (x-z) H2O
+    # x CO + y/2 H2 = CxH(y-2x+2z)Oz + (x-z) H2O
+    # Based on computational hydrogen electrode, n should be twice the number of H2 gas molecules that are required for the reduction reaction
+    if 'H2gas' in reactants:
+        n = 2 * reactants['H2gas']
+    else:
+        n = 0
+    formation_energy += n * U_RHE
 
     # U_SHE-scale field effects
     if species_value in mu:
