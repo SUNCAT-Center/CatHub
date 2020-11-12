@@ -54,6 +54,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
     gas_atoms_rows = list(db.select(state='gas'))
     surface, site, species, formation_energies, frequencies, references = [], [], [], [], [], []
     num_decimal_places = 5
+    energy_contributions = {'electric' : []}
     reference_gas_energies = {}
     for row in gas_atoms_rows:
         if row.formula in dft_corrections_gases:
@@ -115,8 +116,10 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
 
         # U_SHE-scale field effects
         if row.formula in mu:
-            relative_energy += (mu[row.formula] * epsilon
-                                - 0.5 * alpha[row.formula] * epsilon**2)
+            energy_contributions['electric'].append(get_electric_field_contribution(epsilon, mu[row.formula], alpha[row.formula]))
+        else:
+            energy_contributions['electric'].append(0.0)
+        relative_energy += energy_contributions['electric'][-1]
 
         species.append(row.formula)
         formation_energies.append(f'{relative_energy:.{num_decimal_places}f}')
@@ -133,10 +136,14 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         print('---------------------------------')
         for index, species_name in enumerate(df['species_name']):
             beef_correction = dft_corrections_gases[species_name] if species_name in dft_corrections_gases else 0.0
-            table.append([species_name, f'{beef_correction:.{num_decimal_places}f}', df["formation_energy"][index]])
-        print(tabulate(table, headers=["Species", "E_BEEF (eV)", "E_Formation (eV)"], tablefmt='psql', colalign=("right", "right", "right"), disable_numparse=True))
+            table.append([species_name, f'{beef_correction:.{num_decimal_places}f}', f'{energy_contributions["electric"][index]:.{num_decimal_places}f}', df["formation_energy"][index]])
+        print(tabulate(table, headers=["Species", "E_BEEF (eV)", "E_Electric", "E_Formation (eV)"], tablefmt='psql', colalign=("right", "right", "right"), disable_numparse=True))
         print('\n')
     return df_out
+
+def get_electric_field_contribution(epsilon, mu, alpha):
+    energy_contribution = mu * epsilon - 0.5 * alpha * epsilon**2
+    return energy_contribution
 
 def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects, verbose):
     "Write formation energies to energies.txt after applying free energy corrections"
