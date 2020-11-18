@@ -10,6 +10,7 @@ from tabulate import tabulate
 
 
 write_columns = ['surface_name', 'site_name', 'species_name', 'formation_energy', 'frequencies', 'reference']
+num_decimal_places = 9
 
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
@@ -62,7 +63,6 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
     if beef_dft_helmholtz_offset:
         offset = []
 
-    num_decimal_places = 5
     reference_gas_energies = {}
     for row in gas_atoms_rows:
         if row.formula in dft_corrections_gases:
@@ -175,6 +175,9 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
 #     U_RHE = U_SHE + 0.059 * pH
 
     # U_SHE-scale field effects
+    if reactants == None:
+        if species_value + '_g' in mu:
+            species_value = species_value + '_g'
     if species_value in mu:
         energy_contribution = mu[species_value] * epsilon - 0.5 * alpha[species_value] * epsilon**2
     else:
@@ -209,7 +212,6 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
     ## build dataframe data for adsorbate species
     db = connect(str(db_filepath))
     surface, site, species, formation_energies, frequencies, references = [], [], [], [], [], []
-    num_decimal_places = 9
 
     # corrections
     if field_effects:
