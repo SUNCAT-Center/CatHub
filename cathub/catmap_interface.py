@@ -136,7 +136,7 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         df = pd.concat([df, pd.DataFrame(electric, columns=['electric'])], axis=1)
     if beef_dft_helmholtz_offset:
         df = pd.concat([df, pd.DataFrame(offset, columns=['Hemlholtz DFT Offset'])], axis=1)
-    df_out = df_out.append(df, ignore_index=True)
+    df_out = df_out.append(df, ignore_index=True, sort=False)
 
     if verbose:
         table = []
@@ -253,7 +253,7 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
                        columns=write_columns)
     if field_effects:
         df3 = pd.concat([df3, pd.DataFrame(electric, columns=['electric'])], axis=1)
-    df_out = df_out.append(df3, ignore_index=True)
+    df_out = df_out.append(df3, ignore_index=True, sort=False)
 
     if verbose:
         table = []
