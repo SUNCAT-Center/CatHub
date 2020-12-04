@@ -14,6 +14,10 @@ from pathlib import Path
 Path().expanduser()
 
 
+accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'castep', 'crystal',
+                    'ulm', 'cube', 'elk', 'espresso', 'gaussian', 'aims',
+                    'dacapo', 'turbomole']
+
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': 'Fancy title',
     'authors': ['Doe, John', 'Einstein, Albert'],
@@ -84,14 +88,25 @@ def get_reduced_numbers(numbers):
         reduced_numbers += [atomic_number] * reduced_count
     return reduced_numbers, denominator
 
+
 def symbols(atoms):
     formula = get_chemical_formula(atoms)
     symbols = ase.symbols.string2symbols(formula)
     return ''.join(symbols)
 
 
-def collect_structures(foldername, verbose=False, level='*'):
+def collect_structures(foldername,
+                       verbose=False,
+                       inc_pattern=[],
+                       exc_pattern=[],
+                       level='*'):
+
     structures = []
+    if inc_pattern:
+        inc_pattern = inc_pattern.split(',')
+    if exc_pattern:
+        exc_pattern = exc_pattern.split(',')
+
     if verbose:
         print(foldername)
     for i, filename in enumerate(Path(foldername).glob(level)):
@@ -103,14 +118,22 @@ def collect_structures(foldername, verbose=False, level='*'):
                 global PUBLICATION_TEMPLATE
                 PUBLICATION_TEMPLATE = infile.read()
             continue
-        if posix_filename.endswith('traj.old'):
+        elif posix_filename.endswith('traj.old'):
             continue
         elif Path(posix_filename).is_file():
+            if inc_pattern:
+                if not np.any([pat in posix_filename for pat in inc_pattern]):
+                    continue
+                print(posix_filename)
+            if exc_pattern:
+                if np.any([pat in posix_filename for pat in exc_pattern]):
+                    continue
+
             try:
                 filetype = ase.io.formats.filetype(posix_filename)
             except Exception as e:
                 continue
-            if filetype:
+            if filetype in accepted_formats:
                 try:
                     structure = ase.io.read(posix_filename, ':')
                     structure[-1].info['filename'] = posix_filename
@@ -121,10 +144,11 @@ def collect_structures(foldername, verbose=False, level='*'):
                         # ensure that the structure has an energy
                         structures.append(structure)
                     except RuntimeError:
-                        print("Did not add {posix_filename} since it has no energy"
-                              .format(
-                                  posix_filename=posix_filename,
-                              ))
+                        if verbose:
+                            print("Did not add {posix_filename} since it has no energy"
+                                  .format(
+                                      posix_filename=posix_filename,
+                                  ))
                 except TypeError:
                     print("Warning: Could not read {posix_filename}"
                           .format(
@@ -299,3 +323,26 @@ def debug_assert(expression, message, debug=False):
         assert expression, message
 
     return True
+
+
+def compare_parameters(atoms1, atoms2):
+    no_calc = False
+
+    critical_parameters = ['encut', 'ecut', 'ediff', 'ediffg',
+                           'kpts', 'gamma', 'ismear', 'sigma',
+                           'ispin']
+    if not atoms1.calc or not atoms2.calc:
+        return 2
+
+    if not atoms1.calc.parameters or not atoms2.calc.parameters:
+        return 2
+
+    for k in critical_parameters:
+        v1 = atoms2.calc.parameters.get(k)
+        v2 = atoms2.calc.parameters.get(k)
+
+        if not np.all(v1 == v2):
+            print('Parameter mismatch:', k, v, '!=', v2)
+            return 0
+
+    return 1
