@@ -2,7 +2,8 @@
 
 # builtin imports
 from .ase_tools import gas_phase_references, get_chemical_formula, \
-    get_reduced_chemical_formula, symbols, collect_structures
+    get_reduced_chemical_formula, symbols, collect_structures, \
+    compare_parameters
 import cathub.ase_tools
 import ase.atoms
 import ase.utils
@@ -40,26 +41,12 @@ def fuzzy_match(structures, options):
     collected_energies = {}
     key_count = {}
     collected_structures = {}
+    check_parameters = not options.skip_parameters
+
     if options.verbose:
         print("\nGroup By Densities")
         print("===================")
     for structure in structures:
-        if options.include_pattern:
-            if not re.search(
-                    options.include_pattern, structure.info['filename']):
-                continue
-            if options.exclude_pattern \
-                    and re.search(
-                        options.exclude_pattern,
-                        structure.info['filename']):
-                continue
-
-        elif options.exclude_pattern:
-            if re.search(
-                    options.exclude_pattern,
-                    structure.info['filename']):
-                continue
-
         # add more info from filename
         facet_match = re.search(
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
@@ -129,12 +116,16 @@ def fuzzy_match(structures, options):
         print("\n\nGas phase candidates: {gas_phase_candidates}".format(
             gas_phase_candidates=gas_phase_candidates,
         ))
+    if len(gas_phase_candidates) == 0:
+        raise UserWarning(
+            "No gas phase references found."
+            "\nInclude additional folders with 'cathub organize -d foldername/'\n")
 
     volume_groups = {}
     tolerance = 1e-5
     if options.verbose:
         print("\nGroup by volume")
-        print("===============")
+        print("==================")
     for surface in sorted(surfaces,
                           key=lambda x: x.get_volume(),):
         formula = symbols(surface)
@@ -151,55 +142,102 @@ def fuzzy_match(structures, options):
             print("\nInspecting volume={volume}".format(
                 volume=volume.round(2),
             ))
+            print('====================')
         surfaces = volume_groups[volume]
         N = len(surfaces)
-        # Order surfaces by number of atoms
+        # Order surfaces by number of atoms and energy
         surface_size = [len(s) for s in surfaces]
-        idx = np.argsort(surface_size)
-        surfaces = [surfaces[i] for i in idx]
+        sorted_surfaces = []
+        for ss in set(surface_size):
+            idx = [i for i, s in enumerate(surface_size) if s == ss]
+            subset = [surfaces[i] for i in idx]
+            energies = [s.get_potential_energy() for s in subset]
+            formulas = [s.get_chemical_formula() for s in subset]
+            idx = np.argsort(energies)
+            energies = np.sort(energies)
+            subset = [subset[i] for i in idx]
+            formulas = [formulas[i] for i in idx]
+            if options.keep_all_energies:
+                subset = [s for i, s in enumerate(subset) if not
+                          energies[i] in energies[:i]]
+            else:
+                subset = [s for i, s in enumerate(subset) if not
+                          formulas[i] in formulas[:i]]
+            sorted_surfaces += subset
+
+        surfaces = sorted_surfaces
         for i, surf_empty in enumerate(surfaces):
             for j, surf_ads in enumerate(surfaces[i+1:]):
+                if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
+                    continue
                 if options.verbose:
                     print('    {} vs {}'.format(get_chemical_formula(surf_empty),
                                                 get_chemical_formula(surf_ads)))
 
                 # Check for calculator parameter consistency
-                if surf_empty.calc and surf_ads.calc:
-                    if not surf_empty.calc.parameters == surf_ads.calc.parameters:
+                if check_parameters:
+                    param_check = compare_parameters(surf_empty,
+                                                     surf_ads)
+                    if param_check == 2 and options.verbose:
+                        print("\n        Warning: No calculator information detected for"
+                              " {} vs {}".format(surf_empty.info['filename'],
+                                                 surf_ads.info['filename']))
+
+                    elif not param_check:
                         if options.verbose:
                             print("\        nWarning: Not included."
                                   " different calculator parameters detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
                         continue
-                elif options.verbose:
-                    print("\n        Warning: No calculator information detected for"
-                          " {} vs {}".format(surf_empty.info['filename'],
-                                             surf_ads.info['filename']))
-                    # " \nPlease include calculator information when possible")
+                if not options.skip_constraints:
+                    constraints_empty = [c.todict()['kwargs']['indices']
+                                         for c in surf_empty.constraints
+                                         if c.todict()['name'] == 'FixAtoms']
+                    constraints_ads = [c.todict()['kwargs']['indices']
+                                       for c in surf_ads.constraints
+                                       if c.todict()['name'] == 'FixAtoms']
 
-                constraints_empty = [c.todict() for c in surf_empty.constraints]
-                constraints_ads = [c.todict() for c in surf_ads.constraints]
-                if not constraints_empty == constraints_ads:
-                    #print(surf_ads.constraints, surf_empty.constraints)
-                    # This will lead to errors if adsorbate is constrained!
-                    if options.verbose:
-                        print("\        nWarning: Not included."
-                              " different constraint settings detected for"
-                              " {} vs {}".format(surf_empty.info['filename'],
-                                                 surf_ads.info['filename']))
-                    continue
+                    c_flag = 0
+                    if len(constraints_empty) > 0:
+                        c_indices = constraints_empty[0]
+                        constrained_positions = surf_empty[c_indices].positions
+                        ads_positions = surf_ads.positions
+                        for cp in constrained_positions:
+                            if not np.any(np.all(np.isclose(cp, ads_positions,
+                                                            atol=1e-4), axis=1)):
+                                c_flag = 1
+                                break
+                        c_indices = constraints_ads[0]
+                        constrained_positions = surf_ads[c_indices].positions
+                        empty_positions = surf_empty.positions
+                        for cp in constrained_positions:
+                            if c_flag:
+                                break
+                            if not np.any(np.all(np.isclose(cp, empty_positions,
+                                                            atol=1e-4), axis=1)):
+                                c_flag = 1
+                                break
+
+                    if c_flag:
+                        if options.verbose:
+                            print("\        nWarning: Not included."
+                                  " different constraint settings detected for"
+                                  " {} vs {}".format(surf_empty.info['filename'],
+                                                     surf_ads.info['filename']))
+                        continue
 
                 atomic_num_ads = sorted(surf_ads.numbers)
                 atomic_num_surf = sorted(surf_empty.numbers)
 
-                equal_numbers = [
-                    n for n in atomic_num_ads if n in atomic_num_surf]
-                diff_numbers = [n for n in atomic_num_ads
-                                if not n in atomic_num_surf]
-
-                if not sorted(equal_numbers + diff_numbers) == sorted(atomic_num_ads) \
-                   or len(diff_numbers) == 0:
+                diff_numbers = atomic_num_ads.copy()
+                equal_numbers = []
+                for n in atomic_num_surf:
+                    if n in diff_numbers:
+                        diff_numbers.remove(n)
+                        equal_numbers += [n]
+                if not sorted(equal_numbers) ==\
+                   sorted(atomic_num_surf):
                     continue
 
                 equal_formula = get_reduced_chemical_formula(
@@ -213,9 +251,10 @@ def fuzzy_match(structures, options):
 
                 if not red_diff_numbers in adsorbate_numbers:
                     #index = adsorbate_numbers.index(red_diff_numbers)
-                    print("\n        Adsorbate {} detected".format(adsorbate),
-                          " Include by setting the --adsorbates options.")
-
+                    if options.verbose:
+                        print("        Adsorbate {} detected.".format(adsorbate),
+                              "Include with 'cathub organize -a {}'".format(adsorbate))
+                    continue
                 dE = surf_ads.get_potential_energy() \
                     - surf_empty.get_potential_energy()
 
@@ -239,11 +278,11 @@ def fuzzy_match(structures, options):
 
                 equation += 'star__'
 
-                site = surf_ads.info.get('site', None)
-                if site:
-                    equation += '{}@{}'.format(adsorbate, site)
-                else:
-                    equation += '{}star'.format(adsorbate)
+                #site = surf_ads.info.get('site', None)
+                # if site:
+                #    equation += '{}@{}'.format(adsorbate, site)
+                # else:
+                equation += '{}star'.format(adsorbate)
 
                 if abs(dE) < options.max_energy:
                     surface_ads = ("{equal_formula}"
@@ -254,21 +293,25 @@ def fuzzy_match(structures, options):
                                        adsorbate=adsorbate)
 
                     energy = dE
+                    key = equal_formula
+                    if not options.keep_all_energies:
+                        if energy > collected_energies.get(
+                                key, {}).get(adsorbate, [float("inf")])[0]:
+                            print('FOUND:', surface_ads)
+                            continue
+                    else:
+                        key += '_epot={}eV'\
+                            .format(round(surf_empty.get_potential_energy(), 2))
+
                     if options.verbose:
                         print("        Adsorption energy found for {surface_ads}"
                               .format(**locals()))
 
-                    # We keep the empty structure whether or not
-                    # we keep all structures
                     dft_code = options.dft_code or structure.info['filetype']
                     dft_functional = options.xc_functional
-                    # Use DFT potential energy to generate
-                    # Unique key for each empty surface.
-                    key = '{}_epot={}eV'.format(equal_formula,
-                                                surf_empty.get_potential_energy())
-
                     facet = options.facet_name if options.facet_name != 'facet' \
                         else surf_empty.info['facet']
+
                     collected_structures \
                         .setdefault(dft_code, {}) \
                         .setdefault(dft_functional, {}) \
@@ -277,19 +320,18 @@ def fuzzy_match(structures, options):
                         .setdefault('empty_slab', surf_empty)
 
                     key_count[key] = key_count.get(key, 0) + 1
-
-                    # Only write lowest energy system
-                    if not options.keep_all_energies:
-                        if energy > collected_energies.get(
-                                key, {}).get(adsorbate, float("inf")):
-                            continue
-
-                    # persist adsorbate slab structures
-                    ####################################
-                    collected_energies[key] = {}
-                    collected_energies[key][adsorbate] = energy
-                    collected_structures[dft_code][dft_functional][key][facet]\
-                        .setdefault(equation, {})[adsorbate] = surf_ads
+                    if rep > 1:
+                        adsorbate = str(rep) + adsorbate
+                    if not key in collected_energies:
+                        collected_energies[key] = {}
+                    if not facet in collected_energies[key]:
+                        collected_energies[key][facet] = {}
+                    if not adsorbate in collected_energies[key][facet]:
+                        collected_energies[key][facet][adsorbate] = []
+                    if not energy in collected_energies[key][facet][adsorbate]:
+                        collected_energies[key][facet][adsorbate] += [energy]
+                        collected_structures[dft_code][dft_functional][key][facet]\
+                            .setdefault(equation, {})[adsorbate] = surf_ads
 
     # if options.verbose:
     #    print("\n\nCollected Adsorption Energies Data")
@@ -307,12 +349,14 @@ def fuzzy_match(structures, options):
         print("  * raise the maximum density for slab structures")
         print("    --max-density-slab 0.03 ")
 
-    for key, adsorbates in collected_energies.items():
-        for ads, energy in adsorbates.items():
-            print("{key:15s}: {energy:.3f} eV".format(
-                key=key.split('_')[0] + ads,
-                energy=energy,
-        ))
+    for key, facets in collected_energies.items():
+        for facet, adsorbates in facets.items():
+            for ads, energies in adsorbates.items():
+                for e in energies:
+                    print("{key:15s}: {energy:.3f} eV".format(
+                        key='{}({}) + {}'.format(key, facet, ads),
+                        energy=e,
+                    ))
 
     return collected_structures
 
@@ -368,8 +412,12 @@ def main(options):
         with open(pickle_file, 'rb') as infile:
             structures = pickle.load(infile)
     else:
-        structures = collect_structures(options.foldername, options.verbose,
+        structures = collect_structures(options.foldername,
+                                        options.verbose,
+                                        options.include_pattern,
+                                        options.exclude_pattern,
                                         level='**/*')
+
         if options.gas_dir:
             structures.extend(
                 collect_structures(
