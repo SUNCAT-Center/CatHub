@@ -312,13 +312,11 @@ class FolderReader:
 
     def read_bulk(self, root):
         basename = os.path.basename(root)
-        assert '_' in basename, \
-            """Wrong folderstructure! Folder should be of format
-            <metal>_<crystalstructure> but found {basename}""".format(
-                basename=basename
-            )
-        self.metal, self.crystal = basename.split('_', 1)
-
+        if '_' in basename:
+            self.metal, self.crystal = basename.split('_', 1)
+        else:
+            self.metal = basename
+            self.crystal = None
         self.stdout.write(
             '------------------------------------------------------\n')
         self.stdout.write(

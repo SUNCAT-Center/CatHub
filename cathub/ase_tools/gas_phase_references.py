@@ -4,6 +4,8 @@ import numpy as np
 import optparse
 import pprint
 
+from cathub.tools import extract_atoms
+
 
 def molecules2symbols(molecules, add_hydrogen=True):
     """Take a list of molecules and return just a list of atomic
@@ -25,85 +27,131 @@ def molecules2symbols(molecules, add_hydrogen=True):
     return symbols
 
 
-def construct_reference_system(
-    symbols,
-    candidates=None,
-    options=None,
-):
-    """Take a list of symbols and construct gas phase
-    references system, when possible avoiding O2.
-    Candidates can be rearranged, where earlier candidates
-    get higher preference than later candidates
-
-    assume symbols sorted by atomic number
+def construct_reference_system(formula,
+                               candidates=None):
     """
-    if hasattr(options, 'no_hydrogen') and options.no_hydrogen:
-        add_hydrogen = False
-    else:
-        add_hydrogen = True
+    Construct appropriate gas phase references for specified formula,
+    from a set of specified candidates.
 
-    references = {}
+    Parameters:
+
+    formula: str
+      chemical formula of adsorbate
+    candidates: list of str
+      chemical formulas of requested gas phase reference
+
+    Returns:
+
+    list of reference formulas, list of prefactors
+
+    """
+
     sorted_candidates = [
         'H2',
         'H2O',
-        'NH3',
         'N2',
+        'NH3',
         'CH4',
+        'CO2',
         'CO',
         'H2S',
-        'HCl',
-        'O2']
+        #    'HCl',
+        'O2',
+        'F2']
+
+    preffered_references = {
+        'O': ['H2O', 'O2'],
+        'C': ['CH4', 'CO2', 'CO'],
+        'N': ['N2', 'NH3'],
+        'S': ['H2S'],
+        'H': ['H2'],
+        'F': ['F2', 'HF']
+    }
+
     if candidates is None:
         candidates = sorted_candidates
-    else:
-        odd_candidates = [c for c in candidates if c not in sorted_candidates]
-        candidates = [c for c in sorted_candidates if c in candidates] \
-            + odd_candidates
 
-    added_symbols = []
-    # go symbols in adsorbate
-    # to add reference species in procedural manner
-    for symbol in symbols:
-        added_symbols.append(symbol)
-        for candidate in candidates:
-            _symbols = ase.symbols.string2symbols(candidate)
-            # Add partial adsorbate species
-            # is subset of reference species
-            # and reference species
-            # is subset of full adsorbate species set
-            if set(added_symbols) <= set(list(references.keys()) + _symbols) \
-                    and set(list(references.keys()) + _symbols) <= set(symbols) \
-                    and candidate not in references.values():
-                references[symbol] = candidate
+    all_symbols = list(extract_atoms(formula))
+    symbols = list(set(all_symbols))
+    references = []
+    if 'H' in symbols:
+        symbols.remove('H')
+        symbols += ['H']
+    residual_symbols = list(symbols.copy())
+
+    prefactors = []
+    counts_tmp = {}
+
+    remove = []
+    add = []
+
+    i = 0
+    while len(residual_symbols) > 0 and i < 10:
+        for r in remove:
+            try:
+                residual_symbols.remove(r)
+            except:
+                pass
+        residual_symbols += add
+        remove = []
+        add = []
+        for symbol in residual_symbols:
+            if symbol in remove:
+                continue
+            if not symbol in counts_tmp:
+                counts_tmp[symbol] = 0
+            symbol_candidates = [c for c in candidates if symbol in c
+                                 and not c in references]
+            ref_list = preffered_references.get(symbol, [])
+            symbol_candidates = [c for c in candidates if symbol in c
+                                 and not c in references
+                                 and not c in ref_list]
+            ref_list += symbol_candidates
+            ref_list = [r for r in ref_list if r in candidates]
+            if len(ref_list) == 0:
+                raise UserWarning(
+                    "No gas phase reference found for {symbol}."
+                    "\nInclude additional folders with"
+                    " 'cathub organize -d foldername/'\n"
+                    "    All elements: {symbols}\n"
+                    "    Supplied references: {candidates}\n"
+                    "    Prefered references: {pref}\n".format(
+                        symbol=symbol,
+                        symbols=symbols,
+                        candidates=candidates,
+                        pref=[preffered_references.get(s, '') for s in symbols]))
+
+            for ref in ref_list:
+                ref_atoms = list(extract_atoms(ref))
+                count_ref = ref_atoms.count(symbol)
+                count = all_symbols.count(symbol)
+                prefactor = (count - counts_tmp[symbol]) / count_ref
+                if prefactor == 0:
+                    remove += [symbol]
+                    break
+
+                for a in set(ref_atoms):
+                    if not a in counts_tmp:
+                        counts_tmp[a] = 0
+                    count_ref = ref_atoms.count(a)
+                    counts_tmp[a] += prefactor * count_ref
+
+                references += [ref]
+                prefactors += [prefactor]
+                residual = list(set(extract_atoms(ref).replace(symbol, '')))
+
+                remove += [symbol]
+
+                for r in residual:
+                    if not r in symbols:
+                        add += [r]
                 break
-        else:
-            raise UserWarning((
-                "No candidate satisfied {symbol}. Add more candidates\n"
-                "    Symbols {symbols}\n"
-                "    _Symbols {_symbols}\n"
-                "    References {references}\n"
-                "    Candidates {candidates}\n"
-            ).format(
-                symbol=symbol,
-                symbols=symbols,
-                _symbols=_symbols,
-                candidates=candidates,
-                references=list(references.keys()),
-            ))
+        i += 1
+    if not len(residual_symbols) == 0:
+        references = None
+        prefactors = None
 
-    sorted_references = []
-    references = list(references.items())
-
-    # put references in order so that each reference
-    # only adds one one additional species in each step
-    # while references:
-    #     for i, reference in enumerate(references):
-    #         if len(set(ase.symbols.string2symbols(reference[1])) -
-    #                 set(x[0] for x in sorted_references)) == 1:
-    #             sorted_references.append(references.pop(i))
-    #             break
-
-    return references
+    return references, prefactors
 
 
 def get_atomic_stoichiometry(references):
