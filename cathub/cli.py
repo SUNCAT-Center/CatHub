@@ -74,7 +74,7 @@ def ase(dbuser, dbpassword, args, gui):
     or a string with names of more folders seperated by ', '""")
 @click.option(
     '--energy-limit',
-    default=5.0,
+    default=10.0,
     show_default=True,
     help="""Bounds for accepted absolute reaction energies in eV""")
 @click.option('--goto-reaction',
@@ -467,7 +467,7 @@ def connect(user):
     type=str,
     default='',
     show_default=True,
-    help="Regular expression that matches"
+    help="Expressions that match"
          " only those files that are included.",)
 @click.option(
     '-k', '--keep-all-energies',
@@ -548,6 +548,20 @@ def connect(user):
     default={},
     type=str,
     help="Energy correction to gas phase molecules.")
+@click.option(
+    '-p', '--skip-parameters',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip calculator parameter check.")
+@click.option(
+    '-sc', '--skip-constraints',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip constraint check.")
+
+
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
