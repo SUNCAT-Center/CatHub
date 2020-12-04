@@ -56,7 +56,8 @@ def construct_reference_system(formula,
         'CO',
         'H2S',
         #    'HCl',
-        'O2']
+        'O2',
+        'F2']
 
     preffered_references = {
         'O': ['H2O', 'O2'],
@@ -64,6 +65,7 @@ def construct_reference_system(formula,
         'N': ['N2', 'NH3'],
         'S': ['H2S'],
         'H': ['H2'],
+        'F': ['F2', 'HF']
     }
 
     if candidates is None:
@@ -100,23 +102,24 @@ def construct_reference_system(formula,
                 counts_tmp[symbol] = 0
             symbol_candidates = [c for c in candidates if symbol in c
                                  and not c in references]
-            ref_list = preffered_references[symbol]
+            ref_list = preffered_references.get(symbol, [])
             symbol_candidates = [c for c in candidates if symbol in c
                                  and not c in references
                                  and not c in ref_list]
             ref_list += symbol_candidates
             ref_list = [r for r in ref_list if r in candidates]
-            print(ref_list)
             if len(ref_list) == 0:
                 raise UserWarning(
-                    "No candidate satisfied {symbol}. Add more candidates\n"
-                    "    Symbols {symbols}\n"
-                    "    _Symbols {_symbols}\n"
-                    "    References {references}\n"
-                    "    Candidates {candidates}\n".format(
+                    "No gas phase reference found for {symbol}."
+                    "\nInclude additional folders with"
+                    " 'cathub organize -d foldername/'\n"
+                    "    All elements: {symbols}\n"
+                    "    Supplied references: {candidates}\n"
+                    "    Prefered references: {pref}\n".format(
                         symbol=symbol,
                         symbols=symbols,
-                        candidates=candidates))
+                        candidates=candidates,
+                        pref=[preffered_references.get(s, '') for s in symbols]))
 
             for ref in ref_list:
                 ref_atoms = list(extract_atoms(ref))
