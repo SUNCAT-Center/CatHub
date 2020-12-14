@@ -137,8 +137,8 @@ class CathubSQL:
 
         return atoms_list
 
-    def get_atoms(self, atoms_id=None):
-        """Get atoms for reaction"""
+    def get_atoms_for_id(self, atoms_id=None):
+        """Get atoms for atoms_id"""
 
         if not isinstance(atoms_id, list):
             atoms_id = [atoms_id]

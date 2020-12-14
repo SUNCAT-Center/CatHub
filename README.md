@@ -16,7 +16,22 @@ or with any of its sub-commands, like so
 
 ## Examples
 
-Querying the Surface Reactions database:
+Querying the Surface Reactions database in Python:
+
+    from cathub.cathubsql import CathubSQL
+    db = CathubSQL() # All data on catalysis-hub.org
+    db = CathubSQL('filename.db') # Data from local cathub .db file
+    # Get reactions and structures
+    dataframe = db.get_dataframe(pub_id='PengRole2020',
+                                 include_atoms=True)
+
+
+    # Get atoms for one reaction_id taken from dataframe
+    atoms_list = db.get_atoms_for_reaction(reaction_id)
+    # Get atoms for entire dataset
+    atoms_list = db.get_atoms_for_publication(pub_id='PengRole2020')
+
+Querying the Surface Reactions database with the CLI:
 
     cathub reactions -q reactants=CO -q chemicalComposition=~Pt
 
