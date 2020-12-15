@@ -85,7 +85,7 @@ class CathubSQL:
             for id in dataframe['ase_id'].values:
                 atoms_list += [id_to_atoms[id]]
 
-                dataframe['atoms'] = atoms_list
+            dataframe['atoms'] = atoms_list
 
         # group by reaction id and aggregate structure columns to list
         dataframe = dataframe.drop(columns=['textsearch'])
@@ -104,6 +104,13 @@ class CathubSQL:
 
         dataframe = dataframe.groupby(['reaction_id'], as_index=False)\
                              .agg(columns_group)
+
+        equations = []
+        print(dataframe[['reactants', 'products']].values)
+        for reactants, products in dataframe[['reactants', 'products']].values:
+            equations += [get_equation(reactants, products)]
+
+        dataframe['equation'] = equations
 
         return dataframe
 
@@ -151,26 +158,25 @@ class CathubSQL:
         return atoms_list
 
 
+def get_equation(reactants, products):
+    r_str = ''
+    print(reactants, products)
+    for j, side in enumerate([reactants, products]):
+        i = 0
+        for name in sorted(side.keys()):
+            pf = side[name]
+            name = name.replace('gas', '(g)').replace('star', '*')
+            if i > 0 and not pf < 0:
+                r_str += ' + '
+            if pf == 1:
+                r_str += '{}'.format(name)
+            elif pf == -1:
+                r_str += ' -{}'.format(name)
+            else:
+                r_str += '{}{}'.format(pf, name)
 
+            i += 1
+        if j == 0:
+            r_str += ' -> '
 
-
-
-
-
-
-
-
-    
-    
-
-
-
-
-
-
-
-
-
-
-
-    
+    return r_str
