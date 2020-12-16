@@ -23,7 +23,14 @@ Querying the Surface Reactions database in Python:
     db = CathubSQL('filename.db') # Data from local cathub .db file
     # Get reactions and structures
     dataframe = db.get_dataframe(pub_id='PengRole2020',
-                                 include_atoms=True)
+                                 include_atoms=False,
+                                 #include_atoms='PengRole2020.db', # save to local db
+                                 reactants=['COgas'],
+                                 products=['COstar'],
+                                 elements=['Cu', 'Al'],
+                                 #surface_composition='Cu', # match specific composition
+                                 facet = '100'
+                                 )
 
 
     # Get atoms for one reaction_id taken from dataframe
