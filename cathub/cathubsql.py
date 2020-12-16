@@ -1,5 +1,6 @@
 from sqlalchemy import create_engine
 from pandas import read_sql
+import json
 import ase.db
 import ase.visualize
 
@@ -13,8 +14,10 @@ class CathubSQL:
 
         if filename is not None:
             sql_url = 'sqlite:///' + str(filename)
+            self.backend = 'sqlite'
         else:
             sql_url = 'postgresql://catvisitor:eFjohbnD57WLYAJX@catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub'
+            self.backend = 'postgres'
 
         self.sql_url = sql_url
 
@@ -39,36 +42,110 @@ class CathubSQL:
         self.connection.close()
         self.connection = None
 
-    def get_dataframe(self, pub_id=None, include_atoms=False):
+    def get_dataframe(self,
+                      include_atoms=False,
+                      pub_id=None,
+                      reactants=None,
+                      products=None,
+                      elements=None,
+                      surface_composition=None,
+                      facet=None):
         """
         Get pandas dataframe containing reactions for dataset
 
         Parameters:
 
-        pub_id: str
-           catalysis-hub dataset pub id, such as 'PengRole2020'
         include_atoms: bool
-           To include atoms object or not. If set to false. 
+           To include atoms object in dataframe.
+        pub_id: str
+           catalysis-hub dataset pubid, such as 'PengRole2020'
+           found under catalysis-hub.or/publications
+        reactants: list of str
+           list of species on the left-hand side of equation
+           for example: ['CH4gas' + 'H2gas']
+        products: list of str
+           list of species on the right-hand side of equation
+           for example: ['CH3*'] or [CH3star]
+        elements: list of str
+           List of atomic elements in the surface for example: ['Cu', 'Zn']
+           USe a '-' in front as in ['Cu', '-Zn'] to exclude certain elements
+        surface_composition: str
+           Match a specific surface composition        
+        facet: str
+           Match a specific surface facet
         """
 
         # Query SQL table to get reaction, publication, and structure info.
         query = \
-            """select r.*, rs.name, rs.ase_id, p.doi from reaction as r 
-        left join
-        reaction_system as rs on r.id = rs.id
-        left join
-        publication as p on r.pub_id=p.pub_id
-        """
+            """SELECT r.*, rs.name, rs.ase_id, p.doi FROM reaction as r 
+LEFT JOIN
+reaction_system as rs on r.id = rs.id
+LEFT JOIN
+publication as p on r.pub_id=p.pub_id"""
 
         if pub_id is not None:
-            query += " where r.pub_id='{}'".format(pub_id)
+            query += " \nWHERE r.pub_id='{}'".format(pub_id)
+            # if species is not None:
+            #    query += ' and'
+
+        reaction_side = ['reactants', 'products']
+        for i, reactant_list in enumerate([reactants, products]):
+            if reactant_list is not None:
+                if not 'WHERE' in query:
+                    query += ' \nWHERE '
+                else:
+                    query += ' \nAND '
+                query_list = []
+                for species in reactant_list:
+                    species = species.replace(
+                        '*', 'star').replace('(g)', 'gas')
+                    if self.backend == 'postgres':
+                        query_list += ["r.{} ? '{}'".format(
+                            reaction_side[i], species)]
+                    else:
+                        query_list += ["r.{} like '%{}%'".format(
+                            reaction_side[i], species)]
+                query += ' AND '.join(query_list)
+        if elements is not None:
+            if not 'WHERE' in query:
+                query += ' \nWHERE '
+            else:
+                query += ' \nAND '
+            query_list = []
+            for e in elements:
+                if e[0] == '-':
+                    e = e[1:]
+                    query_list += [
+                        "r.chemical_composition not like '%{}%'".format(e)]
+                else:
+                    query_list += [
+                        "r.chemical_composition like '%{}%'".format(e)]
+            query += ' \nAND '.join(query_list)
+        if surface_composition is not None:
+            if not 'WHERE' in query:
+                query += ' \nWHERE '
+            else:
+                query += ' \nAND '
+            query += "r.surface_composition = '{}' or surface_composition like '{}-%'"\
+                .format(surface_composition, surface_composition)
+        if facet is not None:
+            if not 'WHERE' in query:
+                query += ' \nWHERE '
+            else:
+                query += ' \nAND '
+            query += "r.facet ilike '{}%'".format(facet)
 
         con = self.connection or self._connect()
-        print('Querying database')
+        print('Querying database\n')
         dataframe = read_sql(query, con)
-        print('Done')
         if self.connection is None:
             con.close()
+
+        if len(dataframe) == 0:
+            print('No reactions in database for {} -> {} and elements={}'
+                  .format(reactants, products, elements))
+            print(query)
+            return dataframe
 
         # load ase atoms objects to add to dataframe
         if include_atoms:
@@ -76,7 +153,10 @@ class CathubSQL:
             id_to_atoms = {}
             with ase.db.connect(self.sql_url) as ase_db:
                 total = ase_db.count('pub_id={}'.format(pub_id))
-                print('Fetching {} atomic structures'.format(total))
+                if total == 0:
+                    print('No structures available')
+                else:
+                    print('Fetching {} atomic structures'.format(total))
                 for i, row in enumerate(ase_db.select('pub_id={}'.format(pub_id))):
                     if (i+1) % 10 == 0:
                         print('  {}/{}'.format(i+1, total))
@@ -88,7 +168,9 @@ class CathubSQL:
             dataframe['atoms'] = atoms_list
 
         # group by reaction id and aggregate structure columns to list
-        dataframe = dataframe.drop(columns=['textsearch'])
+        if 'textsearch' in dataframe.columns:
+            dataframe = dataframe.drop(columns=['textsearch'])
+
         dataframe = dataframe.rename(columns={'id': 'reaction_id',
                                               'name': 'atoms_name',
                                               'ase_id': 'atoms_id'}, index={'id': 'id'})
@@ -97,8 +179,10 @@ class CathubSQL:
 
         for c in dataframe.columns.values:
             columns_group[c] = 'first'
-        columns_group['atoms_name'] = list
-        columns_group['atoms_id'] = list
+
+        if 'atoms_name' in dataframe.columns.values:
+            columns_group['atoms_name'] = list
+            columns_group['atoms_id'] = list
         if include_atoms:
             columns_group['atoms'] = list
 
@@ -106,7 +190,6 @@ class CathubSQL:
                              .agg(columns_group)
 
         equations = []
-        print(dataframe[['reactants', 'products']].values)
         for reactants, products in dataframe[['reactants', 'products']].values:
             equations += [get_equation(reactants, products)]
 
@@ -160,8 +243,9 @@ class CathubSQL:
 
 def get_equation(reactants, products):
     r_str = ''
-    print(reactants, products)
     for j, side in enumerate([reactants, products]):
+        if isinstance(side, str):
+            side = json.loads(side)
         i = 0
         for name in sorted(side.keys()):
             pf = side[name]
