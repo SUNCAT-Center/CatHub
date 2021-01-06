@@ -38,13 +38,8 @@ Querying the Surface Reactions database in Python:
     # Get atoms for entire dataset
     atoms_list = db.get_atoms_for_publication(pub_id='PengRole2020')
 
-Querying the Surface Reactions database with the CLI:
 
-    cathub reactions -q reactants=CO -q chemicalComposition=~Pt
-
-    cathub publications -q title=~Evolution -q year=2017
-
-Querying atomic structures on Catalysis Hub with ase db:
+Querying atomic structures on Catalysis Hub with ase db CLI:
 
     cathub ase 'AgSr' --gui
 
