@@ -6,11 +6,11 @@ The module includes a command line interface that can be used to access and uplo
 
 ## Using the cathub cli
 
-Run `cathub`, like so
+Run `cathub` from the command line:
 
     cathub --help
 
-or with any of its sub-commands, like so
+or with any of its sub-commands:
 
     cathub reactions --help
 
@@ -19,12 +19,19 @@ or with any of its sub-commands, like so
 Querying the Surface Reactions database in Python:
 
     from cathub.cathubsql import CathubSQL
-    db = CathubSQL() # All data on catalysis-hub.org
-    db = CathubSQL('filename.db') # Data from local cathub .db file
-    # Get reactions and structures
+
+    # To get data on catalysis-hub.org
+    db = CathubSQL()
+
+    # Data from local cathub .db file
+    db = CathubSQL('filename.db')
+
+Get reactions in pandas dataframe:
+
     dataframe = db.get_dataframe(pub_id='PengRole2020',
                                  include_atoms=False,
-                                 #include_atoms='PengRole2020.db', # save to local db
+                                 include_atoms=True,  # include atoms in dataframe
+                                 #include_atoms='PengRole2020.db',  # save atoms to local db
                                  reactants=['COgas'],
                                  products=['COstar'],
                                  elements=['Cu', 'Al'],
@@ -32,16 +39,18 @@ Querying the Surface Reactions database in Python:
                                  facet = '100'
                                  )
 
+Get atomic structure seperately:
 
     # Get atoms for one reaction_id taken from dataframe
     atoms_list = db.get_atoms_for_reaction(reaction_id)
+
     # Get atoms for entire dataset
     atoms_list = db.get_atoms_for_publication(pub_id='PengRole2020')
 
 
-Querying atomic structures on Catalysis Hub with ase db CLI:
+Quick view of atomic structures on Catalysis Hub with ase db CLI:
 
-    cathub ase 'AgSr' --gui
+    cathub ase 'CuAg pub_id=PengRole2020'
 
 ## Uploading data
 
