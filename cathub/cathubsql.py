@@ -109,7 +109,7 @@ publication as p on r.pub_id=p.pub_id"""
         if include_atoms:
             atoms_list = []
             id_to_atoms = {}
-            with ase.db.connect(self.sql_url.lstrip('sqlite:///')) as ase_db:
+            with ase.db.connect(self.sql_url.replace('sqlite:///', '')) as ase_db:
                 if isinstance(include_atoms, str):
                     with ase.db.connect(include_atoms) as local_db:
                         for id in set(dataframe['ase_id'].values):
