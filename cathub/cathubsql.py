@@ -5,19 +5,21 @@ import json
 import ase.db
 import ase.visualize
 
+from cathub.postgresql import CathubPostgreSQL
+
 
 class CathubSQL:
     """
     Generallized interface to CatHub local and server SQL databases
     """
 
-    def __init__(self, filename=None):
+    def __init__(self, user='catvisitor', filename=None):
 
         if filename is not None:
             sql_url = 'sqlite:///' + str(filename)
             self.backend = 'sqlite'
         else:
-            sql_url = 'postgresql://catvisitor:eFjohbnD57WLYAJX@catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub'
+            sql_url = CathubPostgreSQL(user).server_name
             self.backend = 'postgres'
 
         self.sql_url = sql_url
