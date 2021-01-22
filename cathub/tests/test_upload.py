@@ -4,6 +4,7 @@ import unittest
 import shutil
 from cathub.postgresql import CathubPostgreSQL
 from cathub.cathubsqlite import CathubSQLite
+from cathub.cathubsql import CathubSQL
 from cathub.query import get_reactions
 from cathub import db2server, make_folders_template, folder2db
 
@@ -87,7 +88,21 @@ class UploadTestCase(unittest.TestCase):
     def test1_read_folders(self):
         folder2db.main('{path}/aayush/'.format(path=path))
 
-    def test2_upload(self):
+    def test2_api(self):
+        filename = '{path}/aayush/MontoyaChallenge2015.db'.format(path=path)
+        db = CathubSQL(filename=filename)
+
+        dataframe = db.get_dataframe(include_atoms=True)
+        assert dataframe.shape == (24, 19)
+        data_dict = dataframe.to_dict()
+        for atoms in data_dict['atoms'][23]:
+            atoms.get_chemical_formula()
+        assert data_dict['products'][23] == '{"NNH2star": 1}'
+        assert data_dict['reaction_energy'][23] == 1.1360665501670155
+        assert data_dict['chemical_composition'][2] == 'Pt16'
+
+
+    def test3_upload(self):
         """Ensure postgres database is empty"""
         db = CathubPostgreSQL(user='postgres')
         con = db._connect()
@@ -103,20 +118,20 @@ class UploadTestCase(unittest.TestCase):
             os.remove('{path}/aayush/MontoyaChallenge2015.db'
                       .format(path=path))
 
-    def test3_create_user(self):
+    def test4_create_user(self):
         with CathubPostgreSQL(user='postgres') as db:
             db.create_user('viggo', row_limit=None)
 
-    def test4_release(self):
+    def test5_release(self):
         with CathubPostgreSQL(user='postgres') as db:
             db.release(['MontoyaChallenge2015'], from_schema='public',
                        to_schema='viggo')
 
-    def test5_delete_user(self):
+    def test6_delete_user(self):
         db = CathubPostgreSQL(user='postgres')
         db.delete_user('viggo')
 
-    def test6_modify_reaction(self):
+    def test7_modify_reaction(self):
         db = CathubPostgreSQL(user='postgres')
         id = db.check(pub_id='MontoyaChallenge2015',
                       chemical_composition='Pt16',
@@ -126,11 +141,11 @@ class UploadTestCase(unittest.TestCase):
         db.update_reaction(id, reaction_energy=10)
         db.delete_reaction(id)
 
-    def test7_get_reactions(self):
+    def test8_get_reactions(self):
         data = get_reactions(n_results=1, write_db=False,
                              reactants='CO', products='C')
 
-    def test8_read_folders_neb(self):
+    def test9_read_folders_neb(self):
         folder2db.main('{path}/AljamaMethanol2016'.format(path=path))
 
 

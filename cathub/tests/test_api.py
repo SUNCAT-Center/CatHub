@@ -37,19 +37,6 @@ class ApiTestCase(unittest.TestCase):
         for c in columns:
             assert c in dataframe
 
-    def test_local_atoms(self):
-        filename = '{path}/aayush/MontoyaChallenge2015.db'.format(path=path)
-        db = CathubSQL(filename=filename)
-
-        dataframe = db.get_dataframe(include_atoms=True)
-        assert dataframe.shape == (24, 19)
-        data_dict = dataframe.to_dict()
-        for atoms in data_dict['atoms'][23]:
-            atoms.get_chemical_formula()
-        assert data_dict['products'][23] == '{"NNH2star": 1}'
-        assert data_dict['reaction_energy'][23] == 1.1360665501670155
-        assert data_dict['chemical_composition'][2] == 'Pt16'
-
 
 if __name__ == '__main__':
     unittest.main()
