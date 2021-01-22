@@ -13,7 +13,7 @@ class CathubSQL:
     Generallized interface to CatHub local and server SQL databases
     """
 
-    def __init__(self, user='catvisitor', filename=None):
+    def __init__(self, user='apiuser', filename=None):
 
         if filename is not None:
             sql_url = 'sqlite:///' + str(filename)

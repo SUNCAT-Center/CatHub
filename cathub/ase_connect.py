@@ -2,11 +2,9 @@
 import os
 import ase.db
 
+from cathub.postgresql import CathubPostgreSQL
 
 def main():
-    host = 'catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com'
-    server = 'postgresql://catvisitor:' + \
-        os.environ['DB_PASSWORD'] + '@{0}:5432/catalysishub'.format(host)
-    db = ase.db.connect(server)
-
+    server_name = CathubPostgreSQL().server_name
+    db = ase.db.connect(server_name)
     return db

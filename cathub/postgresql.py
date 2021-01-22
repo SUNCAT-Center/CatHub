@@ -133,18 +133,18 @@ class CathubPostgreSQL:
     on postgreSQL server.
     """
 
-    def __init__(self, user='catroot', password=None, stdin=sys.stdin,
+    def __init__(self, user='apiuser', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.initialized = False
         self.connection = None
         self.id = None
-        self.server = server_name  # 'catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com'
+        self.server = server_name
         self.database = 'catalysishub'
-        if user == 'catroot':
-            self.schema = 'public'
-        if user == 'catvisitor':
+        if user == 'apiuser':
             self.schema = 'public'
             password = public_access[user]
+        elif user == 'catroot':
+            self.schema = 'public'
         elif user == 'postgres':  # For testing on travis
             self.schema = 'public'
             self.server = 'localhost'
@@ -157,7 +157,7 @@ class CathubPostgreSQL:
             password = os.environ.get('DB_PASSWORD')
 
         assert password is not None, \
-            'Please specify password or set `DB_PASSWORD` environment variable'
+            'Please specify password or set "DB_PASSWORD" environment variable'
 
         self.user = user
         self.password = password
