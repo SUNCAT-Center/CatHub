@@ -375,8 +375,13 @@ def formula_to_chemical_symbols(formula):
             elif len(string) == 3:
                 if string[0] in chemical_symbols:
                     chemical_symbols_dict[string[0]] = 1
-                    last_chemical_symbol = string[1:]
-                    chemical_symbols_dict[last_chemical_symbol] = 1
+                    if string[1:] in chemical_symbols:
+                        last_chemical_symbol = string[1:]
+                        chemical_symbols_dict[last_chemical_symbol] = 1
+                    else:
+                        chemical_symbols_dict[string[1]] = 1
+                        last_chemical_symbol = string[2]
+                        chemical_symbols_dict[string[2]] = 1
                 else:
                     chemical_symbols_dict[string[:2]] = 1
                     last_chemical_symbol = string[2]
