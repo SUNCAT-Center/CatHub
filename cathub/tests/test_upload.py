@@ -150,6 +150,4 @@ class UploadTestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    t =  UploadTestCase()
-    t.test2_api()
-    #unittest.main()
+    unittest.main()

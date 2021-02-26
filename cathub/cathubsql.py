@@ -150,8 +150,8 @@ publication as p on r.pub_id=p.pub_id"""
         if include_atoms == True:
             columns_group['atoms'] = list
 
-        dataframe = dataframe.groupby(['reaction_id'], as_index=False)\
-                             .agg(columns_group)
+        dataframe = dataframe.groupby(['reaction_id'])\
+                             .agg(columns_group).reset_index(drop=True)
 
         equations = []
         for reactants, products in dataframe[['reactants', 'products']].values:
