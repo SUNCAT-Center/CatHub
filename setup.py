@@ -10,7 +10,7 @@ with open('README.md', 'r') as f:
 
 setuptools.setup(
     name="Cathub",
-    version="0.1.6",
+    version="0.1.7",
     url="https://github.com/SUNCAT-Center/CatHub",
     author="Kirsten Winther",
     author_email="winther@stanford.edu",
