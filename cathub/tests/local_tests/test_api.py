@@ -16,7 +16,7 @@ class ApiTestCase(unittest.TestCase):
         pass
 
     def test_remote_atoms(self):
-        db = CathubSQL(user='postgres')
+        db = CathubSQL()
 
         dataframe = db.get_dataframe(pub_id='BajdichWO32018',
                                      include_atoms=True,
@@ -26,7 +26,7 @@ class ApiTestCase(unittest.TestCase):
             assert c in dataframe
 
     def test_remote_noatoms(self):
-        db = CathubSQL(user='postgres')
+        db = CathubSQL()
 
         dataframe = db.get_dataframe(include_atoms=False,
                                      elements=['Ti', 'W', 'O', 'H'])
