@@ -58,7 +58,8 @@ Organizing a general folder into a structured folder:
 
     cathub organize <folderame> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
 
-As an alternative to cathub organize - create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
+As an alternative to cathub organize, create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
+
     cathub make_folders --create-template <template>
     cathub make_folders <template>
 
