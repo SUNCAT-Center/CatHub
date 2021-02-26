@@ -37,8 +37,8 @@ def show_reactions(dbfile):
 
 @cli.command()
 @click.argument('args',  default='', type=str)
-@click.option('--dbuser', default='catvisitor', type=str)
-@click.option('--dbpassword', default='eFjohbnD57WLYAJX', type=str)
+@click.option('--dbuser', default='apiuser', type=str)
+@click.option('--dbpassword', default='ubDwfqPw', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
 def ase(dbuser, dbpassword, args, gui):
@@ -409,7 +409,7 @@ def make_folders(template, custom_base):
 
 
 @cli.command()
-@click.argument('user', default='catvisitor')
+@click.argument('user', default='apiuser')
 def connect(user):
     """Direct connection to PostreSQL server."""
     psql_server_connect.main(user)
