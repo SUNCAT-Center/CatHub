@@ -33,9 +33,10 @@ install:
   - pip install .
   - pip install python-coveralls
   - pip install nose
+  - pip install nose-exclude
 
 script:
-  - nosetests ./cathub --with-coverage --cover-inclusive --cover-package=. --cover-erase
+  - nosetests ./cathub --with-coverage --cover-inclusive --cover-package=. --cover-erase --exclude-dir=cathub/tests/local_tests
   - coverage report --omit 'docs/*,./*/tests/*,./tests/*,data/*' --show-missing
 
 after_success:
