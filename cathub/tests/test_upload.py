@@ -97,9 +97,9 @@ class UploadTestCase(unittest.TestCase):
         data_dict = dataframe.to_dict()
         for atoms in data_dict['atoms'][23]:
             atoms.get_chemical_formula()
-        assert data_dict['products'][23] == '{"NNH2star": 1}'
-        assert data_dict['reaction_energy'][23] == 1.1360665501670155
-        assert data_dict['chemical_composition'][2] == 'Pt16'
+        assert '{"NNH2star": 1}' in data_dict['products'].values()
+        assert 1.1360665501670155 in data_dict['reaction_energy'].values()
+        assert 'Pt16' in data_dict['chemical_composition'].values()
 
 
     def test3_upload(self):
@@ -150,4 +150,6 @@ class UploadTestCase(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    t =  UploadTestCase()
+    t.test2_api()
+    #unittest.main()
