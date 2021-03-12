@@ -220,6 +220,8 @@ def get_sql_query(backend='postgres',
     reaction_side = ['reactants', 'products']
     for i, reactant_list in enumerate([reactants, products]):
         if reactant_list is not None:
+            if not isinstance(reactant_list, list):
+                reactant_list = [reactant_list]
             if not 'WHERE' in query:
                 query += ' \nWHERE '
             else:
@@ -232,7 +234,7 @@ def get_sql_query(backend='postgres',
                     query_list += ["r.{} ? '{}'".format(
                         reaction_side[i], species)]
                 else:
-                    query_list += ["r.{} like '%{}%'".format(
+                    query_list += ["""r.{} like '%"{}%'""".format(
                         reaction_side[i], species)]
             query += ' AND '.join(query_list)
     if elements is not None:
@@ -262,7 +264,7 @@ def get_sql_query(backend='postgres',
             query += ' \nWHERE '
         else:
             query += ' \nAND '
-        query += "r.facet ilike '{}%'".format(facet)
+        query += "r.facet like '{}%'".format(facet)
 
     return query
 
