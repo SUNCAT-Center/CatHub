@@ -234,7 +234,7 @@ def get_sql_query(backend='postgres',
                     query_list += ["r.{} ? '{}'".format(
                         reaction_side[i], species)]
                 else:
-                    query_list += ["""r.{} like '%"{}%'""".format(
+                    query_list += ["""r.{} like '%%"{}%%'""".format(
                         reaction_side[i], species)]
             query += ' AND '.join(query_list)
     if elements is not None:
@@ -247,24 +247,24 @@ def get_sql_query(backend='postgres',
             if e[0] == '-':
                 e = e[1:]
                 query_list += [
-                    "r.chemical_composition not like '%{}%'".format(e)]
+                    "r.chemical_composition not like '%%{}%%'".format(e)]
             else:
                 query_list += [
-                    "r.chemical_composition like '%{}%'".format(e)]
+                    "r.chemical_composition like '%%{}%%'".format(e)]
         query += ' \nAND '.join(query_list)
     if surface_composition is not None:
         if not 'WHERE' in query:
             query += ' \nWHERE '
         else:
             query += ' \nAND '
-        query += "r.surface_composition = '{}' or surface_composition like '{}-%'"\
+        query += "r.surface_composition = '{}' or surface_composition like '{}-%%'"\
             .format(surface_composition, surface_composition)
     if facet is not None:
         if not 'WHERE' in query:
             query += ' \nWHERE '
         else:
             query += ' \nAND '
-        query += "r.facet like '{}%'".format(facet)
+        query += "r.facet like '{}%%'".format(facet)
 
     return query
 

@@ -1,7 +1,7 @@
 import sys
 import collections
+import math
 from functools import reduce
-from fractions import gcd
 from ase import Atoms
 from ase.io import read
 import numpy as np
@@ -81,7 +81,7 @@ def get_reduced_chemical_formula(atoms):
 
 def get_reduced_numbers(numbers):
     unique_numbers, counts = np.unique(numbers, return_counts=True)
-    denominator = reduce(gcd, counts)
+    denominator = reduce(math.gcd, counts)
     reduced_numbers = []
     for i, atomic_number in enumerate(unique_numbers):
         reduced_count = int(counts[i] / denominator)
