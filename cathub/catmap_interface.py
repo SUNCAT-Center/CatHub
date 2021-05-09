@@ -122,7 +122,9 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
 
         # Apply field effects
         if field_effects:
-            electric.append(get_electric_field_contribution(field_effects, row.formula))
+            (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, row.formula)
+            electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
+            electric.append(electric_field_contribution)
             relative_energy += electric[-1]
 
         species.append(row.formula)
@@ -174,15 +176,7 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
 #     U_SHE = epsilon * d + UM_PZC
 #     U_RHE = U_SHE + 0.059 * pH
 
-    # U_SHE-scale field effects
-    if reactants == None:
-        if species_value + '_g' in mu:
-            species_value = species_value + '_g'
-    if species_value in mu:
-        energy_contribution = mu[species_value] * epsilon - 0.5 * alpha[species_value] * epsilon**2
-    else:
-        energy_contribution = 0.0
-
+    # U_RHE-scale dependency
     # x CO + y (H++e-) = CxH(y-2x+2z)Oz + (x-z) H2O
     # x CO + y/2 H2 = CxH(y-2x+2z)Oz + (x-z) H2O
     # Based on computational hydrogen electrode, n should be twice the number of H2 gas molecules that are required for the reduction reaction
@@ -193,9 +187,18 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
             n = 0
     else:
         n = 0
-    energy_contribution += n * U_RHE
+    U_RHE_energy_contribution = n * U_RHE
 
-    return energy_contribution
+    # U_SHE-scale dependency
+    if reactants == None:
+        if species_value + '_g' in mu:
+            species_value = species_value + '_g'
+    if species_value in mu:
+        U_SHE_energy_contribution = mu[species_value] * epsilon - 0.5 * alpha[species_value] * epsilon**2
+    else:
+        U_SHE_energy_contribution = 0.0
+
+    return (U_RHE_energy_contribution, U_SHE_energy_contribution)
 
 def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects, verbose):
     "Write formation energies to energies.txt after applying free energy corrections"
@@ -335,10 +338,11 @@ def get_adsorption_energy(species_value, reactants, products, reaction_energy, r
         adsorption_energy = adsorption_energy_RHE0
 
     # Apply field effects
-    electric_contribution = get_electric_field_contribution(field_effects, species_value, reactants)
-    adsorption_energy += electric_contribution
+    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
+    electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
+    adsorption_energy += electric_field_contribution
 
-    return (adsorption_energy, electric_contribution)
+    return (adsorption_energy, electric_field_contribution)
 
 def formula_to_chemical_symbols(formula):
     "Return dictionary mapping chemical symbols to number of atoms"
