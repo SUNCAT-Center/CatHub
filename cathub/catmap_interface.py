@@ -240,7 +240,7 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         site.append(desired_facet)
         species.append(species_value)
 
-        (site_wise_formation_energies, site_wise_electric_energies) = get_formation_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
+        (site_wise_formation_energies, site_wise_electric_energies) = get_adsorption_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
         min_formation_energy = min(site_wise_formation_energies)
         min_index = site_wise_formation_energies.index(min_formation_energy)
         if field_effects:
@@ -276,8 +276,8 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         print('\n')
     return df_out
 
-def get_formation_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
-    "Compute formation energies for a given species at all suitable adsorption sites"
+def get_adsorption_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
+    "Compute electronic adsorption energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
     facet_list = df.facet.iloc[indices].tolist()
@@ -293,13 +293,13 @@ def get_formation_energies(df, species_list, species_value, products_list, refer
             reactants = json.loads(df.reactants.iloc[reaction_index])
             products = products_list[reaction_index]
             reaction_energy = df.reaction_energy.iloc[reaction_index]
-            (formation_energy, electric_contribution) = get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
+            (formation_energy, electric_contribution) = get_adsorption_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
             site_wise_formation_energies.append(formation_energy)
             site_wise_electric_energies.append(electric_contribution)
     return (site_wise_formation_energies, site_wise_electric_energies)
 
-def get_adsorbate_formation_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
-    "Compute formation_energy for adsorbate in a given reaction"
+def get_adsorption_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
+    "Compute adsorption energy for an adsorbate species in a given reaction"
     
     product_energy = 0
     for product, num_units in products.items():
