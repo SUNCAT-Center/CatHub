@@ -325,17 +325,20 @@ def get_adsorption_energy(species_value, reactants, products, reaction_energy, r
                 if gas_product in dft_corrections_gases:
                     reactant_energy += dft_corrections_gases[gas_product] * num_units
 
+    # Compute Adsorption Energy at U_RHE = 0 V
+    adsorption_energy_RHE0 = reaction_energy + product_energy - reactant_energy
+
     # Apply solvation energy corrections
     if species_value in adsorbate_parameters['solvation_corrections_adsorbates']:
-        formation_energy = reaction_energy + product_energy - reactant_energy + adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
+        adsorption_energy = adsorption_energy_RHE0 + adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
     else:
-        formation_energy = reaction_energy + product_energy - reactant_energy
+        adsorption_energy = adsorption_energy_RHE0
 
     # Apply field effects
     electric_contribution = get_electric_field_contribution(field_effects, species_value, reactants)
-    formation_energy += electric_contribution
+    adsorption_energy += electric_contribution
 
-    return (formation_energy, electric_contribution)
+    return (adsorption_energy, electric_contribution)
 
 def formula_to_chemical_symbols(formula):
     "Return dictionary mapping chemical symbols to number of atoms"
