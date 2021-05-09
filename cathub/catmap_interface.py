@@ -172,11 +172,7 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
     mu = field_effects['mu']
     alpha = field_effects['alpha']
 
-    # U_RHE-scale field effect
-#     U_SHE = epsilon * d + UM_PZC
-#     U_RHE = U_SHE + 0.059 * pH
-
-    # U_RHE-scale dependency
+    ## U_RHE-scale dependency
     # x CO + y (H++e-) = CxH(y-2x+2z)Oz + (x-z) H2O
     # x CO + y/2 H2 = CxH(y-2x+2z)Oz + (x-z) H2O
     # Based on computational hydrogen electrode, n should be twice the number of H2 gas molecules that are required for the reduction reaction
@@ -187,9 +183,16 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
             n = 0
     else:
         n = 0
+
+    ## U_RHE derived from epsilon
+    # UM_PZC = -0.54  # zero-charge potential of the metal electrode in V vs. SHE for Cu(100)
+    # d = 1.2  # thickness in A (angstrom)
+    # U_SHE = UM_PZC + d * epsilon
+    # U_RHE = U_SHE + 0.059 * pH
+
     U_RHE_energy_contribution = n * U_RHE
 
-    # U_SHE-scale dependency
+    ## U_SHE-scale dependency
     if reactants == None:
         if species_value + '_g' in mu:
             species_value = species_value + '_g'
