@@ -2,6 +2,7 @@ import re
 import json
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 from sqlalchemy import create_engine 
 from ase.db import connect
@@ -246,12 +247,16 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         site.append(desired_facet)
         species.append(species_value)
 
-        (site_wise_formation_energies, site_wise_electric_energies) = get_adsorption_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
-        min_formation_energy = min(site_wise_formation_energies)
-        min_index = site_wise_formation_energies.index(min_formation_energy)
+        # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
+        site_wise_energy_contributions = get_adsorption_energies(df2, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
+        site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
+        
+        site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
+        min_adsorption_energy = min(site_wise_adsorption_energies)
+        min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
         if field_effects:
-            electric.append(site_wise_electric_energies[min_index])
-        formation_energies.append(f'{min_formation_energy:.{num_decimal_places}f}')
+            electric.append(site_wise_energy_contributions[min_index, 1:3].sum())
+        formation_energies.append(f'{min_adsorption_energy:.{num_decimal_places}f}')
         frequencies.append([])
         references.append('')
     
@@ -288,9 +293,7 @@ def get_adsorption_energies(df, species_list, species_value, products_list, refe
     indices = [index for index, value in enumerate(species_list) if value == species_value]
     facet_list = df.facet.iloc[indices].tolist()
 
-    site_wise_formation_energies = []
-    if field_effects:
-        site_wise_electric_energies = []
+    site_wise_energy_contributions = []
     for index, reaction_index in enumerate(indices):
         facet = facet_list[index]
         # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation_energy calculations.
@@ -299,10 +302,13 @@ def get_adsorption_energies(df, species_list, species_value, products_list, refe
             reactants = json.loads(df.reactants.iloc[reaction_index])
             products = products_list[reaction_index]
             reaction_energy = df.reaction_energy.iloc[reaction_index]
-            (formation_energy, electric_contribution) = get_adsorption_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
-            site_wise_formation_energies.append(formation_energy)
-            site_wise_electric_energies.append(electric_contribution)
-    return (site_wise_formation_energies, site_wise_electric_energies)
+            (adsorption_energy_RHE0,
+             U_RHE_energy_contribution,
+             U_SHE_energy_contribution,
+             solvation_correction) = get_adsorption_energy(
+                 species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
+            site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
+    return site_wise_energy_contributions
 
 def get_adsorption_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute adsorption energy for an adsorbate species in a given reaction"
@@ -336,16 +342,13 @@ def get_adsorption_energy(species_value, reactants, products, reaction_energy, r
 
     # Apply solvation energy corrections
     if species_value in adsorbate_parameters['solvation_corrections_adsorbates']:
-        adsorption_energy = adsorption_energy_RHE0 + adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
+        solvation_correction = adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
     else:
-        adsorption_energy = adsorption_energy_RHE0
+        solvation_correction = 0.0
 
     # Apply field effects
     (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
-    electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
-    adsorption_energy += electric_field_contribution
-
-    return (adsorption_energy, electric_field_contribution)
+    return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
 def formula_to_chemical_symbols(formula):
     "Return dictionary mapping chemical symbols to number of atoms"
