@@ -40,7 +40,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_ga
         df_out = write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, verbose)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects, verbose)
+        (df_out, energy_contributions) = write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects, verbose)
 
     # write corrected energy data to file
     system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
@@ -185,7 +185,7 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
     else:
         n = 0
 
-    ## U_RHE derived from epsilon
+    # # U_RHE derived from epsilon
     # UM_PZC = -0.54  # zero-charge potential of the metal electrode in V vs. SHE for Cu(100)
     # d = 1.2  # thickness in A (angstrom)
     # U_SHE = UM_PZC + d * epsilon
@@ -219,7 +219,8 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
     ## build dataframe data for adsorbate species
     db = connect(str(db_filepath))
     surface, site, species, formation_energies, frequencies, references = [], [], [], [], [], []
-
+    energy_contributions = []
+    
     # corrections
     if field_effects:
         electric = []
@@ -254,12 +255,14 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
         min_adsorption_energy = min(site_wise_adsorption_energies)
         min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        energy_contributions.append(site_wise_energy_contributions[min_index])
         if field_effects:
             electric.append(site_wise_energy_contributions[min_index, 1:3].sum())
         formation_energies.append(f'{min_adsorption_energy:.{num_decimal_places}f}')
         frequencies.append([])
         references.append('')
     
+    energy_contributions = np.asarray(energy_contributions)
     df3 = pd.DataFrame(list(zip(surface, site, species, formation_energies, frequencies, references)),
                        columns=write_columns)
     if field_effects:
@@ -285,7 +288,7 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
             table.append(sub_table)
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
-    return df_out
+    return (df_out, energy_contributions)
 
 def get_adsorption_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute electronic adsorption energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
