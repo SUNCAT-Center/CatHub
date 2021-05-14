@@ -1,9 +1,10 @@
 sudo: required
 language: python
 python:
-  - "3.5"
   - "3.6"
   - "3.7"
+  - "3.8"
+  - "3.9"
 
 services:
     - postgresql
@@ -33,9 +34,10 @@ install:
   - pip install .
   - pip install python-coveralls
   - pip install nose
+  - pip install nose-exclude
 
 script:
-  - nosetests ./cathub --with-coverage --cover-inclusive --cover-package=. --cover-erase
+  - nosetests ./cathub --with-coverage --cover-inclusive --cover-package=. --cover-erase --exclude-dir=cathub/tests/local_tests
   - coverage report --omit 'docs/*,./*/tests/*,./tests/*,data/*' --show-missing
 
 after_success:

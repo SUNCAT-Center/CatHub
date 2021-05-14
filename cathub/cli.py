@@ -37,8 +37,8 @@ def show_reactions(dbfile):
 
 @cli.command()
 @click.argument('args',  default='', type=str)
-@click.option('--dbuser', default='catvisitor', type=str)
-@click.option('--dbpassword', default='eFjohbnD57WLYAJX', type=str)
+@click.option('--dbuser', default='apiuser', type=str)
+@click.option('--dbpassword', default='ubDwfqPw', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
 def ase(dbuser, dbpassword, args, gui):
@@ -74,7 +74,7 @@ def ase(dbuser, dbpassword, args, gui):
     or a string with names of more folders seperated by ', '""")
 @click.option(
     '--energy-limit',
-    default=5.0,
+    default=10.0,
     show_default=True,
     help="""Bounds for accepted absolute reaction energies in eV""")
 @click.option('--goto-reaction',
@@ -409,7 +409,7 @@ def make_folders(template, custom_base):
 
 
 @cli.command()
-@click.argument('user', default='catvisitor')
+@click.argument('user', default='apiuser')
 def connect(user):
     """Direct connection to PostreSQL server."""
     psql_server_connect.main(user)
@@ -422,7 +422,7 @@ def connect(user):
 @click.option(
     '-a', '--adsorbates',
     type=str,
-    default='',
+    default='C,O,N,H,S,OH,OOH,CH,CH2,CH3,CO,COH,NH,NH2,NH3,SH,SH2',
     show_default=True,
     help="Specify adsorbates that are to be included. (E.g. -a CO,O,H )")
 @click.option(
@@ -467,7 +467,7 @@ def connect(user):
     type=str,
     default='',
     show_default=True,
-    help="Regular expression that matches"
+    help="Expressions that match"
          " only those files that are included.",)
 @click.option(
     '-k', '--keep-all-energies',
@@ -500,7 +500,7 @@ def connect(user):
     " that should not be considered.")
 @click.option(
     '-S', '--structure',
-    default='STRUCTURE',
+    default='',
     type=str,
     show_default=True,
     help='Bulk structure from which slabs where generated.'
@@ -548,6 +548,20 @@ def connect(user):
     default={},
     type=str,
     help="Energy correction to gas phase molecules.")
+@click.option(
+    '-p', '--skip-parameters',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip calculator parameter check.")
+@click.option(
+    '-sc', '--skip-constraints',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip constraint check.")
+
+
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
@@ -556,7 +570,7 @@ def organize(**kwargs):
     if len(kwargs['adsorbates']) == 0:
         print("""Warning: no adsorbates specified,
         can't pick up reaction reaction energies.""")
-        print("         Enter adsorbates like so --adsorbates CO,O,CO2")
+        print("         Enter adsorbates like --adsorbates CO,O,CO2")
         print("         [Comma-separated list without spaces.]")
     kwargs['adsorbates'] = list(map(
         lambda x: (''.join(sorted(string2symbols(x)))),
