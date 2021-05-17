@@ -94,7 +94,6 @@ publication as p on r.pub_id=p.pub_id"""
                                elements=elements,
                                surface_composition=surface_composition,
                                facet=facet)
-
         con = self.connection or self._connect()
         print('Querying database\n')
         dataframe = read_sql(query, con)
@@ -257,7 +256,7 @@ def get_sql_query(backend='postgres',
             query += ' \nWHERE '
         else:
             query += ' \nAND '
-        query += "r.surface_composition = '{}' or surface_composition like '{}-%%'"\
+        query += " (r.surface_composition = '{}' or surface_composition like '{}-%%')"\
             .format(surface_composition, surface_composition)
     if facet is not None:
         if not 'WHERE' in query:
