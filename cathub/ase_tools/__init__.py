@@ -161,52 +161,52 @@ def collect_structures(foldername,
                                           posix_filename=posix_filename,
                                       ))
 
-                        except TypeError:
-                            print("Warning: Could not read {posix_filename}"
-                                  .format(
-                                      posix_filename=posix_filename,
-                                  ))
+                    except TypeError:
+                        print("Warning: Could not read {posix_filename}"
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
 
-                        except StopIteration:
-                            print("Warning: StopIteration {posix_filename} hit."
-                                  .format(
-                                      posix_filename=posix_filename,
-                                  ))
-                        except IndexError:
-                            print("Warning: File {posix_filename} looks incomplete"
-                                  .format(
-                                      posix_filename=posix_filename,
-                                  ))
-                        except OSError as e:
-                            print("Error with {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
-                        except AssertionError as e:
-                            print("Hit an assertion error with {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
-                        except ValueError as e:
-                            print("Trouble reading {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
-                        except DeprecationWarning as e:
-                            print("Trouble reading {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
-                        except ImportError as e:
-                            print("Trouble reading {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
-                        except ase.io.formats.UnknownFileTypeError as e:
-                            print("Trouble reading {posix_filename}: {e}".format(
-                                posix_filename=posix_filename,
-                                e=e,
-                            ))
+                    except StopIteration:
+                        print("Warning: StopIteration {posix_filename} hit."
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
+                    except IndexError:
+                        print("Warning: File {posix_filename} looks incomplete"
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
+                    except OSError as e:
+                        print("Error with {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except AssertionError as e:
+                        print("Hit an assertion error with {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ValueError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except DeprecationWarning as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ImportError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ase.io.formats.UnknownFileTypeError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
 
     return structures
 
