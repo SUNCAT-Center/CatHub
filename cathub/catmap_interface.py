@@ -7,11 +7,14 @@ import pandas as pd
 from sqlalchemy import create_engine 
 from ase.db import connect
 from ase.data import chemical_symbols, atomic_numbers
+from ase.thermochemistry import IdealGasThermo
+from ase.units import _e, _hplanck, _c, pi
 from tabulate import tabulate
 
 
 write_columns = ['surface_name', 'site_name', 'species_name', 'formation_energy', 'frequencies', 'reference']
 num_decimal_places = 9
+CM2M = 1E-02
 
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
@@ -165,6 +168,42 @@ def write_gas_energies(db_filepath, df_out, reference_gases, dummy_gases, dft_co
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
     return df_out
+
+def get_gas_free_energy_contributions(db_filepath, gas_jsondata_filepath, temp):
+
+    # record energies for reference gases
+    db = connect(str(db_filepath))
+    gas_atoms_rows = list(db.select(state='gas'))
+
+    with open(gas_jsondata_filepath) as f:
+        gas_data = json.load(f)
+
+    cm2eV = _hplanck / _e * _c / CM2M
+    vibrational_energies = {}
+    species_list = [species_data['species'] for species_data in gas_data]
+    for species_data in gas_data:
+        species = species_data['species']
+        vibrational_energies[species] = []
+        for vibration in species_data['vibrations']:
+            vibrational_energies[species].append(vibration * cm2eV)
+
+    free_energy_contributions = {}
+    for row in gas_atoms_rows:
+        if row.formula in species_list:
+            species_index = species_list.index(row.formula)
+            thermo = IdealGasThermo(vib_energies=vibrational_energies[row.formula],
+                                    geometry=gas_data[species_index]['geometry'],
+                                    atoms=row.toatoms(),
+                                    symmetrynumber=gas_data[species_index]['symmetry'],
+                                    spin=gas_data[species_index]['spin'])
+            
+            zpe = thermo.get_ZPE_correction()
+            enthalpy_contribution = thermo.get_enthalpy(temp, verbose=False) - zpe
+            S = thermo.get_entropy(temp, gas_data[species_index]['fugacity'],verbose=False)
+            entropy_contribution = - temp * S
+            mu_no_E_Ele = zpe + enthalpy_contribution + entropy_contribution
+            free_energy_contributions[row.formula] = [zpe, enthalpy_contribution, entropy_contribution, mu_no_E_Ele]
+    return free_energy_contributions
 
 def get_electric_field_contribution(field_effects, species_value, reactants=None):
     epsilon = field_effects['epsilon']
