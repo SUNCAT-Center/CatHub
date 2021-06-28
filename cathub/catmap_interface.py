@@ -12,7 +12,7 @@ from ase.units import _e, _hplanck, _c, pi
 from tabulate import tabulate
 
 
-write_columns = ['surface_name', 'site_name', 'species_name', 'elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'energy_vector', 'frequencies', 'references']
+write_columns = ['surface_name', 'site_name', 'species_name', 'elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'references']
 num_decimal_places = 4
 CM2M = 1E-02
 
@@ -29,7 +29,11 @@ def db_to_dataframe(table_name, filename):
     df = pd.read_sql_table(table_name, cnx)
     return df
 
-def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset, field_effects, adsorbate_parameters, write_gases, write_adsorbates, gas_jsondata_filepath, temp, verbose=True):
+def write_energies(db_filepath, reference_gases, dummy_gases,
+                   dft_corrections_gases, beef_dft_helmholtz_offset,
+                   field_effects, adsorbate_parameters, write_gases,
+                   write_adsorbates, gas_jsondata_filepath,
+                   temp, verbose=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -55,7 +59,10 @@ def write_energies(db_filepath, reference_gases, dummy_gases, dft_corrections_ga
                                     temp, verbose)
 
     if write_adsorbates:
-        df_out = write_adsorbate_energies2(db_filepath, df_out, adsorbate_parameters, reference_gases, dft_corrections_gases, field_effects, verbose)
+        df_out = write_adsorbate_energies2(db_filepath, df_out,
+                                           adsorbate_parameters, reference_gases,
+                                           dft_corrections_gases, field_effects,
+                                           verbose)
 
     # write corrected energy data to file
     system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
@@ -74,8 +81,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
 
     surface, site, species, elec_energy_calc, dft_corr = [], [], [], [], []
     helm_offset, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, efield_corr, energy_vector = [], [], []
-    frequencies, references = [], []
+    solv_corr, efield_corr, formation_energy, energy_vector = [], [], [], []
+    xyz, frequencies, references = [], [], []
 
     # Load vibrational data
     with open(gas_jsondata_filepath) as f:
@@ -103,6 +110,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         surface.append('None')
         site.append('gas')
         species.append(dummy_gas)
+        xyz.append([])
         elec_energy_calc.append(0.0)
         dft_corr.append(0.0)
         helm_offset.append(0.0)
@@ -111,6 +119,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         entropy.append(0.0)
         rhe_corr.append(0.0)
         solv_corr.append(0.0)
+        formation_energy.append(0.0)
         energy_vector.append([0.0, 0.0, 0.0, 0.0, 0.0])
         frequencies.append([])
         references.append('')
@@ -120,75 +129,99 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         surface.append('None')
         site.append('gas')
         species_name = row.formula
-        species.append(species_name)
-
-        chemical_symbols_dict = formula_to_chemical_symbols(species_name)
-        for chemical_symbol in chemical_symbols_dict.keys():
-            count = chemical_symbols_dict[chemical_symbol]
-
-        # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
-        if 'C' in chemical_symbols_dict:
-            x = chemical_symbols_dict['C']
+        if species_name == 'H2' and 'H2_ref' in species_list:
+            species_names = ['H2', 'H2_ref']
         else:
-            x = 0
-        if 'H' in chemical_symbols_dict:
-            y = chemical_symbols_dict['H']
-        else:
-            y = 0
-        if 'O' in chemical_symbols_dict:
-            z = chemical_symbols_dict['O']
-        else:
-            z = 0
-        elec_energy_calc.append(row.energy
-                                + (x - z) * reference_gas_energies['H2O']
-                                - x * reference_gas_energies['CO']
-                                - (x - z + y / 2) * reference_gas_energies['H2'])
-        dft_corr.append(dft_corrections_gases[species_name] if species_name in dft_corrections_gases else 0.0)
-        helm_offset.append(beef_dft_helmholtz_offset[species_name] if species_name in beef_dft_helmholtz_offset else 0.0)
-        
-        if row.formula in species_list:
-            species_index = species_list.index(row.formula)
-            thermo = IdealGasThermo(vib_energies=vibrational_energies[species_name],
-                                    geometry=gas_data[species_index]['geometry'],
-                                    atoms=row.toatoms(),
-                                    symmetrynumber=gas_data[species_index]['symmetry'],
-                                    spin=gas_data[species_index]['spin'])
-            # zero point energy correction
-            zpe.append(thermo.get_ZPE_correction())
-            # enthalpy contribution
-            enthalpy.append(thermo.get_enthalpy(temp, verbose=False) - zpe[-1])
-            S = thermo.get_entropy(temp, gas_data[species_index]['fugacity'],verbose=False)
-            # entropy contribution
-            entropy.append(- temp * S)
-        else:
-            zpe.append(0.0)
-            enthalpy.append(0.0)
-            entropy.append(0.0)
-        # RHE-scale dependency. Zero for gaseous species
-        rhe_corr.append(0.0)
-        # Solvation correction. Zero for gaseous species.
-        solv_corr.append(0.0)
-
-        # Apply field effects
-        if field_effects:
-            (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name)
-            electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
-            efield_corr.append(electric_field_contribution)
-
-        # compute energy vector
-        term1 = elec_energy_calc[-1] + dft_corr[-1]
-        term2 = zpe[-1] + enthalpy[-1] + entropy[-1]
-        term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1]
-        dG = term1 + term2 + term3 + term4
-        energy_vector.append([term1, term2, term3, term4, dG])
+            species_names = [species_name]
+        for species_name in species_names:       
+            species.append(species_name)
     
-        frequencies.append([])
-        references.append('')
+            chemical_symbols_dict = formula_to_chemical_symbols(species_name)
+            
+            # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
+            if 'C' in chemical_symbols_dict:
+                x = chemical_symbols_dict['C']
+            else:
+                x = 0
+            if 'H' in chemical_symbols_dict:
+                y = chemical_symbols_dict['H']
+            else:
+                y = 0
+            if 'O' in chemical_symbols_dict:
+                z = chemical_symbols_dict['O']
+            else:
+                z = 0
+            xyz.append([x, y, z])
+            elec_energy_calc.append(row.energy
+                                    + (x - z) * reference_gas_energies['H2O']
+                                    - x * reference_gas_energies['CO']
+                                    - (x - z + y / 2) * reference_gas_energies['H2'])
+            dft_corr.append(dft_corrections_gases[species_name] if species_name in dft_corrections_gases else 0.0)
+            helm_offset.append(beef_dft_helmholtz_offset[species_name] if species_name in beef_dft_helmholtz_offset else 0.0)
+            
+            if species_name in species_list:
+                species_index = species_list.index(species_name)
+                thermo = IdealGasThermo(vib_energies=vibrational_energies[species_name],
+                                        geometry=gas_data[species_index]['geometry'],
+                                        atoms=row.toatoms(),
+                                        symmetrynumber=gas_data[species_index]['symmetry'],
+                                        spin=gas_data[species_index]['spin'])
+                # zero point energy correction
+                zpe.append(thermo.get_ZPE_correction())
+                # enthalpy contribution
+                enthalpy.append(thermo.get_enthalpy(temp, verbose=False) - zpe[-1])
+                S = thermo.get_entropy(temp, gas_data[species_index]['fugacity'],verbose=False)
+                # entropy contribution
+                entropy.append(- temp * S)
+            else:
+                zpe.append(0.0)
+                enthalpy.append(0.0)
+                entropy.append(0.0)
+            # RHE-scale dependency. Zero for gaseous species
+            rhe_corr.append(0.0)
+            # Solvation correction. Zero for gaseous species.
+            solv_corr.append(0.0)
+    
+            # Apply field effects
+            if field_effects:
+                (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name)
+                electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
+                efield_corr.append(electric_field_contribution)
+    
+            # formation energy
+            formation_energy.append(elec_energy_calc[-1] + helm_offset[-1] + efield_corr[-1])
+
+            # compute energy vector
+            term1 = elec_energy_calc[-1] + dft_corr[-1]
+            term2 = zpe[-1] + enthalpy[-1] + entropy[-1]
+            term3 = rhe_corr[-1]
+            term4 = solv_corr[-1] + efield_corr[-1]
+            mu = term1 + term2 + term3 + term4
+            energy_vector.append([term1, term2, term3, term4, mu])
+        
+            frequencies.append([])
+            references.append('')
+    
+    reference_mu = {}
+    for species_name in reference_gases:
+        species_index = species.index(species_name)
+        reference_mu[species_name] = energy_vector[species_index][-1]
+    
+    for species_index, species_name in enumerate(species):
+        if species_name in dummy_gases or species_name in reference_gases:
+            G = 0.0
+        else:
+            [x, y, z] = xyz[species_index]
+            G = (energy_vector[species_index][-1]
+                 + (x - z) * reference_mu['H2O']
+                 - x * reference_mu['CO']
+                 - (x - z + y / 2) * reference_mu['H2_ref'])
+        energy_vector[species_index].append(G)
         
     df = pd.DataFrame(list(zip(surface, site, species, elec_energy_calc,
                                dft_corr, zpe, enthalpy, entropy, rhe_corr,
-                               solv_corr, energy_vector, frequencies, references)),
+                               solv_corr, formation_energy, energy_vector,
+                               frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df, ignore_index=True, sort=False)
 
@@ -198,7 +231,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         print('-' * len(gas_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "dG (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "mu (eV)", "G (eV)"]
         for index, species_name in enumerate(df['species_name']):
             sub_table = []
             sub_table.extend([species_name,
@@ -206,7 +239,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                               f'{df["energy_vector"][index][1]:.{num_decimal_places}f}',
                               f'{df["energy_vector"][index][2]:.{num_decimal_places}f}',
                               f'{df["energy_vector"][index][3]:.{num_decimal_places}f}',
-                              f'{df["energy_vector"][index][4]:.{num_decimal_places}f}'])
+                              f'{df["energy_vector"][index][4]:.{num_decimal_places}f}',
+                              f'{df["energy_vector"][index][5]:.{num_decimal_places}f}'])
             table.append(sub_table)
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
