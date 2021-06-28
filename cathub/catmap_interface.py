@@ -33,7 +33,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    dft_corrections_gases, beef_dft_helmholtz_offset,
                    field_effects, adsorbate_parameters, write_gases,
                    write_adsorbates, gas_jsondata_filepath,
-                   temp, verbose=True):
+                   ads_jsondata_filepath, temp, verbose=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -60,9 +60,10 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
 
     if write_adsorbates:
         df_out = write_adsorbate_energies2(db_filepath, df_out,
+                                           ads_jsondata_filepath,
                                            adsorbate_parameters, reference_gases,
                                            dft_corrections_gases, field_effects,
-                                           verbose)
+                                           temp, verbose)
 
     # write corrected energy data to file
     system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
@@ -370,7 +371,131 @@ def write_adsorbate_energies(db_filepath, df_out, adsorbate_parameters, referenc
         print('\n')
     return (df_out, energy_contributions)
 
-def get_adsorption_energies(df, species_list, species_value, products_list, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
+def write_adsorbate_energies2(db_filepath, df_out, ads_jsondata_filepath,
+                              adsorbate_parameters, reference_gases,
+                              dft_corrections_gases, field_effects, temp,
+                              verbose):
+    "Write formation energies to energies.txt after applying free energy corrections"
+
+    # identify system ids for adsorbate species
+    table_name = 'reaction'
+    df1 = db_to_dataframe(table_name, str(db_filepath))
+
+    # Load free energy contribution data
+    with open(ads_jsondata_filepath) as f:
+        ads_data = json.load(f)
+    ads_json_species_list = [species_data['species'] for species_data in ads_data]
+
+    desired_surface = adsorbate_parameters['desired_surface']
+    desired_facet = adsorbate_parameters['desired_facet']
+    df1 = df1.loc[df1['surface_composition'] == desired_surface]
+    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
+    
+    ## build dataframe data for adsorbate species
+    db = connect(str(db_filepath))
+    surface, site, species, elec_energy_calc, dft_corr = [], [], [], [], []
+    zpe, enthalpy, entropy, rhe_corr = [], [], [], []
+    solv_corr, efield_corr, energy_vector = [], [], []
+    frequencies, references = [], []
+
+    # simple reaction species: only one active product and filter out reactions without any adsorbed species
+    index_list = []
+    for index, product in enumerate(df1['products']):
+        if product.count('star') == 1 and 'star' not in json.loads(product):
+            index_list.append(index)
+    df2 = df1.iloc[index_list]
+
+    products_list = []
+    species_list = []
+    for index, products_string in enumerate(df2.products):
+        products_list.append(json.loads(products_string))
+        for product in products_list[-1]:
+            if 'star' in product:
+                species_list.append(product.replace('star', ''))
+    unique_species = sorted(list(set(species_list)), key=len)
+    for species_value in unique_species:
+        if '-' in desired_surface:
+            surface.append(desired_surface.split('-')[0])
+        else:
+            surface.append(desired_surface)
+        site.append(desired_facet)
+        species.append(species_value)
+
+        # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
+        site_wise_energy_contributions = get_adsorption_energies(
+                    df2, df_out, species_list, species_value, products_list,
+                    reference_gases, dft_corrections_gases, adsorbate_parameters,
+                    field_effects)
+        site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
+        
+        site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
+        min_adsorption_energy = min(site_wise_adsorption_energies)
+        min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
+        # Zero DFT Correction for Adsorbates
+        dft_corr.append(0.0)
+        if species_value in ads_json_species_list:
+            index = ads_json_species_list.index(species_value)
+            zpe.append(ads_data[index]['zpe'])
+            enthalpy.append(ads_data[index]['CpdT'])
+            entropy.append(- temp * ads_data[index]['dS'])
+        else:
+            zpe.append(0.0)
+            enthalpy.append(0.0)
+            entropy.append(0.0)
+            
+        # n_H = formula_to_chemical_symbols(species_value)['H'] if 'H' in formula_to_chemical_symbols(species_value) else 0.0
+        # rhe_corr.append(n_H * field_effects['U_RHE'])
+        # print(species_value)
+        # print(site_wise_energy_contributions[min_index][1])
+        # print(rhe_corr[-1])
+        # print('\n')
+        # import pdb; pdb.set_trace()
+        rhe_corr.append(site_wise_energy_contributions[min_index][1])
+        solv_corr.append(site_wise_energy_contributions[min_index][3])
+        
+        if field_effects:
+            efield_corr.append(site_wise_energy_contributions[min_index][2])
+
+        # compute energy vector
+        term1 = elec_energy_calc[-1] + dft_corr[-1]
+        term2 = zpe[-1] + enthalpy[-1] + entropy[-1]
+        term3 = rhe_corr[-1]
+        term4 = solv_corr[-1] + efield_corr[-1]
+        dG = term1 + term2 + term3 + term4
+        energy_vector.append([term1, term2, term3, term4, dG])
+        frequencies.append([])
+        references.append('')
+    
+    df3 = pd.DataFrame(list(zip(surface, site, species, elec_energy_calc,
+                                dft_corr, zpe, enthalpy, entropy, rhe_corr,
+                                solv_corr, energy_vector, frequencies, references)),
+                       columns=write_columns)
+    df_out = df_out.append(df3, ignore_index=True, sort=False)
+
+    if verbose:
+        adsorbate_phase_header = 'Adsorbate Free Energy Correction:'
+        print(adsorbate_phase_header)
+        print('-' * len(adsorbate_phase_header))
+        
+        table = []
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "dG (eV)"]
+        for index, species_name in enumerate(df3['species_name']):
+            sub_table = []
+            sub_table.extend([species_name,
+                              f'{df3["energy_vector"][index][0]:.{num_decimal_places}f}',
+                              f'{df3["energy_vector"][index][1]:.{num_decimal_places}f}',
+                              f'{df3["energy_vector"][index][2]:.{num_decimal_places}f}',
+                              f'{df3["energy_vector"][index][3]:.{num_decimal_places}f}',
+                              f'{df3["energy_vector"][index][4]:.{num_decimal_places}f}'])
+            table.append(sub_table)
+        print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        print('\n')
+    return df_out
+
+def get_adsorption_energies(df, df_out, species_list, species_value,
+                            products_list, reference_gases, dft_corrections_gases,
+                            adsorbate_parameters, field_effects):
     "Compute electronic adsorption energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -389,11 +514,13 @@ def get_adsorption_energies(df, species_list, species_value, products_list, refe
              U_RHE_energy_contribution,
              U_SHE_energy_contribution,
              solvation_correction) = get_adsorption_energy(
-                 species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects)
+                 df_out, species_value, reactants, products, reaction_energy,
+                 reference_gases, dft_corrections_gases, adsorbate_parameters,
+                 field_effects)
             site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
     return site_wise_energy_contributions
 
-def get_adsorption_energy(species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
+def get_adsorption_energy(df_out, species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute adsorption energy for an adsorbate species in a given reaction"
     
     product_energy = 0
