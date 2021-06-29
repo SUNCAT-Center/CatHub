@@ -137,7 +137,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             site.append('gas')
             species.append(species_name)
     
-            chemical_symbols_dict = formula_to_chemical_symbols(species_name)
+            chemical_symbols_dict = formula_to_chemical_symbols(species_name.replace('_ref', ''))
             
             # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
             if 'C' in chemical_symbols_dict:
@@ -358,13 +358,6 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
             
-        # n_H = formula_to_chemical_symbols(species_value)['H'] if 'H' in formula_to_chemical_symbols(species_value) else 0.0
-        # rhe_corr.append(n_H * field_effects['U_RHE'])
-        # print(species_value)
-        # print(site_wise_energy_contributions[min_index][1])
-        # print(rhe_corr[-1])
-        # print('\n')
-        # import pdb; pdb.set_trace()
         rhe_corr.append(site_wise_energy_contributions[min_index][1])
         solv_corr.append(site_wise_energy_contributions[min_index][3])
         formation_energy.append(0.0)
@@ -505,6 +498,13 @@ def get_adsorption_energy(df_out, species_value, reactants, products, reaction_e
     (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
     return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
+def populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol):
+    if last_chemical_symbol in chemical_symbols_dict:
+        chemical_symbols_dict[last_chemical_symbol] += 1
+    else:
+        chemical_symbols_dict[last_chemical_symbol] = 1
+    return chemical_symbols_dict
+
 def formula_to_chemical_symbols(formula):
     "Return dictionary mapping chemical symbols to number of atoms"
 
@@ -513,7 +513,8 @@ def formula_to_chemical_symbols(formula):
     # split chemical formula string into alpha and numeric characters
     regex = re.compile('(\d+|\s+)')
     split_formula = regex.split(formula)
-    split_formula_list = []
+    if '' in split_formula:
+        split_formula.remove('')
 
     # count number of formula units if any
     start_index = 0
@@ -527,33 +528,18 @@ def formula_to_chemical_symbols(formula):
         if str.isdigit(string):
             chemical_symbols_dict[last_chemical_symbol] = int(string)
         else:
-            if len(string) == 0:
-                pass
-            elif len(string) == 1:
-                last_chemical_symbol = string
-                chemical_symbols_dict[last_chemical_symbol] = 1
-            elif len(string) == 2:
-                if string in chemical_symbols:
-                    last_chemical_symbol = string
-                    chemical_symbols_dict[last_chemical_symbol] = 1
-                else:
-                    chemical_symbols_dict[string[0]] = 1
-                    last_chemical_symbol = string[1]
-                    chemical_symbols_dict[last_chemical_symbol] = 1
-            elif len(string) == 3:
-                if string[0] in chemical_symbols:
-                    chemical_symbols_dict[string[0]] = 1
-                    if string[1:] in chemical_symbols:
-                        last_chemical_symbol = string[1:]
-                        chemical_symbols_dict[last_chemical_symbol] = 1
-                    else:
-                        chemical_symbols_dict[string[1]] = 1
-                        last_chemical_symbol = string[2]
-                        chemical_symbols_dict[string[2]] = 1
-                else:
-                    chemical_symbols_dict[string[:2]] = 1
-                    last_chemical_symbol = string[2]
-                    chemical_symbols_dict[last_chemical_symbol] = 1
+            str_len = len(string)
+            while str_len > 0:
+                if string[:2] in chemical_symbols:
+                    last_chemical_symbol = string[:2]
+                    string = string[2:]
+                    str_len -= 2
+                elif string[:1] in chemical_symbols:
+                    last_chemical_symbol = string[:1]
+                    string = string[1:]
+                    str_len -= 1
+                chemical_symbols_dict = populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol)
+                    
 
     # multiply number of atoms for each chemical symbol with number of formula units
     for key in chemical_symbols_dict.keys():
