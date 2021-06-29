@@ -127,14 +127,14 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
 
     # build dataframe data for gaseous species
     for row in gas_atoms_rows:
-        surface.append('None')
-        site.append('gas')
         species_name = row.formula
         if species_name == 'H2' and 'H2_ref' in species_list:
             species_names = ['H2', 'H2_ref']
         else:
             species_names = [species_name]
-        for species_name in species_names:       
+        for species_name in species_names:
+            surface.append('None')
+            site.append('gas')
             species.append(species_name)
     
             chemical_symbols_dict = formula_to_chemical_symbols(species_name)
