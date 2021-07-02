@@ -320,7 +320,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
     
     ## build dataframe data for adsorbate species
     db = connect(str(db_filepath))
-    surface, site, species, raw_energy, elec_energy_calc = [], [], [], [], []
+    surface, site, species, raw_energy, facet, elec_energy_calc = [], [], [], [], [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     solv_corr, formation_energy, efield_corr, energy_vector = [], [], [], []
     frequencies, references = [], []
@@ -349,7 +349,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         species.append(species_name)
 
         # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
-        site_wise_energy_contributions = get_adsorption_energies(
+        (site_wise_energy_contributions, facet_list) = get_adsorption_energies(
                     df2, df_out, species_list, species_name, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
                     field_effects)
@@ -358,6 +358,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
         min_adsorption_energy = min(site_wise_adsorption_energies)
         min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        facet.append(facet_list[min_index])
         raw_energy.append(float("nan"))
         elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
         # Zero DFT Correction for Adsorbates
@@ -484,7 +485,7 @@ def get_adsorption_energies(df, df_out, species_list, species_value,
                  reference_gases, dft_corrections_gases, adsorbate_parameters,
                  field_effects)
             site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
-    return site_wise_energy_contributions
+    return (site_wise_energy_contributions, facet_list)
 
 def get_adsorption_energy(df_out, species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
     "Compute adsorption energy for an adsorbate species in a given reaction"
