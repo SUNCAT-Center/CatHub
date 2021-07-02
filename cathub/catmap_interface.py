@@ -48,7 +48,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
 
         print()
         print('Term1 = Calculated Electronic Energy + DFT Correction')
-        print('Term2 = Zero Point Energy + Enthalpy Contribution + Entropy Contribution')
+        print('Term2 = Enthalpy Contribution + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
         print('Term4 = Solvation Correction + Electric Field Correction')
         print('Chemical Potential, Mu = Term1 + Term2 + Term3 + Term4')
@@ -175,7 +175,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                 # zero point energy correction
                 zpe.append(thermo.get_ZPE_correction())
                 # enthalpy contribution
-                enthalpy.append(thermo.get_enthalpy(temp, verbose=False) - zpe[-1])
+                enthalpy.append(thermo.get_enthalpy(temp, verbose=False))
                 S = thermo.get_entropy(temp, gas_data[species_index]['fugacity'],verbose=False)
                 # entropy contribution
                 entropy.append(- temp * S)
@@ -199,7 +199,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
 
             # compute energy vector
             term1 = elec_energy_calc[-1] + dft_corr[-1]
-            term2 = zpe[-1] + enthalpy[-1] + entropy[-1]
+            term2 = enthalpy[-1] + entropy[-1]
             term3 = rhe_corr[-1]
             term4 = solv_corr[-1] + efield_corr[-1]
             mu = term1 + term2 + term3 + term4
@@ -374,8 +374,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
             zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
             
             # enthalpy contribution
-            enthalpy.append(thermo.get_internal_energy(temp,verbose=False)
-                            - zpe[-1])
+            enthalpy.append(thermo.get_internal_energy(temp,verbose=False))
             
             S = thermo.get_entropy(temp, verbose=False)
             # entropy contribution
@@ -394,7 +393,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
         # compute energy vector
         term1 = elec_energy_calc[-1] + dft_corr[-1]
-        term2 = zpe[-1] + enthalpy[-1] + entropy[-1]
+        term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
         term4 = solv_corr[-1] + efield_corr[-1]
         mu = term1 + term2 + term3 + term4
