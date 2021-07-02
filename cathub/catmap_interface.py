@@ -48,7 +48,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
         print('Term2 = Zero Point Energy + Enthalpy Contribution + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
         print('Term4 = Solvation Correction + Electric Field Correction')
-        print('dG = Term1 + Term2 + Term3 + Term4')
+        print('Chemical Potential, Mu = Term1 + Term2 + Term3 + Term4')
+        print('Free Energy Change, G = Mu_species - Mu_ref. For example, G_CH4 = Mu_CH4 - (Mu_CO + 3 * Mu_H2(ref) - Mu_H2O)')
         print()
         
     if write_gases:
@@ -200,7 +201,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             mu = term1 + term2 + term3 + term4
             energy_vector.append([term1, term2, term3, term4, mu])
         
-            frequencies.append([])
+            frequencies.append(gas_data[species_list.index(species_name)]['vibrations'])
             references.append('')
     
     reference_mu = {}
