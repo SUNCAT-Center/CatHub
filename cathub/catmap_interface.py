@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import create_engine 
 from ase.db import connect
 from ase.data import chemical_symbols, atomic_numbers
-from ase.thermochemistry import IdealGasThermo
+from ase.thermochemistry import IdealGasThermo, HarmonicThermo
 from ase.units import _e, _hplanck, _c, pi
 from tabulate import tabulate
 
@@ -15,6 +15,7 @@ from tabulate import tabulate
 write_columns = ['surface_name', 'site_name', 'species_name', 'elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'references']
 num_decimal_places = 4
 CM2M = 1E-02
+cm2eV = _hplanck / _e * _c / CM2M
 
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
@@ -90,13 +91,12 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
     with open(gas_jsondata_filepath) as f:
         gas_data = json.load(f)
 
-    cm2eV = _hplanck / _e * _c / CM2M
     vibrational_energies = {}
     species_list = [species_data['species'] for species_data in gas_data]
     for species_data in gas_data:
         gas_species = species_data['species']
         vibrational_energies[gas_species] = []
-        for vibration in species_data['vibrations']:
+        for vibration in species_data['frequencies']:
             vibrational_energies[gas_species].append(vibration * cm2eV)
 
     reference_gas_energies = {}
@@ -200,8 +200,11 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             term4 = solv_corr[-1] + efield_corr[-1]
             mu = term1 + term2 + term3 + term4
             energy_vector.append([term1, term2, term3, term4, mu])
-        
-            frequencies.append(gas_data[species_list.index(species_name)]['vibrations'])
+            
+            if species_name in species_list:
+                frequencies.append(gas_data[species_list.index(species_name)]['frequencies'])
+            else:
+                frequencies.append([])
             references.append('')
     
     reference_mu = {}
@@ -296,10 +299,17 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
     table_name = 'reaction'
     df1 = db_to_dataframe(table_name, str(db_filepath))
 
-    # Load free energy contribution data
+    # Load vibrational data
     with open(ads_jsondata_filepath) as f:
         ads_data = json.load(f)
-    ads_json_species_list = [species_data['species'] for species_data in ads_data]
+
+    vibrational_energies = {}
+    json_species_list = [species_data['species'] for species_data in ads_data]
+    for species_data in ads_data:
+        ads_species = species_data['species']
+        vibrational_energies[ads_species] = []
+        for vibrational_frequency in species_data['frequencies']:
+            vibrational_energies[ads_species].append(vibrational_frequency * cm2eV)
 
     desired_surface = adsorbate_parameters['desired_surface']
     desired_facet = adsorbate_parameters['desired_facet']
@@ -328,17 +338,17 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
             if 'star' in product:
                 species_list.append(product.replace('star', ''))
     unique_species = sorted(list(set(species_list)), key=len)
-    for species_value in unique_species:
+    for species_name in unique_species:
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
         else:
             surface.append(desired_surface)
         site.append(desired_facet)
-        species.append(species_value)
+        species.append(species_name)
 
         # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
         site_wise_energy_contributions = get_adsorption_energies(
-                    df2, df_out, species_list, species_value, products_list,
+                    df2, df_out, species_list, species_name, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
                     field_effects)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
@@ -349,16 +359,26 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
         # Zero DFT Correction for Adsorbates
         dft_corr.append(0.0)
-        if species_value in ads_json_species_list:
-            index = ads_json_species_list.index(species_value)
-            zpe.append(ads_data[index]['zpe'])
-            enthalpy.append(ads_data[index]['CpdT'])
-            entropy.append(- temp * ads_data[index]['dS'])
+
+        if species_name in json_species_list:
+            species_index = json_species_list.index(species_name)
+            thermo = HarmonicThermo(vib_energies=vibrational_energies[species_name])
+            
+            # zero point energy correction
+            zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
+            
+            # enthalpy contribution
+            enthalpy.append(thermo.get_internal_energy(temp,verbose=False)
+                            - zpe[-1])
+            
+            S = thermo.get_entropy(temp, verbose=False)
+            # entropy contribution
+            entropy.append(- temp * S)
         else:
             zpe.append(0.0)
             enthalpy.append(0.0)
             entropy.append(0.0)
-            
+
         rhe_corr.append(site_wise_energy_contributions[min_index][1])
         solv_corr.append(site_wise_energy_contributions[min_index][3])
         formation_energy.append(0.0)
@@ -373,7 +393,11 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         term4 = solv_corr[-1] + efield_corr[-1]
         mu = term1 + term2 + term3 + term4
         energy_vector.append([term1, term2, term3, term4, mu])
-        frequencies.append([])
+        
+        if species_name in json_species_list:
+            frequencies.append(ads_data[json_species_list.index(species_name)]['frequencies'])
+        else:
+            frequencies.append([])
         references.append('')
 
     reference_mu = {}
