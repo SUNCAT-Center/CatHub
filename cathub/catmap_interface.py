@@ -16,6 +16,8 @@ write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy','elec
 num_decimal_places = 4
 CM2M = 1E-02
 cm2eV = _hplanck / _e * _c / CM2M
+kB = 8.617333262145e-5
+
 
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
@@ -574,3 +576,18 @@ def formula_to_chemical_symbols(formula):
     for key in chemical_symbols_dict.keys():
         chemical_symbols_dict[key] = formula_unit_count * chemical_symbols_dict[key]
     return chemical_symbols_dict
+
+def U_RHE_to_field(U_RHE, pH, U_M_PZC, d, temp):
+    U_SHE = U_RHE - kB * temp * np.log(10) * pH
+    field = (U_SHE - U_M_PZC) / d
+    return (U_SHE, field)
+
+def U_SHE_to_field(U_SHE, pH, U_M_PZC, d, temp):
+    U_RHE = U_SHE + kB * temp * np.log(10) * pH
+    field = (U_SHE - U_M_PZC) / d
+    return (U_RHE, field)
+
+def field_to_voltage(field, pH, U_M_PZC, d, temp):
+    U_SHE = field * d + U_M_PZC
+    U_RHE = U_SHE + kB * temp * np.log(10) * pH
+    return (U_SHE, U_RHE)
