@@ -12,7 +12,7 @@ from ase.units import _e, _hplanck, _c, pi
 from tabulate import tabulate
 
 
-write_columns = ['surface_name', 'site_name', 'species_name', 'elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'references']
+write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy','elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'references']
 num_decimal_places = 4
 CM2M = 1E-02
 cm2eV = _hplanck / _e * _c / CM2M
@@ -82,10 +82,10 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
     db = connect(str(db_filepath))
     gas_atoms_rows = list(db.select(state='gas'))
 
-    surface, site, species, elec_energy_calc, dft_corr = [], [], [], [], []
-    helm_offset, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, efield_corr, formation_energy, energy_vector = [], [], [], []
-    xyz, frequencies, references = [], [], []
+    surface, site, species, raw_energy, elec_energy_calc = [], [], [], [], []
+    dft_corr, helm_offset, zpe, enthalpy, entropy = [], [], [], [], []
+    rhe_corr, solv_corr, efield_corr, formation_energy = [], [], [], []
+    energy_vector, xyz, frequencies, references = [], [], [], []
 
     # Load vibrational data
     with open(gas_jsondata_filepath) as f:
@@ -113,6 +113,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         site.append('gas')
         species.append(dummy_gas)
         xyz.append([])
+        raw_energy.append(0.0)
         elec_energy_calc.append(0.0)
         dft_corr.append(0.0)
         helm_offset.append(0.0)
@@ -154,6 +155,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             else:
                 z = 0
             xyz.append([x, y, z])
+            raw_energy.append(row.energy)
             elec_energy_calc.append(row.energy
                                     + (x - z) * reference_gas_energies['H2O']
                                     - x * reference_gas_energies['CO']
@@ -223,10 +225,10 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                  - (x - z + y / 2) * reference_mu['H2_ref'])
         energy_vector[species_index].append(G)
         
-    df = pd.DataFrame(list(zip(surface, site, species, elec_energy_calc,
-                               dft_corr, zpe, enthalpy, entropy, rhe_corr,
-                               solv_corr, formation_energy, energy_vector,
-                               frequencies, references)),
+    df = pd.DataFrame(list(zip(surface, site, species, raw_energy,
+                               elec_energy_calc, dft_corr, zpe, enthalpy,
+                               entropy, rhe_corr, solv_corr, formation_energy,
+                               energy_vector, frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df, ignore_index=True, sort=False)
 
@@ -318,8 +320,8 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
     
     ## build dataframe data for adsorbate species
     db = connect(str(db_filepath))
-    surface, site, species, elec_energy_calc, dft_corr = [], [], [], [], []
-    zpe, enthalpy, entropy, rhe_corr = [], [], [], []
+    surface, site, species, raw_energy, elec_energy_calc = [], [], [], [], []
+    dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     solv_corr, formation_energy, efield_corr, energy_vector = [], [], [], []
     frequencies, references = [], []
 
@@ -356,6 +358,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
         min_adsorption_energy = min(site_wise_adsorption_energies)
         min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        raw_energy.append(float("nan"))
         elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
         # Zero DFT Correction for Adsorbates
         dft_corr.append(0.0)
@@ -428,10 +431,10 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
              - (x - z + y / 2) * reference_mu['H2_ref'])
         energy_vector[species_index].append(G)
 
-    df3 = pd.DataFrame(list(zip(surface, site, species, elec_energy_calc,
-                                dft_corr, zpe, enthalpy, entropy, rhe_corr,
-                                solv_corr, formation_energy, energy_vector,
-                                frequencies, references)),
+    df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
+                                elec_energy_calc, dft_corr, zpe, enthalpy,
+                                entropy, rhe_corr, solv_corr, formation_energy,
+                                energy_vector, frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df3, ignore_index=True, sort=False)
 
