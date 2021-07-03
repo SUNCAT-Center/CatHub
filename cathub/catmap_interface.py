@@ -207,9 +207,10 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             
             if species_name in species_list:
                 frequencies.append(gas_data[species_list.index(species_name)]['frequencies'])
+                references.append(gas_data[species_list.index(species_name)]['reference'])
             else:
                 frequencies.append([])
-            references.append('')
+                references.append('')
     
     reference_mu = {}
     for species_name in reference_gases:
@@ -401,9 +402,10 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         
         if species_name in json_species_list:
             frequencies.append(ads_data[json_species_list.index(species_name)]['frequencies'])
+            references.append(ads_data[json_species_list.index(species_name)]['reference'])
         else:
             frequencies.append([])
-        references.append('')
+            references.append('')
 
     reference_mu = {}
     for species_name in reference_gases:
