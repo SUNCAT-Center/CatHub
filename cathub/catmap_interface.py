@@ -12,7 +12,8 @@ from ase.units import _e, _hplanck, _c, pi
 from tabulate import tabulate
 
 
-write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy','elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'references']
+write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy','elec_energy', 'dft_corr','zpe', 'enthalpy', 'entropy', 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector', 'frequencies', 'reference']
+mkm_write_columns = ['surface_name', 'site_name', 'species_name', 'formation_energy', 'frequencies', 'reference']
 num_decimal_places = 4
 CM2M = 1E-02
 cm2eV = _hplanck / _e * _c / CM2M
@@ -36,7 +37,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    dft_corrections_gases, beef_dft_helmholtz_offset,
                    field_effects, adsorbate_parameters, write_gases,
                    write_adsorbates, gas_jsondata_filepath,
-                   ads_jsondata_filepath, temp, verbose=True):
+                   ads_jsondata_filepath, temp, write_mkm_input_files,
+                   verbose=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -69,12 +71,10 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                           dft_corrections_gases, field_effects,
                                           temp, verbose)
 
-    # write corrected energy data to file
-    system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
-    Path.mkdir(system_dir_path, parents=True, exist_ok=True)
-    energies_filepath = system_dir_path / f'energies_f{field_effects["epsilon"]:.2e}.txt'
-    with open(energies_filepath, 'w') as energies_file:
-        df_out[write_columns].to_string(energies_file, index=False, justify='left')
+    # write corrected energy data to mkm input file
+    if write_mkm_input_files:
+        make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
+                             df_out)
     return None
 
 def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
@@ -529,6 +529,31 @@ def get_adsorption_energy(df_out, species_value, reactants, products, reaction_e
     # Apply field effects
     (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
     return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
+
+def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
+                         df_out):
+    system_dir_path = db_filepath.parent / f'{adsorbate_parameters["desired_surface"]}_{adsorbate_parameters["desired_facet"]}'
+    Path.mkdir(system_dir_path, parents=True, exist_ok=True)
+    energies_filepath = system_dir_path / f'energies_f{field_effects["epsilon"]:.2e}.txt'
+    
+    # with open(energies_filepath, 'w') as energies_file:
+    #     df_out[mkm_write_columns].to_string(energies_file, index=False, justify='left')
+    
+    header = '\t'.join(['surface_name', 'site_name', 'species_name',
+                        'formation_energy', 'frequencies', 'reference'])
+    lines = [] # list of lines in the output
+    for index, row in df_out.iterrows():
+        line = '\t'.join([row['surface_name'], row['site_name'],
+                          row['species_name'], f'{row["formation_energy"]:.4f}',
+                          str(row['frequencies']), row['reference']])
+        lines.append(line)
+
+    lines = [header] + lines #add header to top
+    input_file = '\n'.join(lines) #Join the lines with a line break
+
+    with open(energies_filepath, 'w') as energies_file:
+        energies_file.write(input_file)
+    return None
 
 def populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol):
     if last_chemical_symbol in chemical_symbols_dict:
