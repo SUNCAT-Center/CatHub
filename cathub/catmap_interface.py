@@ -194,9 +194,6 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                 electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
                 efield_corr.append(electric_field_contribution)
     
-            # formation energy
-            formation_energy.append(elec_energy_calc[-1] + helm_offset[-1] + efield_corr[-1])
-
             # compute energy vector
             term1 = elec_energy_calc[-1] + dft_corr[-1]
             term2 = enthalpy[-1] + entropy[-1]
@@ -204,6 +201,9 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             term4 = solv_corr[-1] + efield_corr[-1]
             mu = term1 + term2 + term3 + term4
             energy_vector.append([term1, term2, term3, term4, mu])
+
+            # formation energy
+            formation_energy.append(term1 + term4 + helm_offset[-1])
             
             if species_name in species_list:
                 frequencies.append(gas_data[species_list.index(species_name)]['frequencies'])
@@ -387,7 +387,6 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
         rhe_corr.append(site_wise_energy_contributions[min_index][1])
         solv_corr.append(site_wise_energy_contributions[min_index][3])
-        formation_energy.append(0.0)
         
         if field_effects:
             efield_corr.append(site_wise_energy_contributions[min_index][2])
@@ -399,6 +398,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         term4 = solv_corr[-1] + efield_corr[-1]
         mu = term1 + term2 + term3 + term4
         energy_vector.append([term1, term2, term3, term4, mu])
+        formation_energy.append(term1 + term4)
         
         if species_name in json_species_list:
             frequencies.append(ads_data[json_species_list.index(species_name)]['frequencies'])
