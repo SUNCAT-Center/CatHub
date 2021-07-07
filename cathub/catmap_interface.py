@@ -560,6 +560,18 @@ def get_free_energy_change_species(df, species_name):
     free_energy_change = df['energy_vector'][species_index][-1]
     return free_energy_change
 
+def get_free_energy_change_reaction(df, reactants, products):
+    free_energy_change_reactants = 0
+    for reactant in reactants:
+        free_energy_change_reactants += get_free_energy_change_species(df, reactant)
+
+    free_energy_change_products = 0
+    for product in products:
+        free_energy_change_products += get_free_energy_change_species(df, product)
+
+    free_energy_change = free_energy_change_products - free_energy_change_reactants
+    return free_energy_change
+
 def populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol):
     if last_chemical_symbol in chemical_symbols_dict:
         chemical_symbols_dict[last_chemical_symbol] += 1
