@@ -75,7 +75,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
     if write_mkm_input_files:
         make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
                              df_out)
-    return None
+    return df_out
 
 def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                        reference_gases, dummy_gases, dft_corrections_gases,
@@ -554,6 +554,11 @@ def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
     with open(energies_filepath, 'w') as energies_file:
         energies_file.write(input_file)
     return None
+
+def get_free_energy_change_species(df, species_name):
+    species_index = df['species_name'][df['species_name'] == species_name].index[0]
+    free_energy_change = df['energy_vector'][species_index][-1]
+    return free_energy_change
 
 def populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol):
     if last_chemical_symbol in chemical_symbols_dict:
