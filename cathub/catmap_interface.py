@@ -53,8 +53,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
         print('Term2 = Enthalpy Contribution + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
         print('Term4 = Solvation Correction + Electric Field Correction')
-        print('Chemical Potential, Mu = Term1 + Term2 + Term3 + Term4')
-        print('Free Energy Change, G = Mu_species - Mu_ref. For example, G_CH4 = Mu_CH4 - (Mu_CO + 3 * Mu_H2(ref) - Mu_H2O)')
+        print('Chemical Potential, µ = Term1 + Term2 + Term3 + Term4')
+        print(f'Free Energy Change, ∆G = µ_species - µ_ref. For example, ∆G_CH4 = µ_CH4 - (µ_CO + 3 * µ_H2(ref) - µ_H2O)')
         print()
         
     if write_gases:
@@ -241,7 +241,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         print('-' * len(gas_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "mu (eV)", "G (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)"]
         for index, species_name in enumerate(df['species_name']):
             sub_table = []
             sub_table.extend([species_name,
@@ -448,7 +448,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         print('-' * len(adsorbate_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "mu (eV)", "G (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)"]
         for index, species_name in enumerate(df3['species_name']):
             sub_table = []
             sub_table.extend([species_name,
