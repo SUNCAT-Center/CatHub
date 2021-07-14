@@ -55,6 +55,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
         print('Term4 = Solvation Correction + Electric Field Correction')
         print('Chemical Potential, µ = Term1 + Term2 + Term3 + Term4')
         print(f'Free Energy Change, ∆G = µ_species - µ_ref. For example, ∆G_CH4 = µ_CH4 - (µ_CO + 3 * µ_H2(ref) - µ_H2O)')
+        print(f'∆G at U_RHE=0.0 V = ∆G - Term3')
         print()
         
     if write_gases:
@@ -241,7 +242,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         print('-' * len(gas_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
         for index, species_name in enumerate(df['species_name']):
             sub_table = []
             sub_table.extend([species_name,
@@ -250,7 +251,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                               f'{df["energy_vector"][index][2]:.{num_decimal_places}f}',
                               f'{df["energy_vector"][index][3]:.{num_decimal_places}f}',
                               f'{df["energy_vector"][index][4]:.{num_decimal_places}f}',
-                              f'{df["energy_vector"][index][5]:.{num_decimal_places}f}'])
+                              f'{df["energy_vector"][index][5]:.{num_decimal_places}f}',
+                              f'{df["energy_vector"][index][5] - df["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
@@ -448,7 +450,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         print('-' * len(adsorbate_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
         for index, species_name in enumerate(df3['species_name']):
             sub_table = []
             sub_table.extend([species_name,
@@ -457,7 +459,8 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
                               f'{df3["energy_vector"][index][2]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][3]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][4]:.{num_decimal_places}f}',
-                              f'{df3["energy_vector"][index][5]:.{num_decimal_places}f}'])
+                              f'{df3["energy_vector"][index][5]:.{num_decimal_places}f}',
+                              f'{df3["energy_vector"][index][5] - df3["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
