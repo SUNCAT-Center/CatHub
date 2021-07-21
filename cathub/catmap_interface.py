@@ -592,13 +592,19 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     # identify system ids for adsorbate species
     table_name = 'reaction'
     df1 = db_to_dataframe(table_name, str(db_filepath))
+    desired_surface = adsorbate_parameters['desired_surface']
+    desired_facet = adsorbate_parameters['desired_facet']
+    df1 = df1.loc[df1['surface_composition'] == desired_surface]
+    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
 
     # Load vibrational data
     with open(ts_jsondata_filepath) as f:
         ts_data = json.load(f)
 
     # Load reaction expression data
-    ts_states = read_reaction_expression_data(rxn_expressions_filepath)
+    ts_states_rxn_expressions = read_reaction_expression_data(
+                                                    rxn_expressions_filepath)
+    df_activation = df1[df1['activation_energy'].notna()]
 
     vibrational_energies = {}
     json_species_list = [species_data['species'] for species_data in ts_data]
@@ -607,11 +613,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         vibrational_energies[ts_species] = []
         for vibrational_frequency in species_data['frequencies']:
             vibrational_energies[ts_species].append(vibrational_frequency * cm2eV)
-
-    desired_surface = adsorbate_parameters['desired_surface']
-    desired_facet = adsorbate_parameters['desired_facet']
-    df1 = df1.loc[df1['surface_composition'] == desired_surface]
-    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
     
     ## build dataframe data for transition state species
     db = connect(str(db_filepath))
@@ -629,7 +630,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     products_list = []
     species_list = []
-    for index, products_string in enumerate(df2.products):
+    for products_string in df2.products:
         products_list.append(json.loads(products_string))
         for product in products_list[-1]:
             if 'star' in product:
