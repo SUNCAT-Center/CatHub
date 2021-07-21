@@ -762,7 +762,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
 def read_reaction_expression_data(rxn_expressions_filepath):
     exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
-    discard_species_list = ['*_t']
+    discard_species_list = ['*_t', '_t']
     ts_states = []
     if 'rxn_expressions' in locals():
         for rxn_expression in locals()['rxn_expressions']:
@@ -779,7 +779,13 @@ def read_reaction_expression_data(rxn_expressions_filepath):
                     ts_states.append(ts_species[0])
                 else:
                     ts_states.append(ts_term)
-    return ts_states
+
+    new_ts_states = []
+    for ts_state in ts_states:
+        for discard_species in discard_species_list:
+            ts_state = ts_state.replace(discard_species, '') 
+        new_ts_states.append(ts_state)
+    return new_ts_states
 
 def get_ts_energies(df, df_out, species_list, species_value, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
