@@ -51,7 +51,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
 
         print()
         print('Term1 = Calculated Electronic Energy + DFT Correction')
-        print('Term2 = Enthalpy Contribution + Entropy Contribution')
+        print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
         print('Term4 = Solvation Correction + Electric Field Correction')
         print('Chemical Potential, µ = Term1 + Term2 + Term3 + Term4')
@@ -187,7 +187,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                                         spin=gas_vibration_data[species_index]['spin'])
                 # zero point energy correction
                 zpe.append(thermo.get_ZPE_correction())
-                # enthalpy contribution
+                # enthalpic temperature correction
                 enthalpy.append(thermo.get_enthalpy(temp, verbose=False))
                 S = thermo.get_entropy(temp, gas_vibration_data[species_index]['fugacity'],verbose=False)
                 # entropy contribution
@@ -388,7 +388,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
             # zero point energy correction
             zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
             
-            # enthalpy contribution
+            # enthalpic temperature correction
             enthalpy.append(thermo.get_internal_energy(temp,verbose=False))
             
             S = thermo.get_entropy(temp, verbose=False)
@@ -668,7 +668,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             # zero point energy correction
             zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
             
-            # enthalpy contribution
+            # enthalpic temperature correction
             enthalpy.append(thermo.get_internal_energy(temp,verbose=False))
             
             S = thermo.get_entropy(temp, verbose=False)
