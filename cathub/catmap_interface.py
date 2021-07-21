@@ -38,8 +38,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    field_effects, adsorbate_parameters, write_gases,
                    write_adsorbates, write_transition_states,
                    gas_jsondata_filepath, ads_jsondata_filepath,
-                   ts_jsondata_filepath, temp, write_mkm_input_files,
-                   verbose=True):
+                   ts_jsondata_filepath, rxn_expressions_filepath, temp,
+                   write_mkm_input_files, verbose=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -75,6 +75,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
     
     if write_transition_states:
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
+                                   rxn_expressions_filepath,
                                    adsorbate_parameters, reference_gases,
                                    dft_corrections_gases, field_effects,
                                    temp, verbose)
@@ -584,8 +585,9 @@ def compute_ts_energies(state_energies, charge_data, workfunction_data,
     return (ts_energies_noH, ts_energies_H)
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                      adsorbate_parameters, reference_gases,
-                      dft_corrections_gases, field_effects, temp, verbose):
+                      rxn_expressions_filepath, adsorbate_parameters,
+                      reference_gases, dft_corrections_gases, field_effects,
+                      temp, verbose):
 
     # identify system ids for adsorbate species
     table_name = 'reaction'
@@ -594,6 +596,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     # Load vibrational data
     with open(ts_jsondata_filepath) as f:
         ts_data = json.load(f)
+
+    # Load reaction expression data
+    ts_states = read_reaction_expression_data(rxn_expressions_filepath)
 
     vibrational_energies = {}
     json_species_list = [species_data['species'] for species_data in ts_data]
@@ -750,6 +755,27 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
     return df_out
+
+def read_reaction_expression_data(rxn_expressions_filepath):
+    exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
+    discard_species_list = ['*_t']
+    ts_states = []
+    if 'rxn_expressions' in locals():
+        for rxn_expression in locals()['rxn_expressions']:
+            rxn = rxn_expression.split(';')[0]
+            rxn_no_spaces = re.sub(' ', '', rxn)
+            if rxn_no_spaces.count('->') == 2:
+                split_rxn = re.split('->|<->', rxn_no_spaces)
+                ts_term = split_rxn[1]
+                if '+' in ts_term:
+                    ts_species = ts_term.split('+')
+                    for discard_species in discard_species_list:
+                        if discard_species in ts_species:
+                            ts_species.remove(discard_species)
+                    ts_states.append(ts_species[0])
+                else:
+                    ts_states.append(ts_term)
+    return ts_states
 
 def get_ts_energies(df, df_out, species_list, species_value, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
