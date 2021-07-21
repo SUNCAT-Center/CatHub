@@ -38,8 +38,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    field_effects, adsorbate_parameters, write_gases,
                    write_adsorbates, write_transition_states,
                    gas_jsondata_filepath, ads_jsondata_filepath,
-                   ts_jsondata_filepath, rxn_expressions_filepath, temp,
-                   write_mkm_input_files, verbose=True):
+                   ts_jsondata_filepath, rxn_expressions_filepath, ts_data,
+                   temp, write_mkm_input_files, verbose=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -75,7 +75,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
     
     if write_transition_states:
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                                   rxn_expressions_filepath,
+                                   rxn_expressions_filepath, ts_data,
                                    adsorbate_parameters, reference_gases,
                                    dft_corrections_gases, field_effects,
                                    temp, verbose)
@@ -100,11 +100,11 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
 
     # Load vibrational data
     with open(gas_jsondata_filepath) as f:
-        gas_data = json.load(f)
+        gas_vibration_data = json.load(f)
 
     vibrational_energies = {}
-    species_list = [species_data['species'] for species_data in gas_data]
-    for species_data in gas_data:
+    species_list = [species_data['species'] for species_data in gas_vibration_data]
+    for species_data in gas_vibration_data:
         gas_species = species_data['species']
         vibrational_energies[gas_species] = []
         for vibration in species_data['frequencies']:
@@ -181,15 +181,15 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             if species_name in species_list:
                 species_index = species_list.index(species_name)
                 thermo = IdealGasThermo(vib_energies=vibrational_energies[species_name],
-                                        geometry=gas_data[species_index]['geometry'],
+                                        geometry=gas_vibration_data[species_index]['geometry'],
                                         atoms=row.toatoms(),
-                                        symmetrynumber=gas_data[species_index]['symmetry'],
-                                        spin=gas_data[species_index]['spin'])
+                                        symmetrynumber=gas_vibration_data[species_index]['symmetry'],
+                                        spin=gas_vibration_data[species_index]['spin'])
                 # zero point energy correction
                 zpe.append(thermo.get_ZPE_correction())
                 # enthalpy contribution
                 enthalpy.append(thermo.get_enthalpy(temp, verbose=False))
-                S = thermo.get_entropy(temp, gas_data[species_index]['fugacity'],verbose=False)
+                S = thermo.get_entropy(temp, gas_vibration_data[species_index]['fugacity'],verbose=False)
                 # entropy contribution
                 entropy.append(- temp * S)
             else:
@@ -219,8 +219,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             formation_energy.append(term1 + term4 + helm_offset[-1])
             
             if species_name in species_list:
-                frequencies.append(gas_data[species_list.index(species_name)]['frequencies'])
-                references.append(gas_data[species_list.index(species_name)]['reference'])
+                frequencies.append(gas_vibration_data[species_list.index(species_name)]['frequencies'])
+                references.append(gas_vibration_data[species_list.index(species_name)]['reference'])
             else:
                 frequencies.append([])
                 references.append('')
@@ -320,11 +320,11 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
     # Load vibrational data
     with open(ads_jsondata_filepath) as f:
-        ads_data = json.load(f)
+        ads_vibration_data = json.load(f)
 
     vibrational_energies = {}
-    json_species_list = [species_data['species'] for species_data in ads_data]
-    for species_data in ads_data:
+    json_species_list = [species_data['species'] for species_data in ads_vibration_data]
+    for species_data in ads_vibration_data:
         ads_species = species_data['species']
         vibrational_energies[ads_species] = []
         for vibrational_frequency in species_data['frequencies']:
@@ -415,8 +415,8 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         formation_energy.append(term1 + term4)
         
         if species_name in json_species_list:
-            frequencies.append(ads_data[json_species_list.index(species_name)]['frequencies'])
-            references.append(ads_data[json_species_list.index(species_name)]['reference'])
+            frequencies.append(ads_vibration_data[json_species_list.index(species_name)]['frequencies'])
+            references.append(ads_vibration_data[json_species_list.index(species_name)]['reference'])
         else:
             frequencies.append([])
             references.append('')
@@ -585,7 +585,7 @@ def compute_ts_energies(state_energies, charge_data, workfunction_data,
     return (ts_energies_noH, ts_energies_H)
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                      rxn_expressions_filepath, adsorbate_parameters,
+                      rxn_expressions_filepath, ts_data, adsorbate_parameters,
                       reference_gases, dft_corrections_gases, field_effects,
                       temp, verbose):
 
@@ -599,16 +599,17 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     # Load vibrational data
     with open(ts_jsondata_filepath) as f:
-        ts_data = json.load(f)
+        ts_vibration_data = json.load(f)
 
     # Load reaction expression data
     ts_states_rxn_expressions = read_reaction_expression_data(
                                                     rxn_expressions_filepath)
     df_activation = df1[df1['activation_energy'].notna()]
+    ts_states_user_input = ts_data['ts_states']
 
     vibrational_energies = {}
-    json_species_list = [species_data['species'] for species_data in ts_data]
-    for species_data in ts_data:
+    json_species_list = [species_data['species'] for species_data in ts_vibration_data]
+    for species_data in ts_vibration_data:
         ts_species = species_data['species']
         vibrational_energies[ts_species] = []
         for vibrational_frequency in species_data['frequencies']:
@@ -694,8 +695,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         formation_energy.append(term1 + term4)
         
         if species_name in json_species_list:
-            frequencies.append(ts_data[json_species_list.index(species_name)]['frequencies'])
-            references.append(ts_data[json_species_list.index(species_name)]['reference'])
+            frequencies.append(
+                ts_vibration_data[json_species_list.index(species_name)]['frequencies'])
+            references.append(
+                ts_vibration_data[json_species_list.index(species_name)]['reference'])
         else:
             frequencies.append([])
             references.append('')
