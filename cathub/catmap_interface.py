@@ -631,15 +631,46 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     frequencies, references = [], []
 
     # simple reaction species: only one active product and filter out reactions without any transition state species
-    index_list = []
-    for index, product in enumerate(df1['products']):
-        if product.count('star') == 1 and 'star' not in json.loads(product):
-            index_list.append(index)
-    df2 = df1.iloc[index_list]
+    df_activation_copy = df_activation.copy()
+
+    df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(json.loads)
+    for index, reactant in enumerate(df_activation_copy_reactant_dict_col):
+        row_index = df_activation_copy.index[index]
+        new_dict = {}
+        if 0 in reactant.values():
+            for key, value in reactant.items():
+                if value:
+                    new_dict[key] = value
+            df_activation_copy.at[row_index, 'reactants'] = json.dumps(new_dict)
+    df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(json.loads)
+
+    df_activation_copy_product_dict_col = df_activation_copy.products.apply(json.loads)
+    for index, product in enumerate(df_activation_copy_product_dict_col):
+        row_index = df_activation_copy.index[index]
+        new_dict = {}
+        if 0 in product.values():
+            for key, value in product.items():
+                if value:
+                    new_dict[key] = value
+            df_activation_copy.at[row_index, 'products'] = json.dumps(new_dict)
+    df_activation_copy_product_dict_col = df_activation_copy.products.apply(json.loads)
+    
+    df_index_list = []
+    df_index_map = []
+    for reaction_index in reaction_index_map:
+        df_indices_product = df_activation_copy_product_dict_col[df_activation_copy_product_dict_col == products_rxn_expressions[reaction_index]].index.values
+        df_indices_reactant = df_activation_copy_reactant_dict_col[df_activation_copy_reactant_dict_col == reactants_rxn_expressions[reaction_index]].index.values
+        df_indices = np.intersect1d(df_indices_reactant, df_indices_product)
+        if len(df_indices):
+            df_index_list.append(df_indices[0])
+            df_index_map.append(df_indices[0])
+        else:
+            df_index_map.append('')
+    df_activation_rxns = df_activation.loc[df_index_list]
 
     products_list = []
     species_list = []
-    for products_string in df2.products:
+    for products_string in df_activation_rxns.products:
         products_list.append(json.loads(products_string))
         for product in products_list[-1]:
             if 'star' in product:
@@ -655,9 +686,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
         (site_wise_energy_contributions, facet_list) = get_ts_energies(
-                    df2, df_out, species_list, species_name, products_list,
-                    reference_gases, dft_corrections_gases, adsorbate_parameters,
-                    field_effects)
+                    df_activation_rxns, df_out, species_list, species_name,
+                    products_list, reference_gases, dft_corrections_gases,
+                    adsorbate_parameters, field_effects)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
         
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
@@ -792,6 +823,8 @@ def get_catmap_style_species(species):
             catmap_species = species
         if '*_t' in catmap_species:
             catmap_species = catmap_species.replace('*_t', 'star')
+        elif '_t' in catmap_species:
+            catmap_species = catmap_species.replace('_t', 'star')
         elif '_g' in catmap_species:
             catmap_species = catmap_species.replace('_g', 'gas')
     return (catmap_species, num_species)
@@ -1035,7 +1068,6 @@ def formula_to_chemical_symbols(formula):
                     string = string[1:]
                     str_len -= 1
                 chemical_symbols_dict = populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol)
-                    
 
     # multiply number of atoms for each chemical symbol with number of formula units
     for key in chemical_symbols_dict.keys():
