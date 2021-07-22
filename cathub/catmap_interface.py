@@ -768,6 +768,34 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print('\n')
     return df_out
 
+def get_catmap_style_species(species):
+    if 'H_g' in species:
+        split_species = re.split('(\d+)', species)
+        if '' in split_species:
+            split_species.remove('')
+        catmap_species = 'H2gas'
+        if len(split_species) > 1:
+            num_species = float(split_species[0]) * 0.5
+        else:
+            num_species = 0.5
+    else:
+        if species[0].isnumeric():
+            split_species = re.split('(\d+)', species)
+            if '' in split_species:
+                split_species.remove('')
+            num_species_digits = len(split_species[0])
+            catmap_species = species[num_species_digits:]
+            num_species = float(split_species[0])
+        else:
+            split_species = [species]
+            num_species = 1
+            catmap_species = species
+        if '*_t' in catmap_species:
+            catmap_species = catmap_species.replace('*_t', 'star')
+        elif '_g' in catmap_species:
+            catmap_species = catmap_species.replace('_g', 'gas')
+    return (catmap_species, num_species)
+
 def read_reaction_expression_data(rxn_expressions_filepath):
     exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
     discard_species_list = ['*_t', '_t', '_g']
