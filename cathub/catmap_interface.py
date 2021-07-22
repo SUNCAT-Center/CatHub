@@ -317,11 +317,14 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
     # identify system ids for adsorbate species
     table_name = 'reaction'
     df1 = db_to_dataframe(table_name, str(db_filepath))
+    desired_surface = adsorbate_parameters['desired_surface']
+    desired_facet = adsorbate_parameters['desired_facet']
+    df1 = df1[df1['surface_composition'] == desired_surface]
+    df1 = df1[df1['facet'].str.contains(desired_facet)]
 
     # Load vibrational data
     with open(ads_jsondata_filepath) as f:
         ads_vibration_data = json.load(f)
-
     vibrational_energies = {}
     json_species_list = [species_data['species'] for species_data in ads_vibration_data]
     for species_data in ads_vibration_data:
@@ -330,11 +333,6 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         for vibrational_frequency in species_data['frequencies']:
             vibrational_energies[ads_species].append(vibrational_frequency * cm2eV)
 
-    desired_surface = adsorbate_parameters['desired_surface']
-    desired_facet = adsorbate_parameters['desired_facet']
-    df1 = df1.loc[df1['surface_composition'] == desired_surface]
-    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
-    
     ## build dataframe data for adsorbate species
     db = connect(str(db_filepath))
     surface, site, species, raw_energy, facet, elec_energy_calc = [], [], [], [], [], []
@@ -594,18 +592,28 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df1 = db_to_dataframe(table_name, str(db_filepath))
     desired_surface = adsorbate_parameters['desired_surface']
     desired_facet = adsorbate_parameters['desired_facet']
-    df1 = df1.loc[df1['surface_composition'] == desired_surface]
-    df1 = df1.loc[df1['facet'].str.contains(desired_facet)]
+    df1 = df1[df1['surface_composition'] == desired_surface]
+    df1 = df1[df1['facet'].str.contains(desired_facet)]
 
     # Load vibrational data
     with open(ts_jsondata_filepath) as f:
         ts_vibration_data = json.load(f)
 
     # Load reaction expression data
-    ts_states_rxn_expressions = read_reaction_expression_data(
+    (rxn_expressions,
+     reactants_rxn_expressions,
+     products_rxn_expressions,
+     ts_states_rxn_expressions, beta_list) = read_reaction_expression_data(
                                                     rxn_expressions_filepath)
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
+    reaction_index_map = []
+    for ts_state in ts_states_user_input:
+        if ts_state in ts_states_rxn_expressions:
+            reaction_index = ts_states_rxn_expressions.index(ts_state)
+            reaction_index_map.append(reaction_index)
+    species_list = [ts_state for ts_state in ts_states_user_input]
+    products_list = ts_data['final_states']
 
     vibrational_energies = {}
     json_species_list = [species_data['species'] for species_data in ts_vibration_data]
@@ -762,14 +770,47 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
 def read_reaction_expression_data(rxn_expressions_filepath):
     exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
-    discard_species_list = ['*_t', '_t']
-    ts_states = []
+    discard_species_list = ['*_t', '_t', '_g']
+    reactants_list, products_list, ts_states, beta_list = [], [], [], []
     if 'rxn_expressions' in locals():
         for rxn_expression in locals()['rxn_expressions']:
-            rxn = rxn_expression.split(';')[0]
+            if ';' in rxn_expression:
+                (rxn, beta) = rxn_expression.split(';')
+            else:
+                rxn = rxn_expression
+                beta = float('nan')
+
+            if isinstance(beta, str):
+                if '=' in beta:
+                    beta_list.append(float(beta.split('=')[1]))
+            else:
+                beta_list.append(beta)
+
             rxn_no_spaces = re.sub(' ', '', rxn)
+            split_rxn = re.split('->|<->', rxn_no_spaces)
+            
+            reactant_term = split_rxn[0]
+            product_term = split_rxn[-1]
+            
+            if '+' in reactant_term:
+                reactant_species = reactant_term.split('+')
+                for discard_species in discard_species_list:
+                    if discard_species in reactant_species:
+                        reactant_species.remove(discard_species)
+                reactants_list.append(reactant_species)
+            else:
+                reactants_list.append([reactant_term])
+
+            if '+' in product_term:
+                product_species = product_term.split('+')
+                for discard_species in discard_species_list:
+                    if discard_species in reactant_species:
+                        product_species.remove(discard_species)
+                products_list.append(product_species)
+            else:
+                products_list.append([product_term])
+
             if rxn_no_spaces.count('->') == 2:
-                split_rxn = re.split('->|<->', rxn_no_spaces)
                 ts_term = split_rxn[1]
                 if '+' in ts_term:
                     ts_species = ts_term.split('+')
@@ -779,13 +820,40 @@ def read_reaction_expression_data(rxn_expressions_filepath):
                     ts_states.append(ts_species[0])
                 else:
                     ts_states.append(ts_term)
+            else:
+                ts_states.append('')
+
+    new_reactants_list = []
+    for reactant_list in reactants_list:
+        new_reactant_dict = {}
+        for reactant in reactant_list:
+            if 'ele_g' not in reactant:
+                (catmap_species, num_species) = get_catmap_style_species(reactant)
+                if catmap_species in new_reactant_dict:
+                    new_reactant_dict[catmap_species] += num_species
+                else:
+                    new_reactant_dict[catmap_species] = num_species
+        new_reactants_list.append(new_reactant_dict)
+
+    new_products_list = []
+    for product_list in products_list:
+        new_product_dict = {}
+        for product in product_list:
+            if 'ele_g' not in product:
+                (catmap_species, num_species) = get_catmap_style_species(product)
+                if catmap_species in new_product_dict:
+                    new_product_dict[catmap_species] += num_species
+                else:
+                    new_product_dict[catmap_species] = num_species
+        new_products_list.append(new_product_dict)
 
     new_ts_states = []
     for ts_state in ts_states:
         for discard_species in discard_species_list:
             ts_state = ts_state.replace(discard_species, '') 
         new_ts_states.append(ts_state)
-    return new_ts_states
+    return (locals()['rxn_expressions'], new_reactants_list,
+            new_products_list, new_ts_states, beta_list)
 
 def get_ts_energies(df, df_out, species_list, species_value, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
