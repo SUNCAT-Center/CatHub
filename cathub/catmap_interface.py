@@ -613,7 +613,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             reaction_index = ts_states_rxn_expressions.index(ts_state)
             reaction_index_map.append(reaction_index)
     species_list = [ts_state for ts_state in ts_states_user_input]
-    products_list = ts_data['final_states']
 
     vibrational_energies = {}
     json_species_list = [species_data['species'] for species_data in ts_vibration_data]
@@ -673,7 +672,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     for products_string in df_activation_rxns.products:
         products_list.append(json.loads(products_string))
         for product in products_list[-1]:
-            if 'star' in product:
+            if 'star' in product and product != 'star':
                 species_list.append(product.replace('star', ''))
     unique_species = sorted(list(set(species_list)), key=len)
     for species_name in unique_species:
