@@ -587,7 +587,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       reference_gases, dft_corrections_gases, field_effects,
                       temp, verbose):
 
-    # identify system ids for adsorbate species
+    # identify system ids for transition state species
     table_name = 'reaction'
     df1 = db_to_dataframe(table_name, str(db_filepath))
     desired_surface = adsorbate_parameters['desired_surface']
@@ -598,7 +598,14 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     # Load vibrational data
     with open(ts_jsondata_filepath) as f:
         ts_vibration_data = json.load(f)
-
+    vibrational_energies = {}
+    json_species_list = [species_data['species'] for species_data in ts_vibration_data]
+    for species_data in ts_vibration_data:
+        ts_species = species_data['species']
+        vibrational_energies[ts_species] = []
+        for vibrational_frequency in species_data['frequencies']:
+            vibrational_energies[ts_species].append(vibrational_frequency * cm2eV)
+    
     # Load reaction expression data
     (rxn_expressions,
      reactants_rxn_expressions,
@@ -612,16 +619,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         if ts_state in ts_states_rxn_expressions:
             reaction_index = ts_states_rxn_expressions.index(ts_state)
             reaction_index_map.append(reaction_index)
-    species_list = [ts_state for ts_state in ts_states_user_input]
 
-    vibrational_energies = {}
-    json_species_list = [species_data['species'] for species_data in ts_vibration_data]
-    for species_data in ts_vibration_data:
-        ts_species = species_data['species']
-        vibrational_energies[ts_species] = []
-        for vibrational_frequency in species_data['frequencies']:
-            vibrational_energies[ts_species].append(vibrational_frequency * cm2eV)
-    
     ## build dataframe data for transition state species
     db = connect(str(db_filepath))
     surface, site, species, raw_energy, facet, elec_energy_calc = [], [], [], [], [], []
@@ -669,13 +667,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     products_list = []
     species_list = []
-    for products_string in df_activation_rxns.products:
-        products_list.append(json.loads(products_string))
-        for product in products_list[-1]:
-            if 'star' in product and product != 'star':
-                species_list.append(product.replace('star', ''))
-    unique_species = sorted(list(set(species_list)), key=len)
-    for species_name in unique_species:
+    for index, df_index in enumerate(df_index_map):
+        if df_index:
+            species_list.append(ts_states_user_input[index])
+            products_list.append(json.loads(df_activation.products.loc[df_index]))
+
+    for species_name in species_list:
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
         else:
@@ -689,13 +686,14 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     products_list, reference_gases, dft_corrections_gases,
                     adsorbate_parameters, field_effects)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
-        
-        site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
-        min_adsorption_energy = min(site_wise_adsorption_energies)
-        min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
-        facet.append(facet_list[min_index])
+
+        # site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
+        # min_adsorption_energy = min(site_wise_adsorption_energies)
+        # min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        # facet.append(facet_list[min_index])
         raw_energy.append(float("nan"))
-        elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
+        # elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
+        elec_energy_calc.append(0.0)
         # Zero DFT Correction for transition states
         dft_corr.append(0.0)
 
@@ -717,11 +715,14 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        rhe_corr.append(site_wise_energy_contributions[min_index][1])
-        solv_corr.append(site_wise_energy_contributions[min_index][3])
+        # rhe_corr.append(site_wise_energy_contributions[min_index][1])
+        rhe_corr.append(0.0)
+        # solv_corr.append(site_wise_energy_contributions[min_index][3])
+        solv_corr.append(0.0)
         
         if field_effects:
-            efield_corr.append(site_wise_energy_contributions[min_index][2])
+            # efield_corr.append(site_wise_energy_contributions[min_index][2])
+            efield_corr.append(0.0)
 
         # compute energy vector
         term1 = elec_energy_calc[-1] + dft_corr[-1]
@@ -747,26 +748,27 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         reference_mu[species_name] = df_out["energy_vector"][species_index][-2]
     
     for species_index, species_name in enumerate(species):
-        chemical_symbols_dict = formula_to_chemical_symbols(species_name)
-        
-        # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
-        if 'C' in chemical_symbols_dict:
-            x = chemical_symbols_dict['C']
-        else:
-            x = 0
-        if 'H' in chemical_symbols_dict:
-            y = chemical_symbols_dict['H']
-        else:
-            y = 0
-        if 'O' in chemical_symbols_dict:
-            z = chemical_symbols_dict['O']
-        else:
-            z = 0
-
-        G = (energy_vector[species_index][-1]
-             + (x - z) * reference_mu['H2O']
-             - x * reference_mu['CO']
-             - (x - z + y / 2) * reference_mu['H2_ref'])
+        # chemical_symbols_dict = formula_to_chemical_symbols(species_name)
+        #
+        # # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
+        # if 'C' in chemical_symbols_dict:
+        #     x = chemical_symbols_dict['C']
+        # else:
+        #     x = 0
+        # if 'H' in chemical_symbols_dict:
+        #     y = chemical_symbols_dict['H']
+        # else:
+        #     y = 0
+        # if 'O' in chemical_symbols_dict:
+        #     z = chemical_symbols_dict['O']
+        # else:
+        #     z = 0
+        #
+        # G = (energy_vector[species_index][-1]
+        #      + (x - z) * reference_mu['H2O']
+        #      - x * reference_mu['CO']
+        #      - (x - z + y / 2) * reference_mu['H2_ref'])
+        G = 0.0
         energy_vector[species_index].append(G)
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
