@@ -270,7 +270,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         print('\n')
     return df_out
 
-def get_electric_field_contribution(field_effects, species_value, reactants=None):
+def get_electric_field_contribution(field_effects, species_value,
+                                    reactants=None, beta=None):
     epsilon = field_effects['epsilon']
     pH = field_effects['pH']
     U_RHE = field_effects['U_RHE']
@@ -295,7 +296,10 @@ def get_electric_field_contribution(field_effects, species_value, reactants=None
     # U_SHE = UM_PZC + d * epsilon
     # U_RHE = U_SHE + 0.059 * pH
 
-    U_RHE_energy_contribution = n * U_RHE
+    if beta:
+        U_RHE_energy_contribution = beta * U_RHE
+    else:
+        U_RHE_energy_contribution = n * U_RHE
 
     ## U_SHE-scale dependency
     if reactants == None:
@@ -610,15 +614,18 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     (rxn_expressions,
      reactants_rxn_expressions,
      products_rxn_expressions,
-     ts_states_rxn_expressions, beta_list) = read_reaction_expression_data(
+     ts_states_rxn_expressions,
+     beta_list_rxn_expressions) = read_reaction_expression_data(
                                                     rxn_expressions_filepath)
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
     reaction_index_map = []
+    beta_list_map = []
     for ts_state in ts_states_user_input:
         if ts_state in ts_states_rxn_expressions:
             reaction_index = ts_states_rxn_expressions.index(ts_state)
             reaction_index_map.append(reaction_index)
+            beta_list_map.append(beta_list_rxn_expressions[reaction_index])
 
     ## build dataframe data for transition state species
     db = connect(str(db_filepath))
@@ -667,12 +674,14 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     products_list = []
     species_list = []
+    beta_list = []
     for index, df_index in enumerate(df_index_map):
         if df_index:
             species_list.append(ts_states_user_input[index])
             products_list.append(json.loads(df_activation.products.loc[df_index]))
-
-    for species_name in species_list:
+            beta_list.append(beta_list_map[index])
+    
+    for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
         else:
@@ -681,19 +690,19 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         species.append(species_name)
 
         # [adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction]
+        beta = beta_list[species_index]
         (site_wise_energy_contributions, facet_list) = get_ts_energies(
                     df_activation_rxns, df_out, species_list, species_name,
                     products_list, reference_gases, dft_corrections_gases,
-                    adsorbate_parameters, field_effects)
+                    adsorbate_parameters, field_effects, beta)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
 
-        # site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
-        # min_adsorption_energy = min(site_wise_adsorption_energies)
-        # min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
-        # facet.append(facet_list[min_index])
+        site_wise_adsorption_energies = np.nansum(site_wise_energy_contributions, axis=1)
+        min_adsorption_energy = min(site_wise_adsorption_energies)
+        min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
+        facet.append(facet_list[min_index])
         raw_energy.append(float("nan"))
-        # elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
-        elec_energy_calc.append(0.0)
+        elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
         # Zero DFT Correction for transition states
         dft_corr.append(0.0)
 
@@ -715,14 +724,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        # rhe_corr.append(site_wise_energy_contributions[min_index][1])
-        rhe_corr.append(0.0)
-        # solv_corr.append(site_wise_energy_contributions[min_index][3])
-        solv_corr.append(0.0)
+        rhe_corr.append(site_wise_energy_contributions[min_index][1])
+        solv_corr.append(site_wise_energy_contributions[min_index][3])
         
         if field_effects:
-            # efield_corr.append(site_wise_energy_contributions[min_index][2])
-            efield_corr.append(0.0)
+            efield_corr.append(site_wise_energy_contributions[min_index][2])
 
         # compute energy vector
         term1 = elec_energy_calc[-1] + dft_corr[-1]
@@ -919,7 +925,7 @@ def read_reaction_expression_data(rxn_expressions_filepath):
 
 def get_ts_energies(df, df_out, species_list, species_value, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
-                    field_effects):
+                    field_effects, beta):
     "Compute electronic transition state energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -928,25 +934,22 @@ def get_ts_energies(df, df_out, species_list, species_value, products_list,
     site_wise_energy_contributions = []
     for index, reaction_index in enumerate(indices):
         facet = facet_list[index]
-        # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation_energy calculations.
-        # Thus, considering only reactions with specified adsorption site in this code.
-        if '-' in facet:
-            reactants = json.loads(df.reactants.iloc[reaction_index])
-            products = products_list[reaction_index]
-            reaction_energy = df.reaction_energy.iloc[reaction_index]
-            (adsorption_energy_RHE0,
-             U_RHE_energy_contribution,
-             U_SHE_energy_contribution,
-             solvation_correction) = get_ts_energy(
-                 df_out, species_value, reactants, products, reaction_energy,
-                 reference_gases, dft_corrections_gases, adsorbate_parameters,
-                 field_effects)
-            site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
+        reactants = json.loads(df.reactants.iloc[reaction_index])
+        products = products_list[reaction_index]
+        reaction_energy = df.reaction_energy.iloc[reaction_index]
+        (adsorption_energy_RHE0,
+         U_RHE_energy_contribution,
+         U_SHE_energy_contribution,
+         solvation_correction) = get_ts_energy(
+             df_out, species_value, reactants, products, reaction_energy,
+             reference_gases, dft_corrections_gases, adsorbate_parameters,
+             field_effects, beta)
+        site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
     return (site_wise_energy_contributions, facet_list)
 
 def get_ts_energy(df_out, species_value, reactants, products, reaction_energy,
                   reference_gases, dft_corrections_gases, adsorbate_parameters,
-                  field_effects):
+                  field_effects, beta):
     "Compute adsorption energy for an transition state species in a given reaction"
     
     product_energy = 0
@@ -983,7 +986,7 @@ def get_ts_energy(df_out, species_value, reactants, products, reaction_energy,
         solvation_correction = 0.0
 
     # Apply field effects
-    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
+    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants, beta)
     return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
 def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
