@@ -298,6 +298,8 @@ def get_electric_field_contribution(field_effects, species_value,
     # U_RHE = U_SHE + 0.059 * pH
 
     if beta:
+        if np.isnan(beta):
+            beta = 0.0
         U_RHE_energy_contribution = beta * U_RHE
     else:
         U_RHE_energy_contribution = n * U_RHE
@@ -703,7 +705,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     beta)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
 
-        site_wise_adsorption_energies = np.nansum(site_wise_energy_contributions, axis=1)
+        site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
         min_adsorption_energy = min(site_wise_adsorption_energies)
         min_index = np.where(site_wise_adsorption_energies == min_adsorption_energy)[0][0]
         facet.append(facet_list[min_index])
