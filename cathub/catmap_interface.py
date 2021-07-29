@@ -733,7 +733,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        rhe_corr.append(site_wise_energy_contributions[min_index][1])
+        rhe_corr.append(site_wise_energy_contributions[min_index][2])
         solv_corr.append(site_wise_energy_contributions[min_index][4])
         
         if field_effects:
