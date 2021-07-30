@@ -748,8 +748,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
         term4 = solv_corr[-1] + efield_corr[-1]
-        mu = term1_backward + term2 + term3 + term4
-        energy_vector.append([term1_backward, term2, term3, term4, mu])
+        G = mu = term1_backward + term2 + term3 + term4
+        energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
         
         if species_name in json_species_list:
@@ -760,35 +760,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         else:
             frequencies.append([])
             references.append('')
-
-    reference_mu = {}
-    for species_name in reference_gases:
-        species_index = list(df_out["species_name"]).index(species_name)
-        reference_mu[species_name] = df_out["energy_vector"][species_index][-2]
-    
-    for species_index, species_name in enumerate(species):
-        # chemical_symbols_dict = formula_to_chemical_symbols(species_name)
-        #
-        # # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
-        # if 'C' in chemical_symbols_dict:
-        #     x = chemical_symbols_dict['C']
-        # else:
-        #     x = 0
-        # if 'H' in chemical_symbols_dict:
-        #     y = chemical_symbols_dict['H']
-        # else:
-        #     y = 0
-        # if 'O' in chemical_symbols_dict:
-        #     z = chemical_symbols_dict['O']
-        # else:
-        #     z = 0
-        #
-        # G = (energy_vector[species_index][-1]
-        #      + (x - z) * reference_mu['H2O']
-        #      - x * reference_mu['CO']
-        #      - (x - z + y / 2) * reference_mu['H2_ref'])
-        G = 0.0
-        energy_vector[species_index].append(G)
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
                                 backward_barrier, dft_corr, zpe, enthalpy,
@@ -803,7 +774,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print('-' * len(ts_phase_header))
         
         table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "µ (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
+        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
         for index, species_name in enumerate(df3['species_name']):
             sub_table = []
             sub_table.extend([species_name,
@@ -811,7 +782,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                               f'{df3["energy_vector"][index][1]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][2]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][3]:.{num_decimal_places}f}',
-                              f'{df3["energy_vector"][index][4]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][5]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][5] - df3["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
