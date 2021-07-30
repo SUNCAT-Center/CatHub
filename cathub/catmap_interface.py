@@ -655,12 +655,10 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
                 ts_energies = float(line.split()[0]) + energy_offset[0]
 
     if beta == 0:  # chemical
-        ts_charges_noH = 0.0
-        ts_charges_H = 0.0
+        ts_charges = 0.0
     else:          # electrochemical
-        adsorbate_ts_noH, adsorbate_fs_noH, adsorbate_ts_H, adsorbate_fs_H = adsorbate_list
-        ts_charges_noH = get_solvation_layer_charge(ts_dir_path, adsorbate_ts_noH, bond_distance_cutoff)
-        ts_charges_H = get_solvation_layer_charge(ts_dir_path, adsorbate_ts_H, bond_distance_cutoff)
+        adsorbate_ts, adsorbate_fs = adsorbate_list
+        ts_charges = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
 
     fs_dir_path = ts_state_dirpath / fs_configuration
     fs_log_file_path = fs_dir_path / logfile
@@ -680,39 +678,33 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
                 fs_energies = float(line.split()[0]) + energy_offset[1]
 
     if beta == 0:  # chemical
-        fs_charges_noH = 0.0
-        fs_charges_H = 0.0
+        fs_charges = 0.0
     else:          # electrochemical
-        fs_charges_noH = get_solvation_layer_charge(fs_dir_path, adsorbate_fs_noH, bond_distance_cutoff)
-        fs_charges_H = get_solvation_layer_charge(fs_dir_path, adsorbate_fs_H, bond_distance_cutoff)
+        fs_charges = get_solvation_layer_charge(fs_dir_path, adsorbate_fs, bond_distance_cutoff)
 
     state_energies = [ts_energies, fs_energies]
-    charge_data = [ts_charges_noH, fs_charges_noH, ts_charges_H, fs_charges_H]
+    charge_data = [ts_charges, fs_charges]
     workfunction_data = [ts_wf, fs_wf]
 
     E_TS, E_FS = state_energies
-    q_TS_noH, q_FS_noH, q_TS_H, q_FS_H = charge_data
+    q_TS, q_FS = charge_data
 
     phi_TS, phi_FS = workfunction_data
     phi_TS_corr = phi_TS - phi_correction
     phi_FS_corr = phi_FS - phi_correction
 
     del_E = E_TS - E_FS
-    del_q_noH = q_TS_noH - q_FS_noH
-    del_q_H = q_TS_H - q_FS_H
+    del_q = q_TS - q_FS
     del_phi = phi_TS_corr - phi_FS_corr
     
     # backward barrier
-    E_r_noH = del_E + 0.5 * del_q_noH * del_phi
-    E_r_H = del_E + 0.5 * del_q_H * del_phi
+    E_r = del_E + 0.5 * del_q * del_phi
     
     ## convert v_extra from SHE to RHE at given pH_out
-    E_r_extrapolated_noH = E_r_noH + del_q_noH * (phi_FS_corr - v_extra)
-    E_r_extrapolated_H = E_r_H + del_q_H * (phi_FS_corr - v_extra)
+    E_r_extrapolated = E_r + del_q * (phi_FS_corr - v_extra)
     
-    ts_energies_noH = E_r_extrapolated_noH + fin_ads_energy
-    ts_energies_H = E_r_extrapolated_H + fin_ads_energy
-    return (ts_energies_noH, ts_energies_H)
+    ts_energies = E_r_extrapolated + fin_ads_energy
+    return ts_energies
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions_filepath, ts_data, adsorbate_parameters,
@@ -895,7 +887,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                         fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
         extrapolation_corr.append(compute_barrier_extrapolation(
             src_path, species_name, beta, phi_correction, v_extra, energy_offset,
-            fin_ads_energy, adsorbates, bond_distance_cutoff)[0])  # noH
+            fin_ads_energy, adsorbates, bond_distance_cutoff))
 
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
