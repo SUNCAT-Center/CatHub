@@ -20,7 +20,7 @@ CM2M = 1E-02
 cm2eV = _hplanck / _e * _c / CM2M
 kB = 8.617333262145e-5
 
-
+# NOTE: use cathub function to convert db to dataframe
 def db_to_dataframe(table_name, filename):
     "Read cathub .db file into pandas dataframe"
 
@@ -575,6 +575,7 @@ def compute_ts_energies(state_energies, charge_data, workfunction_data,
     E_r_noH = del_E + 0.5 * del_q_noH * del_phi
     E_r_H = del_E + 0.5 * del_q_H * del_phi
     
+    ## convert v_extra from SHE to RHE at given pH_out
     E_r_extrapolated_noH = E_r_noH + del_q_noH * (phi_FS_corr - v_extra)
     E_r_extrapolated_H = E_r_H + del_q_H * (phi_FS_corr - v_extra)
     
