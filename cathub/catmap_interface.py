@@ -628,8 +628,8 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     return solvation_layer_charge
 
 def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
-                                  v_extra, energy_offset, fin_ads_energy,
-                                  adsorbate_list, bond_distance_cutoff):
+                                  v_extra, energy_offset, adsorbate_list,
+                                  bond_distance_cutoff):
 
     wf_dipole_index = 0  # side of the slab where solvation layer exists. 0=top, 1=bottom.
     ts_configuration = 'TS'
@@ -702,9 +702,7 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
     
     ## convert v_extra from SHE to RHE at given pH_out
     E_r_extrapolated = E_r + del_q * (phi_FS_corr - v_extra)
-    
-    ts_energies = E_r_extrapolated + fin_ads_energy
-    return ts_energies
+    return E_r_extrapolated
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions_filepath, ts_data, adsorbate_parameters,
@@ -886,15 +884,15 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     if len(idx) == 1:
                         fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
         extrapolation_corr.append(compute_barrier_extrapolation(
-            src_path, species_name, beta, phi_correction, v_extra, energy_offset,
-            fin_ads_energy, adsorbates, bond_distance_cutoff))
+                        src_path, species_name, beta, phi_correction, v_extra,
+                        energy_offset, adsorbates, bond_distance_cutoff))
 
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
         term1_backward = backward_barrier[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + extrapolation_corr[-1]
+        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + extrapolation_corr[-1] + fin_ads_energy
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
