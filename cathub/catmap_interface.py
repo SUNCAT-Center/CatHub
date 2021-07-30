@@ -627,20 +627,87 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     solvation_layer_charge = solvation_layer_charges.sum()
     return solvation_layer_charge
 
-def compute_ts_energies(state_energies, charge_data, workfunction_data,
-                        e_f_data, phi_correction, alk_corr, v_extra, rxn_type,
-                        beta, pH_out):
-    E_TS = state_energies[:, 0]
-    E_FS = state_energies[:, 1]
-    
-    q_TS_noH = charge_data[:, 0]
-    q_FS_noH = charge_data[:, 1]
-    q_TS_H = charge_data[:, 2]
-    q_FS_H = charge_data[:, 3]
+def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
+                                  v_extra, energy_offset, fin_ads_energy,
+                                  adsorbate_list, bond_distance_cutoff):
 
-    phi_TS = workfunction_data[:, 0]
+    wf_dipole_index = 0  # side of the slab where solvation layer exists. 0=top, 1=bottom.
+    ts_configuration = 'TS'
+    fs_configuration = 'FS'
+    logfile = 'out.log'
+
+    ts_state_dirpath = src_path / ts_species
+    ts_dir_path = ts_state_dirpath / ts_configuration
+    ts_log_file_path = ts_dir_path / logfile
+    wf_line_index = -1
+    energy_line_index = -1
+    with open(ts_log_file_path) as ts_log_file:
+        for line_index, line in enumerate(ts_log_file.readlines()):
+            if 'wf' in line:
+                wf_line_index = line_index + 1
+                energy_line_index = line_index + 3
+            if line_index == wf_line_index:
+                if wf_dipole_index == 0:
+                    ts_wf = float(line.split('[')[1].split(',')[0])
+                elif wf_dipole_index == 1:
+                    ts_wf = float(line.split(']')[0].split(' ')[1])
+            if line_index == energy_line_index:
+                ts_energies = float(line.split()[0]) + energy_offset[0]
+
+    if beta == 0:  # chemical
+        ts_charges_noH = 0.0
+        ts_charges_H = 0.0
+    else:          # electrochemical
+        adsorbate_ts_noH, adsorbate_fs_noH, adsorbate_ts_H, adsorbate_fs_H = adsorbate_list
+        ts_charges_noH = get_solvation_layer_charge(ts_dir_path, adsorbate_ts_noH, bond_distance_cutoff)
+        ts_charges_H = get_solvation_layer_charge(ts_dir_path, adsorbate_ts_H, bond_distance_cutoff)
+
+    fs_dir_path = ts_state_dirpath / fs_configuration
+    fs_log_file_path = fs_dir_path / logfile
+    wf_line_index = -1
+    energy_line_index = -1
+    with open(fs_log_file_path) as fs_log_file:
+        for line_index, line in enumerate(fs_log_file.readlines()):
+            if 'wf' in line:
+                wf_line_index = line_index + 1
+                energy_line_index = line_index + 3
+            if line_index == wf_line_index:
+                if wf_dipole_index == 0:
+                    fs_wf = float(line.split('[')[1].split(',')[0])
+                elif wf_dipole_index == 1:
+                    fs_wf = float(line.split(']')[0].split(' ')[1])
+            if line_index == energy_line_index:
+                fs_energies = float(line.split()[0]) + energy_offset[1]
+
+    if beta == 0:  # chemical
+        fs_charges_noH = 0.0
+        fs_charges_H = 0.0
+    else:          # electrochemical
+        fs_charges_noH = get_solvation_layer_charge(fs_dir_path, adsorbate_fs_noH, bond_distance_cutoff)
+        fs_charges_H = get_solvation_layer_charge(fs_dir_path, adsorbate_fs_H, bond_distance_cutoff)
+
+    state_energies = [ts_energies, fs_energies]
+    charge_data = [ts_charges_noH, fs_charges_noH, ts_charges_H, fs_charges_H]
+    workfunction_data = [ts_wf, fs_wf]
+
+    (ts_energies_noH, ts_energies_H) = compute_ts_energies(
+        state_energies, charge_data, workfunction_data, fin_ads_energy,
+        phi_correction, v_extra)
+    return (ts_energies_noH, ts_energies_H)
+
+def compute_ts_energies(state_energies, charge_data, workfunction_data,
+                        e_f_data, phi_correction, v_extra):
+    E_TS = state_energies[0]
+    E_FS = state_energies[1]
+    
+    q_TS_noH = charge_data[0]
+    q_FS_noH = charge_data[1]
+    q_TS_H = charge_data[2]
+    q_FS_H = charge_data[3]
+
+    phi_TS = workfunction_data[0]
     phi_TS_corr = phi_TS - phi_correction
-    phi_FS = workfunction_data[:, 1]
+    phi_FS = workfunction_data[1]
     phi_FS_corr = phi_FS - phi_correction
 
     del_E = E_TS - E_FS
@@ -656,15 +723,9 @@ def compute_ts_energies(state_energies, charge_data, workfunction_data,
     E_r_extrapolated_noH = E_r_noH + del_q_noH * (phi_FS_corr - v_extra)
     E_r_extrapolated_H = E_r_H + del_q_H * (phi_FS_corr - v_extra)
     
-    E_r_alk_noH = E_r_extrapolated_noH + alk_corr * np.asarray([1.0 if element=='Electrochemical' else 0.0 for element in rxn_type])
-    E_r_alk_H = E_r_extrapolated_H + alk_corr * np.asarray([1.0 if element=='Electrochemical' else 0.0 for element in rxn_type])
-    
-    ts_energies_noH = E_r_alk_noH + e_f_data
-    ts_energies_H = E_r_alk_H + e_f_data
+    ts_energies_noH = E_r_extrapolated_noH + e_f_data
+    ts_energies_H = E_r_extrapolated_H + e_f_data
 
-    # Apply RHE correction
-    ts_energies_noH += beta * kB * temp * np.log(10) * (14 - pH_out)
-    ts_energies_H += beta * kB * temp * np.log(10) * (14 - pH_out)
     return (ts_energies_noH, ts_energies_H)
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
@@ -713,7 +774,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     surface, site, species, raw_energy, facet = [], [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, formation_energy, efield_corr, alk_corr = [], [], [], []
+    solv_corr, formation_energy, efield_corr, alk_corr, extrapolation_corr = [], [], [], [], []
     energy_vector, frequencies, references = [], [], []
 
     # simple reaction species: only one active product and filter out reactions without any transition state species
@@ -765,6 +826,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             beta_list.append(beta_list_map[index])
             snapshot_range_list.append(ts_data['rxn_pathway_image_ids'][index])
     
+    phi_correction = ts_data['phi_correction']
+    v_extra = ts_data['v_extra']
+    bond_distance_cutoff = ts_data['bond_distance_cutoff']
+    src_path = db_filepath.parent
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
@@ -821,12 +886,37 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         # Apply alkaline correction
         alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
         
+        # Apply charge extrapolation scheme
+        adsorbates = ts_data['adsorbate_list'][species_index]
+        energy_offset = [ts_data['energy_offset'][0][species_index],
+                         ts_data['energy_offset'][1][species_index]]
+        fin_ads_energy = 0
+        for product, num_products in products_list[species_index].items():
+            if 'gas' in product:
+                noncatmap_style_species = product.replace('gas', '')
+                idx1 = df_out.index[df_out['site_name'] == 'gas']
+                idx2 = df_out.index[df_out['species_name'] == noncatmap_style_species]
+                idx = idx1.intersection(idx2)
+                if len(idx) == 1:
+                    fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
+            elif 'star' in product:
+                noncatmap_style_species = product.replace('star', '')
+                if noncatmap_style_species:
+                    idx1 = df_out.index[df_out['site_name'] != 'gas']
+                    idx2 = df_out.index[df_out['species_name'] == noncatmap_style_species]
+                    idx = idx1.intersection(idx2)
+                    if len(idx) == 1:
+                        fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
+        extrapolation_corr.append(compute_barrier_extrapolation(
+            src_path, species_name, beta, phi_correction, v_extra, energy_offset,
+            fin_ads_energy, adsorbates, bond_distance_cutoff)[0])  # noH
+
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
         term1_backward = backward_barrier[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1]
+        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + extrapolation_corr[-1]
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
