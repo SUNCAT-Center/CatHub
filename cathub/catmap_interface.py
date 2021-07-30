@@ -298,8 +298,6 @@ def get_electric_field_contribution(field_effects, species_value,
     # U_RHE = U_SHE + 0.059 * pH
 
     if beta:
-        if np.isnan(beta):
-            beta = 0.0
         U_RHE_energy_contribution = beta * U_RHE
     else:
         U_RHE_energy_contribution = n * U_RHE
@@ -719,7 +717,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         dft_corr.append(0.0)
 
         if species_name in json_species_list:
-            species_index = json_species_list.index(species_name)
             thermo = HarmonicThermo(vib_energies=vibrational_energies[species_name])
             
             # zero point energy correction
@@ -829,7 +826,7 @@ def read_reaction_expression_data(rxn_expressions_filepath):
                 (rxn, beta) = rxn_expression.split(';')
             else:
                 rxn = rxn_expression
-                beta = float('nan')
+                beta = 0.0  # chemical reaction if beta not specified
 
             if isinstance(beta, str):
                 if '=' in beta:
