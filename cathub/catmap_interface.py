@@ -627,6 +627,24 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     solvation_layer_charge = solvation_layer_charges.sum()
     return solvation_layer_charge
 
+def read_qe_log(file_path, wf_dipole_index):
+    # read quantum espresso log file and return converged final energy and workfunction
+    wf_line_index = -1
+    energy_line_index = -1
+    with open(file_path) as file:
+        for line_index, line in enumerate(file.readlines()):
+            if 'wf' in line:
+                wf_line_index = line_index + 1
+                energy_line_index = line_index + 3
+            if line_index == wf_line_index:
+                if wf_dipole_index == 0:
+                    workfunction = float(line.split('[')[1].split(',')[0])
+                elif wf_dipole_index == 1:
+                    workfunction = float(line.split(']')[0].split(' ')[1])
+            if line_index == energy_line_index:
+                final_energy = float(line.split()[0])
+    return (final_energy, workfunction)
+
 def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
                                   v_extra, energy_offset, adsorbate_list,
                                   bond_distance_cutoff):
@@ -639,47 +657,20 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
     ts_state_dirpath = src_path / ts_species
     ts_dir_path = ts_state_dirpath / ts_configuration
     ts_log_file_path = ts_dir_path / logfile
-    wf_line_index = -1
-    energy_line_index = -1
-    with open(ts_log_file_path) as ts_log_file:
-        for line_index, line in enumerate(ts_log_file.readlines()):
-            if 'wf' in line:
-                wf_line_index = line_index + 1
-                energy_line_index = line_index + 3
-            if line_index == wf_line_index:
-                if wf_dipole_index == 0:
-                    ts_wf = float(line.split('[')[1].split(',')[0])
-                elif wf_dipole_index == 1:
-                    ts_wf = float(line.split(']')[0].split(' ')[1])
-            if line_index == energy_line_index:
-                ts_energies = float(line.split()[0]) + energy_offset[0]
-
-    if beta == 0:  # chemical
-        ts_charges = 0.0
-    else:          # electrochemical
-        adsorbate_ts, adsorbate_fs = adsorbate_list
-        ts_charges = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
+    (ts_energies, ts_wf) = read_qe_log(ts_log_file_path, wf_dipole_index)
+    ts_energies += energy_offset[0]
 
     fs_dir_path = ts_state_dirpath / fs_configuration
     fs_log_file_path = fs_dir_path / logfile
-    wf_line_index = -1
-    energy_line_index = -1
-    with open(fs_log_file_path) as fs_log_file:
-        for line_index, line in enumerate(fs_log_file.readlines()):
-            if 'wf' in line:
-                wf_line_index = line_index + 1
-                energy_line_index = line_index + 3
-            if line_index == wf_line_index:
-                if wf_dipole_index == 0:
-                    fs_wf = float(line.split('[')[1].split(',')[0])
-                elif wf_dipole_index == 1:
-                    fs_wf = float(line.split(']')[0].split(' ')[1])
-            if line_index == energy_line_index:
-                fs_energies = float(line.split()[0]) + energy_offset[1]
+    (fs_energies, fs_wf) = read_qe_log(fs_log_file_path, wf_dipole_index)
+    fs_energies += energy_offset[1]
 
     if beta == 0:  # chemical
+        ts_charges = 0.0
         fs_charges = 0.0
     else:          # electrochemical
+        adsorbate_ts, adsorbate_fs = adsorbate_list
+        ts_charges = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
         fs_charges = get_solvation_layer_charge(fs_dir_path, adsorbate_fs, bond_distance_cutoff)
 
     state_energies = [ts_energies, fs_energies]
