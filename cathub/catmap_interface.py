@@ -207,6 +207,8 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                 (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name)
                 electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
                 efield_corr.append(electric_field_contribution)
+            else:
+                efield_corr.append(0.0)
     
             # compute energy vector
             term1 = elec_energy_calc[-1] + dft_corr[-1]
@@ -404,9 +406,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
         rhe_corr.append(site_wise_energy_contributions[min_index][1])
         solv_corr.append(site_wise_energy_contributions[min_index][3])
-        
-        if field_effects:
-            efield_corr.append(site_wise_energy_contributions[min_index][2])
+        efield_corr.append(site_wise_energy_contributions[min_index][2] if field_effects else 0.0)
 
         # compute energy vector
         term1 = elec_energy_calc[-1] + dft_corr[-1]
@@ -818,14 +818,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         rhe_corr.append(site_wise_energy_contributions[min_index][2])
         solv_corr.append(site_wise_energy_contributions[min_index][4])
-        
-        if field_effects:
-            efield_corr.append(site_wise_energy_contributions[min_index][3])
+        efield_corr.append(site_wise_energy_contributions[min_index][3] if field_effects else 0.0)
 
         # Apply alkaline correction
         alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
         
-        # Apply charge extrapolation scheme
+        # Compute final state energy
         fin_ads_energy = 0
         for product, num_products in products_list[species_index].items():
             if 'gas' in product:
@@ -843,6 +841,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     idx = idx1.intersection(idx2)
                     if len(idx) == 1:
                         fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
+        
+        # Apply charge extrapolation scheme
         extrapolation_corr.append(compute_barrier_extrapolation(
                                     species_name, beta, phi_correction, v_extra,
                                     energy_data[species_index],
