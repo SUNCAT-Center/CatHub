@@ -634,8 +634,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     surface, site, species, raw_energy, facet = [], [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, formation_energy, efield_corr, energy_vector = [], [], [], []
-    frequencies, references = [], []
+    solv_corr, formation_energy, efield_corr, alk_corr = [], [], [], []
+    energy_vector, frequencies, references = [], [], []
 
     # simple reaction species: only one active product and filter out reactions without any transition state species
     df_activation_copy = df_activation.copy()
@@ -739,12 +739,15 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         if field_effects:
             efield_corr.append(site_wise_energy_contributions[min_index][3])
 
+        # Apply alkaline correction
+        alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
+        
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
         term1_backward = backward_barrier[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1]
+        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1]
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
