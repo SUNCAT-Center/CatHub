@@ -646,24 +646,18 @@ def read_qe_log(file_path, wf_dipole_index):
     return (final_energy, workfunction)
 
 def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
-                                  v_extra, energy_offset, adsorbate_list,
-                                  bond_distance_cutoff):
+                                  v_extra, energy_data, workfunction_data,
+                                  adsorbate_list, bond_distance_cutoff):
 
-    wf_dipole_index = 0  # side of the slab where solvation layer exists. 0=top, 1=bottom.
+    # energy_data = [E_TS, E_FS]
+    # workfunction_data = [phi_TS, phi_FS]
+
     ts_configuration = 'TS'
     fs_configuration = 'FS'
-    logfile = 'out.log'
 
     ts_state_dirpath = src_path / ts_species
     ts_dir_path = ts_state_dirpath / ts_configuration
-    ts_log_file_path = ts_dir_path / logfile
-    (E_TS, phi_TS) = read_qe_log(ts_log_file_path, wf_dipole_index)
-    E_TS += energy_offset[0]
-
     fs_dir_path = ts_state_dirpath / fs_configuration
-    fs_log_file_path = fs_dir_path / logfile
-    (E_FS, phi_FS) = read_qe_log(fs_log_file_path, wf_dipole_index)
-    E_FS += energy_offset[1]
 
     if beta == 0:  # chemical
         q_TS = 0.0
@@ -673,10 +667,10 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
         q_TS = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
         q_FS = get_solvation_layer_charge(fs_dir_path, adsorbate_fs, bond_distance_cutoff)
 
-    phi_TS_corr = phi_TS - phi_correction
-    phi_FS_corr = phi_FS - phi_correction
+    phi_TS_corr = workfunction_data[0] - phi_correction
+    phi_FS_corr = workfunction_data[1] - phi_correction
 
-    del_E = E_TS - E_FS
+    del_E = energy_data[0] - energy_data[1]
     del_q = q_TS - q_FS
     del_phi = phi_TS_corr - phi_FS_corr
     
@@ -788,6 +782,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     phi_correction = ts_data['phi_correction']
     v_extra = ts_data['v_extra']
     bond_distance_cutoff = ts_data['bond_distance_cutoff']
+    energy_data = ts_data['energy_data']
+    workfunction_data = ts_data['workfunction_data']
     src_path = db_filepath.parent
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
@@ -847,8 +843,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         
         # Apply charge extrapolation scheme
         adsorbates = ts_data['adsorbate_list'][species_index]
-        energy_offset = [ts_data['energy_offset'][0][species_index],
-                         ts_data['energy_offset'][1][species_index]]
         fin_ads_energy = 0
         for product, num_products in products_list[species_index].items():
             if 'gas' in product:
@@ -868,7 +862,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                         fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
         extrapolation_corr.append(compute_barrier_extrapolation(
                         src_path, species_name, beta, phi_correction, v_extra,
-                        energy_offset, adsorbates, bond_distance_cutoff))
+                        energy_data[species_index], workfunction_data[species_index],
+                        adsorbates, bond_distance_cutoff))
 
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
