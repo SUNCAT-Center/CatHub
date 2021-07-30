@@ -690,24 +690,11 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
     charge_data = [ts_charges_noH, fs_charges_noH, ts_charges_H, fs_charges_H]
     workfunction_data = [ts_wf, fs_wf]
 
-    (ts_energies_noH, ts_energies_H) = compute_ts_energies(
-        state_energies, charge_data, workfunction_data, fin_ads_energy,
-        phi_correction, v_extra)
-    return (ts_energies_noH, ts_energies_H)
+    E_TS, E_FS = state_energies
+    q_TS_noH, q_FS_noH, q_TS_H, q_FS_H = charge_data
 
-def compute_ts_energies(state_energies, charge_data, workfunction_data,
-                        e_f_data, phi_correction, v_extra):
-    E_TS = state_energies[0]
-    E_FS = state_energies[1]
-    
-    q_TS_noH = charge_data[0]
-    q_FS_noH = charge_data[1]
-    q_TS_H = charge_data[2]
-    q_FS_H = charge_data[3]
-
-    phi_TS = workfunction_data[0]
+    phi_TS, phi_FS = workfunction_data
     phi_TS_corr = phi_TS - phi_correction
-    phi_FS = workfunction_data[1]
     phi_FS_corr = phi_FS - phi_correction
 
     del_E = E_TS - E_FS
@@ -723,9 +710,8 @@ def compute_ts_energies(state_energies, charge_data, workfunction_data,
     E_r_extrapolated_noH = E_r_noH + del_q_noH * (phi_FS_corr - v_extra)
     E_r_extrapolated_H = E_r_H + del_q_H * (phi_FS_corr - v_extra)
     
-    ts_energies_noH = E_r_extrapolated_noH + e_f_data
-    ts_energies_H = E_r_extrapolated_H + e_f_data
-
+    ts_energies_noH = E_r_extrapolated_noH + fin_ads_energy
+    ts_energies_H = E_r_extrapolated_H + fin_ads_energy
     return (ts_energies_noH, ts_energies_H)
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
