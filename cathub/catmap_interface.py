@@ -657,30 +657,22 @@ def compute_barrier_extrapolation(src_path, ts_species, beta, phi_correction,
     ts_state_dirpath = src_path / ts_species
     ts_dir_path = ts_state_dirpath / ts_configuration
     ts_log_file_path = ts_dir_path / logfile
-    (ts_energies, ts_wf) = read_qe_log(ts_log_file_path, wf_dipole_index)
-    ts_energies += energy_offset[0]
+    (E_TS, phi_TS) = read_qe_log(ts_log_file_path, wf_dipole_index)
+    E_TS += energy_offset[0]
 
     fs_dir_path = ts_state_dirpath / fs_configuration
     fs_log_file_path = fs_dir_path / logfile
-    (fs_energies, fs_wf) = read_qe_log(fs_log_file_path, wf_dipole_index)
-    fs_energies += energy_offset[1]
+    (E_FS, phi_FS) = read_qe_log(fs_log_file_path, wf_dipole_index)
+    E_FS += energy_offset[1]
 
     if beta == 0:  # chemical
-        ts_charges = 0.0
-        fs_charges = 0.0
+        q_TS = 0.0
+        q_FS = 0.0
     else:          # electrochemical
         adsorbate_ts, adsorbate_fs = adsorbate_list
-        ts_charges = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
-        fs_charges = get_solvation_layer_charge(fs_dir_path, adsorbate_fs, bond_distance_cutoff)
+        q_TS = get_solvation_layer_charge(ts_dir_path, adsorbate_ts, bond_distance_cutoff)
+        q_FS = get_solvation_layer_charge(fs_dir_path, adsorbate_fs, bond_distance_cutoff)
 
-    state_energies = [ts_energies, fs_energies]
-    charge_data = [ts_charges, fs_charges]
-    workfunction_data = [ts_wf, fs_wf]
-
-    E_TS, E_FS = state_energies
-    q_TS, q_FS = charge_data
-
-    phi_TS, phi_FS = workfunction_data
     phi_TS_corr = phi_TS - phi_correction
     phi_FS_corr = phi_FS - phi_correction
 
