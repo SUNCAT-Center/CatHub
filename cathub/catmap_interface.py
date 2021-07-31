@@ -539,8 +539,8 @@ def get_adsorption_energy(df_out, species_value, reactants, products, reaction_e
     adsorption_energy_RHE0 = reaction_energy + product_energy - reactant_energy
 
     # Apply solvation energy corrections
-    if species_value in adsorbate_parameters['solvation_corrections_adsorbates']:
-        solvation_correction = adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
+    if species_value in adsorbate_parameters['solvation_corrections']:
+        solvation_correction = adsorbate_parameters['solvation_corrections'][species_value]
     else:
         solvation_correction = 0.0
 
@@ -1071,8 +1071,8 @@ def get_ts_energy(df_out, db_filepath, species_value, reactants, snapshot_range,
     forward_barrier = ts_energy - initial_energy
 
     # Apply solvation energy corrections
-    if species_value in adsorbate_parameters['solvation_corrections_adsorbates']:
-        solvation_correction = adsorbate_parameters['solvation_corrections_adsorbates'][species_value]
+    if species_value in adsorbate_parameters['solvation_corrections']:
+        solvation_correction = adsorbate_parameters['solvation_corrections'][species_value]
     else:
         solvation_correction = 0.0
 
