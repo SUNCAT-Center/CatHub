@@ -1097,8 +1097,21 @@ def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
     return None
 
 def get_free_energy_change_species(df, species_name):
-    species_index = df['species_name'][df['species_name'] == species_name].index[0]
-    free_energy_change = df['energy_vector'][species_index][-1]
+    if 'gas' in species_name:
+        noncatmap_style_species = species_name.replace('gas', '')
+        idx1 = df.index[df['site_name'] == 'gas']
+        idx2 = df.index[df['species_name'] == noncatmap_style_species]
+        idx = idx1.intersection(idx2)
+        if len(idx) == 1:
+            free_energy_change = df['energy_vector'][idx[0]][-1]
+    elif 'star' in species_name:
+        noncatmap_style_species = species_name.replace('star', '')
+        if noncatmap_style_species:
+            idx1 = df.index[df['site_name'] != 'gas']
+            idx2 = df.index[df['species_name'] == noncatmap_style_species]
+            idx = idx1.intersection(idx2)
+            if len(idx) == 1:
+                free_energy_change = df['energy_vector'][idx[0]][-1]
     return free_energy_change
 
 def get_free_energy_change_reaction(df, reactants, products):
