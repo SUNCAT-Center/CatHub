@@ -1112,11 +1112,12 @@ def get_free_energy_change_species(df, species_name):
             idx = idx1.intersection(idx2)
             if len(idx) == 1:
                 free_energy_change = df['energy_vector'][idx[0]][-1]
+        else:
+            free_energy_change = 0
     return free_energy_change
 
 def get_free_energy_change_reaction(df, rxn_expression):
-    (reactant_dict, product_dict,
-         ts_states, beta) = read_reaction_expression_data(rxn_expression)
+    (reactant_dict, product_dict, _, _) = read_reaction_expression_data(rxn_expression)
     free_energy_change_reactants = 0
     for reactant, num_reactants in reactant_dict.items():
         free_energy_change_reactants += num_reactants * get_free_energy_change_species(df, reactant)
@@ -1126,6 +1127,12 @@ def get_free_energy_change_reaction(df, rxn_expression):
         free_energy_change_products += num_products * get_free_energy_change_species(df, product)
 
     free_energy_change = free_energy_change_products - free_energy_change_reactants
+    return free_energy_change
+
+def get_free_energy_change_rxn_mechanism(df, rxn_mechanism):
+    free_energy_change = 0
+    for rxn_expression in rxn_mechanism:
+        free_energy_change += get_free_energy_change_reaction(df, rxn_expression)
     return free_energy_change
 
 def populate_chemical_symbols_dict(chemical_symbols_dict, last_chemical_symbol):
