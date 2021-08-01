@@ -75,8 +75,9 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                           temp, verbose)
     
     if write_transition_states:
+        exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                                   rxn_expressions_filepath, ts_data,
+                                   locals()['rxn_expressions'], ts_data,
                                    adsorbate_parameters, reference_gases,
                                    dft_corrections_gases, field_effects,
                                    temp, verbose)
@@ -667,7 +668,7 @@ def compute_barrier_extrapolation(ts_species, beta, phi_correction, v_extra,
     return E_r_extrapolated
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                      rxn_expressions_filepath, ts_data, adsorbate_parameters,
+                      rxn_expressions, ts_data, adsorbate_parameters,
                       reference_gases, dft_corrections_gases, field_effects,
                       temp, verbose):
 
@@ -691,12 +692,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             vibrational_energies[ts_species].append(vibrational_frequency * cm2eV)
     
     # Load reaction expression data
-    (rxn_expressions,
-     reactants_rxn_expressions,
+    (reactants_rxn_expressions,
      products_rxn_expressions,
      ts_states_rxn_expressions,
-     beta_list_rxn_expressions) = read_reaction_expression_data(
-                                                    rxn_expressions_filepath)
+     beta_list_rxn_expressions) = read_reaction_expression_data(rxn_expressions)
+
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
     reaction_index_map = []
@@ -926,60 +926,58 @@ def get_catmap_style_species(species):
             catmap_species = catmap_species.replace('_g', 'gas')
     return (catmap_species, num_species)
 
-def read_reaction_expression_data(rxn_expressions_filepath):
-    exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
+def read_reaction_expression_data(rxn_expressions):
     discard_species_list = ['*_t', '_t', '_g']
     reactants_list, products_list, ts_states, beta_list = [], [], [], []
-    if 'rxn_expressions' in locals():
-        for rxn_expression in locals()['rxn_expressions']:
-            if ';' in rxn_expression:
-                (rxn, beta) = rxn_expression.split(';')
-            else:
-                rxn = rxn_expression
-                beta = 0.0  # chemical reaction if beta not specified
+    for rxn_expression in rxn_expressions:
+        if ';' in rxn_expression:
+            (rxn, beta) = rxn_expression.split(';')
+        else:
+            rxn = rxn_expression
+            beta = 0.0  # chemical reaction if beta not specified
 
-            if isinstance(beta, str):
-                if '=' in beta:
-                    beta_list.append(float(beta.split('=')[1]))
-            else:
-                beta_list.append(beta)
+        if isinstance(beta, str):
+            if '=' in beta:
+                beta_list.append(float(beta.split('=')[1]))
+        else:
+            beta_list.append(beta)
 
-            rxn_no_spaces = re.sub(' ', '', rxn)
-            split_rxn = re.split('->|<->', rxn_no_spaces)
-            
-            reactant_term = split_rxn[0]
-            product_term = split_rxn[-1]
-            
-            if '+' in reactant_term:
-                reactant_species = reactant_term.split('+')
+        rxn_no_spaces = re.sub(' ', '', rxn)
+        split_rxn = re.split('->|<->', rxn_no_spaces)
+        
+        reactant_term = split_rxn[0]
+        product_term = split_rxn[-1]
+        
+        if '+' in reactant_term:
+            reactant_species = reactant_term.split('+')
+            for discard_species in discard_species_list:
+                if discard_species in reactant_species:
+                    reactant_species.remove(discard_species)
+            reactants_list.append(reactant_species)
+        else:
+            reactants_list.append([reactant_term])
+
+        if '+' in product_term:
+            product_species = product_term.split('+')
+            for discard_species in discard_species_list:
+                if discard_species in reactant_species:
+                    product_species.remove(discard_species)
+            products_list.append(product_species)
+        else:
+            products_list.append([product_term])
+
+        if rxn_no_spaces.count('->') == 2:
+            ts_term = split_rxn[1]
+            if '+' in ts_term:
+                ts_species = ts_term.split('+')
                 for discard_species in discard_species_list:
-                    if discard_species in reactant_species:
-                        reactant_species.remove(discard_species)
-                reactants_list.append(reactant_species)
+                    if discard_species in ts_species:
+                        ts_species.remove(discard_species)
+                ts_states.append(ts_species[0])
             else:
-                reactants_list.append([reactant_term])
-
-            if '+' in product_term:
-                product_species = product_term.split('+')
-                for discard_species in discard_species_list:
-                    if discard_species in reactant_species:
-                        product_species.remove(discard_species)
-                products_list.append(product_species)
-            else:
-                products_list.append([product_term])
-
-            if rxn_no_spaces.count('->') == 2:
-                ts_term = split_rxn[1]
-                if '+' in ts_term:
-                    ts_species = ts_term.split('+')
-                    for discard_species in discard_species_list:
-                        if discard_species in ts_species:
-                            ts_species.remove(discard_species)
-                    ts_states.append(ts_species[0])
-                else:
-                    ts_states.append(ts_term)
-            else:
-                ts_states.append('')
+                ts_states.append(ts_term)
+        else:
+            ts_states.append('')
 
     new_reactants_list = []
     for reactant_list in reactants_list:
@@ -1010,8 +1008,7 @@ def read_reaction_expression_data(rxn_expressions_filepath):
         for discard_species in discard_species_list:
             ts_state = ts_state.replace(discard_species, '') 
         new_ts_states.append(ts_state)
-    return (locals()['rxn_expressions'], new_reactants_list,
-            new_products_list, new_ts_states, beta_list)
+    return (new_reactants_list, new_products_list, new_ts_states, beta_list)
 
 def get_ts_energies(df, df_out, db_filepath, species_list, species_value,
                     products_list, snapshot_range, reference_gases,
