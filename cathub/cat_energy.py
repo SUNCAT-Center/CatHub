@@ -692,10 +692,17 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             vibrational_energies[ts_species].append(vibrational_frequency * cm2eV)
     
     # Load reaction expression data
-    (reactants_rxn_expressions,
-     products_rxn_expressions,
-     ts_states_rxn_expressions,
-     beta_list_rxn_expressions) = read_reaction_expression_data(rxn_expressions)
+    reactants_rxn_expressions = []
+    products_rxn_expressions = []
+    ts_states_rxn_expressions = []
+    beta_list_rxn_expressions = []
+    for rxn_expression in rxn_expressions:
+        (reactants, products,
+         ts_states, beta) = read_reaction_expression_data(rxn_expression)
+        reactants_rxn_expressions.append(reactants)
+        products_rxn_expressions.append(products)
+        ts_states_rxn_expressions.append(ts_states)
+        beta_list_rxn_expressions.append(beta)
 
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
@@ -926,89 +933,76 @@ def get_catmap_style_species(species):
             catmap_species = catmap_species.replace('_g', 'gas')
     return (catmap_species, num_species)
 
-def read_reaction_expression_data(rxn_expressions):
+def read_reaction_expression_data(rxn_expression):
     discard_species_list = ['*_t', '_t', '_g']
-    reactants_list, products_list, ts_states, beta_list = [], [], [], []
-    for rxn_expression in rxn_expressions:
-        if ';' in rxn_expression:
-            (rxn, beta) = rxn_expression.split(';')
-        else:
-            rxn = rxn_expression
-            beta = 0.0  # chemical reaction if beta not specified
+    if ';' in rxn_expression:
+        (rxn, beta) = rxn_expression.split(';')
+    else:
+        rxn = rxn_expression
+        beta = 0.0  # chemical reaction if beta not specified
 
-        if isinstance(beta, str):
-            if '=' in beta:
-                beta_list.append(float(beta.split('=')[1]))
-        else:
-            beta_list.append(beta)
+    if isinstance(beta, str):
+        if '=' in beta:
+            beta = float(beta.split('=')[1])
 
-        rxn_no_spaces = re.sub(' ', '', rxn)
-        split_rxn = re.split('->|<->', rxn_no_spaces)
-        
-        reactant_term = split_rxn[0]
-        product_term = split_rxn[-1]
-        
-        if '+' in reactant_term:
-            reactant_species = reactant_term.split('+')
-            for discard_species in discard_species_list:
-                if discard_species in reactant_species:
-                    reactant_species.remove(discard_species)
-            reactants_list.append(reactant_species)
-        else:
-            reactants_list.append([reactant_term])
-
-        if '+' in product_term:
-            product_species = product_term.split('+')
-            for discard_species in discard_species_list:
-                if discard_species in product_species:
-                    product_species.remove(discard_species)
-            products_list.append(product_species)
-        else:
-            products_list.append([product_term])
-
-        if rxn_no_spaces.count('->') == 2:
-            ts_term = split_rxn[1]
-            if '+' in ts_term:
-                ts_species = ts_term.split('+')
-                for discard_species in discard_species_list:
-                    if discard_species in ts_species:
-                        ts_species.remove(discard_species)
-                ts_states.append(ts_species[0])
-            else:
-                ts_states.append(ts_term)
-        else:
-            ts_states.append('')
-
-    new_reactants_list = []
-    for reactant_list in reactants_list:
-        new_reactant_dict = {}
-        for reactant in reactant_list:
-            if 'ele_g' not in reactant:
-                (catmap_species, num_species) = get_catmap_style_species(reactant)
-                if catmap_species in new_reactant_dict:
-                    new_reactant_dict[catmap_species] += num_species
-                else:
-                    new_reactant_dict[catmap_species] = num_species
-        new_reactants_list.append(new_reactant_dict)
-
-    new_products_list = []
-    for product_list in products_list:
-        new_product_dict = {}
-        for product in product_list:
-            if 'ele_g' not in product:
-                (catmap_species, num_species) = get_catmap_style_species(product)
-                if catmap_species in new_product_dict:
-                    new_product_dict[catmap_species] += num_species
-                else:
-                    new_product_dict[catmap_species] = num_species
-        new_products_list.append(new_product_dict)
-
-    new_ts_states = []
-    for ts_state in ts_states:
+    rxn_no_spaces = re.sub(' ', '', rxn)
+    split_rxn = re.split('->|<->', rxn_no_spaces)
+    
+    reactant_term = split_rxn[0]
+    product_term = split_rxn[-1]
+    
+    if '+' in reactant_term:
+        reactant_species = reactant_term.split('+')
         for discard_species in discard_species_list:
-            ts_state = ts_state.replace(discard_species, '') 
-        new_ts_states.append(ts_state)
-    return (new_reactants_list, new_products_list, new_ts_states, beta_list)
+            if discard_species in reactant_species:
+                reactant_species.remove(discard_species)
+        reactant_list = reactant_species
+    else:
+        reactant_list = [reactant_term]
+
+    reactant_dict = {}
+    for reactant in reactant_list:
+        if 'ele_g' not in reactant:
+            (catmap_species, num_species) = get_catmap_style_species(reactant)
+            if catmap_species in reactant_dict:
+                reactant_dict[catmap_species] += num_species
+            else:
+                reactant_dict[catmap_species] = num_species
+
+    if '+' in product_term:
+        product_species = product_term.split('+')
+        for discard_species in discard_species_list:
+            if discard_species in product_species:
+                product_species.remove(discard_species)
+        product_list = product_species
+    else:
+        product_list = [product_term]
+
+    product_dict = {}
+    for product in product_list:
+        if 'ele_g' not in product:
+            (catmap_species, num_species) = get_catmap_style_species(product)
+            if catmap_species in product_dict:
+                product_dict[catmap_species] += num_species
+            else:
+                product_dict[catmap_species] = num_species
+
+    if rxn_no_spaces.count('->') == 2:
+        ts_term = split_rxn[1]
+        if '+' in ts_term:
+            ts_species = ts_term.split('+')
+            for discard_species in discard_species_list:
+                if discard_species in ts_species:
+                    ts_species.remove(discard_species)
+            ts_state = ts_species[0]
+        else:
+            ts_state = ts_term
+    else:
+        ts_state = ''
+
+    for discard_species in discard_species_list:
+        ts_state = ts_state.replace(discard_species, '') 
+    return (reactant_dict, product_dict, ts_state, beta)
 
 def get_ts_energies(df, df_out, db_filepath, species_list, species_value,
                     products_list, snapshot_range, reference_gases,
