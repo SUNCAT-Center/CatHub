@@ -733,9 +733,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     for index, product in enumerate(df_activation_copy_product_dict_col):
         row_index = df_activation_copy.index[index]
         new_dict = {}
-        if 0 in product.values():
+        if 0 in product.values() or "star" in product.keys():
             for key, value in product.items():
-                if value:
+                if value and key != "star":
                     new_dict[key] = value
             df_activation_copy.at[row_index, 'products'] = json.dumps(new_dict)
     df_activation_copy_product_dict_col = df_activation_copy.products.apply(json.loads)
@@ -960,7 +960,7 @@ def read_reaction_expression_data(rxn_expressions):
         if '+' in product_term:
             product_species = product_term.split('+')
             for discard_species in discard_species_list:
-                if discard_species in reactant_species:
+                if discard_species in product_species:
                     product_species.remove(discard_species)
             products_list.append(product_species)
         else:
