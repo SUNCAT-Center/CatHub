@@ -41,7 +41,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    write_adsorbates, write_transition_states,
                    gas_jsondata_filepath, ads_jsondata_filepath,
                    ts_jsondata_filepath, rxn_expressions_filepath, ts_data,
-                   temp, write_mkm_input_files, verbose=True):
+                   temp, write_mkm_input_files, verbose=True, latex=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -66,14 +66,14 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                     reference_gases, dummy_gases,
                                     dft_corrections_gases,
                                     beef_dft_helmholtz_offset, field_effects,
-                                    temp, verbose)
+                                    temp, verbose, latex)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
                                           adsorbate_parameters, reference_gases,
                                           dft_corrections_gases, field_effects,
-                                          temp, verbose)
+                                          temp, verbose, latex)
     
     if write_transition_states:
         exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
@@ -81,7 +81,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                    locals()['rxn_expressions'], ts_data,
                                    adsorbate_parameters, reference_gases,
                                    dft_corrections_gases, field_effects,
-                                   temp, verbose)
+                                   temp, verbose, latex)
         
     # write corrected energy data to mkm input file
     if write_mkm_input_files:
@@ -91,7 +91,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
 
 def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                        reference_gases, dummy_gases, dft_corrections_gases,
-                       beef_dft_helmholtz_offset, field_effects, temp, verbose):
+                       beef_dft_helmholtz_offset, field_effects, temp, verbose,
+                       latex):
 
     db = connect(str(db_filepath))
     gas_atoms_rows = list(db.select(state='gas'))
@@ -271,7 +272,10 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                               f'{df["energy_vector"][index][5]:.{num_decimal_places}f}',
                               f'{df["energy_vector"][index][5] - df["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
-        print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        if latex:
+            print(tabulate(table, headers=table_headers, tablefmt='latex', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        else:
+            print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
     return df_out
 
@@ -320,7 +324,7 @@ def get_electric_field_contribution(field_effects, species_value,
 def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
                               adsorbate_parameters, reference_gases,
                               dft_corrections_gases, field_effects, temp,
-                              verbose):
+                              verbose, latex):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for adsorbate species
@@ -479,7 +483,10 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
                               f'{df3["energy_vector"][index][5]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][5] - df3["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
-        print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        if latex:
+            print(tabulate(table, headers=table_headers, tablefmt='latex', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        else:
+            print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
     return df_out
 
@@ -671,7 +678,7 @@ def compute_barrier_extrapolation(ts_species, beta, phi_correction, v_extra,
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions, ts_data, adsorbate_parameters,
                       reference_gases, dft_corrections_gases, field_effects,
-                      temp, verbose):
+                      temp, verbose, latex):
 
     # identify system ids for transition state species
     table_name = 'reaction'
@@ -900,7 +907,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                               f'{df3["energy_vector"][index][5]:.{num_decimal_places}f}',
                               f'{df3["energy_vector"][index][5] - df3["energy_vector"][index][2]:.{num_decimal_places}f}'])
             table.append(sub_table)
-        print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        if latex:
+            print(tabulate(table, headers=table_headers, tablefmt='latex', colalign=("right", ) * len(table_headers), disable_numparse=True))
+        else:
+            print(tabulate(table, headers=table_headers, tablefmt='psql', colalign=("right", ) * len(table_headers), disable_numparse=True))
         print('\n')
     return df_out
 
