@@ -697,10 +697,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     ts_states_rxn_expressions = []
     beta_list_rxn_expressions = []
     for rxn_expression in rxn_expressions:
-        (reactants, products,
+        (reactant_dict, product_dict,
          ts_states, beta) = read_reaction_expression_data(rxn_expression)
-        reactants_rxn_expressions.append(reactants)
-        products_rxn_expressions.append(products)
+        reactants_rxn_expressions.append(reactant_dict)
+        products_rxn_expressions.append(product_dict)
         ts_states_rxn_expressions.append(ts_states)
         beta_list_rxn_expressions.append(beta)
 
@@ -1114,14 +1114,16 @@ def get_free_energy_change_species(df, species_name):
                 free_energy_change = df['energy_vector'][idx[0]][-1]
     return free_energy_change
 
-def get_free_energy_change_reaction(df, reactants, products):
+def get_free_energy_change_reaction(df, rxn_expression):
+    (reactant_dict, product_dict,
+         ts_states, beta) = read_reaction_expression_data(rxn_expression)
     free_energy_change_reactants = 0
-    for reactant in reactants:
-        free_energy_change_reactants += get_free_energy_change_species(df, reactant)
+    for reactant, num_reactants in reactant_dict.items():
+        free_energy_change_reactants += num_reactants * get_free_energy_change_species(df, reactant)
 
     free_energy_change_products = 0
-    for product in products:
-        free_energy_change_products += get_free_energy_change_species(df, product)
+    for product, num_products in product_dict.items():
+        free_energy_change_products += num_products * get_free_energy_change_species(df, product)
 
     free_energy_change = free_energy_change_products - free_energy_change_reactants
     return free_energy_change
