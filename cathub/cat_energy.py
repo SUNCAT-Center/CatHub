@@ -669,9 +669,11 @@ def compute_barrier_extrapolation(phi_correction, v_extra, energy_data,
     del_phi = phi_TS_corr - phi_FS_corr
     
     # backward barrier
+    # size extrapolation
     E_r = del_E + 0.5 * del_q * del_phi
     
     ## convert v_extra from SHE to RHE at given pH_out
+    # extrapolation to vacuum
     E_r_extrapolated = E_r + del_q * (phi_FS_corr - v_extra)
     return E_r_extrapolated
 
