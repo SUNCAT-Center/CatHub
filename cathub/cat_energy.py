@@ -654,8 +654,8 @@ def read_qe_log(file_path, wf_dipole_index):
                 final_energy = float(line.split()[0])
     return (final_energy, workfunction)
 
-def compute_barrier_extrapolation(ts_species, beta, phi_correction, v_extra,
-                                  energy_data, workfunction_data, charge_data):
+def compute_barrier_extrapolation(phi_correction, v_extra, energy_data,
+                                  workfunction_data, charge_data):
 
     # energy_data = [E_TS, E_FS]
     # workfunction_data = [phi_TS, phi_FS]
@@ -859,10 +859,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         
         # Apply charge extrapolation scheme
         extrapolation_corr.append(compute_barrier_extrapolation(
-                                    species_name, beta, phi_correction, v_extra,
-                                    energy_data[species_index],
-                                    workfunction_data[species_index],
-                                    charge_data[species_index]))
+                                            phi_correction, v_extra,
+                                            energy_data[species_index],
+                                            workfunction_data[species_index],
+                                            charge_data[species_index]))
+        print(extrapolation_corr[-1])
+        
 
         # compute energy vector
         term1_forward = forward_barrier[-1] + dft_corr[-1]
