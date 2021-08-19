@@ -727,7 +727,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     surface, site, species, raw_energy, facet = [], [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, formation_energy, efield_corr, alk_corr, extrapolation_corr = [], [], [], [], []
+    solv_corr, formation_energy, efield_corr, alk_corr = [], [], [], []
+    if ts_data['extrapolation']:
+        extrapolation_corr = []
     energy_vector, frequencies, references = [], [], []
 
     # simple reaction species: only one active product and filter out reactions without any transition state species
@@ -858,12 +860,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                         fin_ads_energy += num_products * df_out.formation_energy[idx[0]]
         
         # Apply charge extrapolation scheme
-        extrapolation_corr.append(compute_barrier_extrapolation(
-                                            phi_correction, v_extra,
-                                            energy_data[species_index],
-                                            workfunction_data[species_index],
-                                            charge_data[species_index]))
-        print(extrapolation_corr[-1])
+        if ts_data['extrapolation']:
+            extrapolation_corr.append(compute_barrier_extrapolation(
+                                                phi_correction, v_extra,
+                                                energy_data[species_index],
+                                                workfunction_data[species_index],
+                                                charge_data[species_index]))
         
 
         # compute energy vector
@@ -871,7 +873,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         term1_backward = backward_barrier[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + extrapolation_corr[-1] + fin_ads_energy
+        if ts_data['extrapolation']:
+            term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + extrapolation_corr[-1] + fin_ads_energy
+        else:
+            term4 = solv_corr[-1] + efield_corr[-1] + alk_corr[-1] + fin_ads_energy
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
