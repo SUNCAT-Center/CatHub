@@ -76,6 +76,21 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                           temp, verbose, latex)
     
     if write_transition_states:
+        if verbose:
+            ts_phase_header = 'Transition State Free Energy Correction:'
+            print(ts_phase_header)
+            print('-' * len(ts_phase_header))
+
+            print('Term1 = Backward Electronic Activation Energy + DFT Correction')
+            print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
+            print('Term3 = RHE-scale Dependency')
+            if ts_data['extrapolation']:
+                print('Term4 = Solvation Correction + Electric Field Correction + Alkaline Correction + Charge Extrapolation Correction + Final Adsorbate Energy')
+            else:
+                print('Term4 = Solvation Correction + Electric Field Correction + Alkaline Correction + Final Adsorbate Energy')
+            print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
+            print(f'∆G at U_RHE=0.0 V = ∆G - Term3')
+            print()
         exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                    locals()['rxn_expressions'], ts_data,
@@ -895,10 +910,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df_out = df_out.append(df3, ignore_index=True, sort=False)
 
     if verbose:
-        ts_phase_header = 'Transition State Free Energy Correction:'
-        print(ts_phase_header)
-        print('-' * len(ts_phase_header))
-        
         table = []
         table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)", "Term4 (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
         for index, species_name in enumerate(df3['species_name']):
