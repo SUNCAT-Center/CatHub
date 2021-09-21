@@ -321,7 +321,7 @@ def get_electric_field_contribution(field_effects, species_value,
     # U_RHE = U_SHE + 0.059 * pH
 
     if beta:
-        U_RHE_energy_contribution = beta * U_RHE
+        U_RHE_energy_contribution = - (1 - beta) * U_RHE
     else:
         U_RHE_energy_contribution = n * U_RHE
 
