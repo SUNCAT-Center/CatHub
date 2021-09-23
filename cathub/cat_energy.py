@@ -41,7 +41,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                    write_adsorbates, write_transition_states,
                    gas_jsondata_filepath, ads_jsondata_filepath,
                    ts_jsondata_filepath, rxn_expressions_filepath, ts_data,
-                   temp, write_mkm_input_files, verbose=True, latex=True):
+                   temp, pH, write_mkm_input_files, verbose=True, latex=True):
 
     df_out = pd.DataFrame(columns=write_columns)
 
@@ -66,14 +66,14 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                     reference_gases, dummy_gases,
                                     dft_corrections_gases,
                                     beef_dft_helmholtz_offset, field_effects,
-                                    temp, verbose, latex)
+                                    temp, pH, verbose, latex)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
                                           adsorbate_parameters, reference_gases,
                                           dft_corrections_gases, field_effects,
-                                          temp, verbose, latex)
+                                          temp, pH, verbose, latex)
     
     if write_transition_states:
         if verbose:
@@ -96,7 +96,7 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
                                    locals()['rxn_expressions'], ts_data,
                                    adsorbate_parameters, reference_gases,
                                    dft_corrections_gases, field_effects,
-                                   temp, verbose, latex)
+                                   temp, pH, verbose, latex)
         
     # write corrected energy data to mkm input file
     if write_mkm_input_files:
@@ -106,8 +106,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
 
 def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                        reference_gases, dummy_gases, dft_corrections_gases,
-                       beef_dft_helmholtz_offset, field_effects, temp, verbose,
-                       latex):
+                       beef_dft_helmholtz_offset, field_effects, temp, pH,
+                       verbose, latex):
 
     db = connect(str(db_filepath))
     gas_atoms_rows = list(db.select(state='gas'))
@@ -222,7 +222,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
     
             # Apply field effects
             if field_effects:
-                (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name)
+                (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name, pH)
                 electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
                 efield_corr.append(electric_field_contribution)
             else:
@@ -294,10 +294,9 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
         print('\n')
     return df_out
 
-def get_electric_field_contribution(field_effects, species_value,
+def get_electric_field_contribution(field_effects, species_value, pH,
                                     reactants=None, beta=None):
     epsilon = field_effects['epsilon']
-    pH = field_effects['pH']
     U_RHE = field_effects['U_RHE']
     mu = field_effects['mu']
     alpha = field_effects['alpha']
@@ -338,7 +337,7 @@ def get_electric_field_contribution(field_effects, species_value,
 
 def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
                               adsorbate_parameters, reference_gases,
-                              dft_corrections_gases, field_effects, temp,
+                              dft_corrections_gases, field_effects, temp, pH,
                               verbose, latex):
     "Write formation energies to energies.txt after applying free energy corrections"
 
@@ -395,7 +394,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         (site_wise_energy_contributions, facet_list) = get_adsorption_energies(
                     df2, df_out, species_list, species_name, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
-                    field_effects)
+                    field_effects, pH)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
         
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
@@ -507,7 +506,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
 def get_adsorption_energies(df, df_out, species_list, species_value,
                             products_list, reference_gases, dft_corrections_gases,
-                            adsorbate_parameters, field_effects):
+                            adsorbate_parameters, field_effects, pH):
     "Compute electronic adsorption energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -528,11 +527,11 @@ def get_adsorption_energies(df, df_out, species_list, species_value,
              solvation_correction) = get_adsorption_energy(
                  df_out, species_value, reactants, products, reaction_energy,
                  reference_gases, dft_corrections_gases, adsorbate_parameters,
-                 field_effects)
+                 field_effects, pH)
             site_wise_energy_contributions.append([adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
     return (site_wise_energy_contributions, facet_list)
 
-def get_adsorption_energy(df_out, species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects):
+def get_adsorption_energy(df_out, species_value, reactants, products, reaction_energy, reference_gases, dft_corrections_gases, adsorbate_parameters, field_effects, pH):
     "Compute adsorption energy for an adsorbate species in a given reaction"
     
     product_energy = 0
@@ -569,7 +568,7 @@ def get_adsorption_energy(df_out, species_value, reactants, products, reaction_e
         solvation_correction = 0.0
 
     # Apply field effects
-    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants)
+    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, pH, reactants)
     return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
@@ -669,8 +668,8 @@ def read_qe_log(file_path, wf_dipole_index):
                 final_energy = float(line.split()[0])
     return (final_energy, workfunction)
 
-def compute_barrier_extrapolation(phi_correction, v_extra, workfunction_data,
-                                  beta):
+def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
+                                  beta, temp, pH):
 
     # workfunction_data = [phi_TS, phi_FS]
 
@@ -680,17 +679,21 @@ def compute_barrier_extrapolation(phi_correction, v_extra, workfunction_data,
     del_phi = phi_TS_corr - phi_FS_corr
     
     # size extrapolation
-    E_r = 0.5 * beta * del_phi
+    size_extrapolation = 0.5 * beta * del_phi
     
-    ## convert v_extra from SHE to RHE at given pH_out
     # extrapolation to vacuum
-    E_r_extrapolated = E_r + beta * (phi_FS_corr - v_extra)
-    return E_r_extrapolated
+    U_SHE = phi_FS_corr - phi_ref
+    # converting from SHE to RHE scale
+    U_RHE = U_SHE + np.log(10) * kB * temp * pH
+    vacuum_extrapolation = beta * U_RHE
+
+    E_extrapolation = size_extrapolation + vacuum_extrapolation
+    return E_extrapolation
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions, ts_data, adsorbate_parameters,
                       reference_gases, dft_corrections_gases, field_effects,
-                      temp, verbose, latex):
+                      temp, pH, verbose, latex):
 
     # identify system ids for transition state species
     table_name = 'reaction'
@@ -794,7 +797,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             snapshot_range_list.append(ts_data['rxn_pathway_image_ids'][index])
     
     phi_correction = ts_data['phi_correction']
-    v_extra = ts_data['v_extra']
+    phi_ref = ts_data['phi_ref']
     workfunction_data = ts_data['workfunction_data']
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
@@ -811,7 +814,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     df_activation_rxns, df_out, db_filepath, species_list,
                     species_name, products_list, snapshot_range, reference_gases,
                     dft_corrections_gases, adsorbate_parameters, field_effects,
-                    beta)
+                    pH, beta)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
 
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
@@ -872,9 +875,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         # Apply charge extrapolation scheme
         if ts_data['extrapolation']:
             extrapolation_corr.append(compute_barrier_extrapolation(
-                                                phi_correction, v_extra,
                                                 workfunction_data[species_index],
-                                                beta_list[species_index]))
+                                                phi_correction, phi_ref,
+                                                beta_list[species_index],
+                                                temp, pH))
         
 
         # compute energy vector
@@ -1030,7 +1034,7 @@ def read_reaction_expression_data(rxn_expression):
 def get_ts_energies(df, df_out, db_filepath, species_list, species_value,
                     products_list, snapshot_range, reference_gases,
                     dft_corrections_gases, adsorbate_parameters, field_effects,
-                    beta):
+                    pH, beta):
     "Compute electronic transition state energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -1049,13 +1053,13 @@ def get_ts_energies(df, df_out, db_filepath, species_list, species_value,
          solvation_correction) = get_ts_energy(
              df_out, db_filepath, species_value, reactants, snapshot_range,
              reference_gases, dft_corrections_gases, adsorbate_parameters,
-             field_effects, beta)
+             field_effects, pH, beta)
         site_wise_energy_contributions.append([forward_barrier, backward_barrier, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction])
     return (site_wise_energy_contributions, facet_list)
 
 def get_ts_energy(df_out, db_filepath, species_value, reactants, snapshot_range,
                   reference_gases, dft_corrections_gases, adsorbate_parameters,
-                  field_effects, beta):
+                  field_effects, pH, beta):
     "Compute energy barrier for an transition state species"
 
     db = connect(str(db_filepath))
@@ -1091,7 +1095,7 @@ def get_ts_energy(df_out, db_filepath, species_value, reactants, snapshot_range,
         solvation_correction = 0.0
 
     # Apply field effects
-    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, reactants, beta)
+    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, pH, reactants, beta)
     return (forward_barrier, backward_barrier, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
 def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
