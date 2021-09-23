@@ -670,23 +670,21 @@ def read_qe_log(file_path, wf_dipole_index):
     return (final_energy, workfunction)
 
 def compute_barrier_extrapolation(phi_correction, v_extra, workfunction_data,
-                                  charge_data):
+                                  beta):
 
     # workfunction_data = [phi_TS, phi_FS]
-    # charge_data = [q_TS, q_FS]
 
     phi_TS_corr = workfunction_data[0] - phi_correction
     phi_FS_corr = workfunction_data[1] - phi_correction
 
-    del_q = charge_data[0] - charge_data[1]
     del_phi = phi_TS_corr - phi_FS_corr
     
     # size extrapolation
-    E_r = 0.5 * del_q * del_phi
+    E_r = 0.5 * beta * del_phi
     
     ## convert v_extra from SHE to RHE at given pH_out
     # extrapolation to vacuum
-    E_r_extrapolated = E_r + del_q * (phi_FS_corr - v_extra)
+    E_r_extrapolated = E_r + beta * (phi_FS_corr - v_extra)
     return E_r_extrapolated
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
@@ -798,7 +796,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     phi_correction = ts_data['phi_correction']
     v_extra = ts_data['v_extra']
     workfunction_data = ts_data['workfunction_data']
-    charge_data = ts_data['charge_data']
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
@@ -877,7 +874,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             extrapolation_corr.append(compute_barrier_extrapolation(
                                                 phi_correction, v_extra,
                                                 workfunction_data[species_index],
-                                                charge_data[species_index]))
+                                                beta_list[species_index]))
         
 
         # compute energy vector
