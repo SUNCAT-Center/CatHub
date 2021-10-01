@@ -52,11 +52,11 @@ def fuzzy_match(structures, options):
             '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
         site_match = [site_name for site_name in
                       ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
+
         if facet_match and options.facet_name == 'facet':
             structure.info['facet'] = facet_match.group()
         else:
             structure.info['facet'] = options.facet_name or ''
-
         if site_match:
             structure.info['site'] = site_match[0]
 
@@ -148,7 +148,7 @@ def fuzzy_match(structures, options):
         # Order surfaces by number of atoms and energy
         surface_size = [len(s) for s in surfaces]
         sorted_surfaces = []
-        for ss in set(surface_size):
+        for ss in sorted(set(surface_size)):
             idx = [i for i, s in enumerate(surface_size) if s == ss]
             subset = [surfaces[i] for i in idx]
             energies = [s.get_potential_energy() for s in subset]
@@ -166,7 +166,8 @@ def fuzzy_match(structures, options):
             sorted_surfaces += subset
 
         surfaces = sorted_surfaces
-        for i, surf_empty in enumerate(surfaces):
+        n_empty = 1  # Only consider lowest energy empty slab for now
+        for i, surf_empty in enumerate(surfaces[:n_empty]):
             for j, surf_ads in enumerate(surfaces[i+1:]):
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
@@ -239,7 +240,6 @@ def fuzzy_match(structures, options):
                 if not sorted(equal_numbers) ==\
                    sorted(atomic_num_surf):
                     continue
-
                 equal_formula = get_reduced_chemical_formula(
                     ase.atoms.Atoms(equal_numbers))
 
@@ -255,6 +255,7 @@ def fuzzy_match(structures, options):
                         print("        Adsorbate {} detected.".format(adsorbate),
                               "Include with 'cathub organize -a {}'".format(adsorbate))
                     continue
+
                 dE = surf_ads.get_potential_energy() \
                     - surf_empty.get_potential_energy()
 
@@ -278,60 +279,71 @@ def fuzzy_match(structures, options):
 
                 equation += 'star__'
 
-                #site = surf_ads.info.get('site', None)
-                # if site:
-                #    equation += '{}@{}'.format(adsorbate, site)
-                # else:
-                equation += '{}star'.format(adsorbate)
+                facet = options.facet_name if options.facet_name != 'facet' \
+                    else surf_empty.info['facet']
 
-                if abs(dE) < options.max_energy:
-                    surface_ads = ("{equal_formula}"
-                                   "({surface_facet})"
-                                   "+{adsorbate}").format(
-                                       equal_formula=equal_formula,
-                                       surface_facet=surf_empty.info['facet'],
-                                       adsorbate=adsorbate)
+                site = surf_ads.info.get('site', None)
 
-                    energy = dE
-                    key = equal_formula
-                    if not options.keep_all_energies:
-                        if energy > collected_energies.get(
-                                key, {}).get(adsorbate, [float("inf")])[0]:
-                            print('FOUND:', surface_ads)
-                            continue
-                    else:
-                        key += '_epot={}eV'\
-                            .format(round(surf_empty.get_potential_energy(), 2))
-
+                if not abs(dE) < options.max_energy:
                     if options.verbose:
-                        print("        Adsorption energy found for {surface_ads}"
-                              .format(**locals()))
+                        print("\n    Detected adsorption energy for {} is {} eV.".format(adsorbate, dE),
+                              "This above current threshold of {} eV:".format(
+                                  options.max_energy),
+                              "Increase --max-energy to include")
+                    continue
+                surface_ads = ("{equal_formula}"
+                               "({surface_facet})"
+                               "+{adsorbate}").format(
+                                   equal_formula=equal_formula,
+                                   surface_facet=surf_empty.info['facet'],
+                                   adsorbate=adsorbate)
 
-                    dft_code = options.dft_code or structure.info['filetype']
-                    dft_functional = options.xc_functional
-                    facet = options.facet_name if options.facet_name != 'facet' \
-                        else surf_empty.info['facet']
+                energy = dE
+                key = equal_formula
 
-                    collected_structures \
-                        .setdefault(dft_code, {}) \
-                        .setdefault(dft_functional, {}) \
-                        .setdefault(key, {}) \
-                        .setdefault(facet, {}) \
-                        .setdefault('empty_slab', surf_empty)
+                if not options.keep_all_energies:
+                    if energy > collected_energies.get(
+                            key, {}).get(facet, {}).get(adsorbate, [float("inf")])[0]:
+                        print('FOUND:', surface_ads)
+                        continue
+                else:
+                    n_energies = len((collected_energies.get(
+                        key, {}).get(facet, {}).get(adsorbate, [])))
+                    if not site:
+                        site = 'site{}'.format(n_energies + 1)
 
-                    key_count[key] = key_count.get(key, 0) + 1
-                    if rep > 1:
-                        adsorbate = str(rep) + adsorbate
-                    if not key in collected_energies:
-                        collected_energies[key] = {}
-                    if not facet in collected_energies[key]:
-                        collected_energies[key][facet] = {}
-                    if not adsorbate in collected_energies[key][facet]:
-                        collected_energies[key][facet][adsorbate] = []
-                    if not energy in collected_energies[key][facet][adsorbate]:
-                        collected_energies[key][facet][adsorbate] += [energy]
-                        collected_structures[dft_code][dft_functional][key][facet]\
-                            .setdefault(equation, {})[adsorbate] = surf_ads
+                if site:
+                    equation += '{}@{}'.format(adsorbate, site)
+                else:
+                    equation += '{}star'.format(adsorbate)
+
+                if options.verbose:
+                    print("        Adsorption energy found for {surface_ads}"
+                          .format(**locals()))
+
+                dft_code = options.dft_code or structure.info['filetype']
+                dft_functional = options.xc_functional
+
+                collected_structures \
+                    .setdefault(dft_code, {}) \
+                    .setdefault(dft_functional, {}) \
+                    .setdefault(key, {}) \
+                    .setdefault(facet, {}) \
+                    .setdefault('empty_slab', surf_empty)
+
+                key_count[key] = key_count.get(key, 0) + 1
+                if rep > 1:
+                    adsorbate = str(rep) + adsorbate
+                if not key in collected_energies:
+                    collected_energies[key] = {}
+                if not facet in collected_energies[key]:
+                    collected_energies[key][facet] = {}
+                if not adsorbate in collected_energies[key][facet]:
+                    collected_energies[key][facet][adsorbate] = []
+                if not energy in collected_energies[key][facet][adsorbate]:
+                    collected_energies[key][facet][adsorbate] += [energy]
+                    collected_structures[dft_code][dft_functional][key][facet]\
+                        .setdefault(equation, {})[adsorbate] = surf_ads
 
     # if options.verbose:
     #    print("\n\nCollected Adsorption Energies Data")
