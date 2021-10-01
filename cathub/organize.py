@@ -172,15 +172,16 @@ def fuzzy_match(structures, options):
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
                 if options.verbose:
-                    print('    {} vs {}'.format(get_chemical_formula(surf_empty),
+                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
                                                 get_chemical_formula(surf_ads)))
+                    print('    -------------------')
 
                 # Check for calculator parameter consistency
                 if check_parameters:
                     param_check = compare_parameters(surf_empty,
                                                      surf_ads)
                     if param_check == 2 and options.verbose:
-                        print("\n        Warning: No calculator information detected for"
+                        print("        Warning: No calculator information detected for"
                               " {} vs {}".format(surf_empty.info['filename'],
                                                  surf_ads.info['filename']))
 
@@ -266,7 +267,10 @@ def fuzzy_match(structures, options):
                     .construct_reference_system(adsorbate,
                                                 gas_phase_candidates)
 
-                #stoich_factors = stoichiometry_factors[adsorbate]
+                if not references:
+                    print("        Warning: Gas phase references could not be constructed for adsorbate {}.".format(adsorbate))
+                    continue
+
                 equation = ''
                 for i, ref in enumerate(references):
                     dE -= prefactors[i] * reference_energy[ref]
@@ -286,7 +290,7 @@ def fuzzy_match(structures, options):
 
                 if not abs(dE) < options.max_energy:
                     if options.verbose:
-                        print("\n    Detected adsorption energy for {} is {} eV.".format(adsorbate, dE),
+                        print("\n        Adsorbate {} detected with adsorption energy: {} eV.".format(adsorbate, dE),
                               "This above current threshold of {} eV:".format(
                                   options.max_energy),
                               "Increase --max-energy to include")
