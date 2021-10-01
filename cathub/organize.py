@@ -181,13 +181,13 @@ def fuzzy_match(structures, options):
                     param_check = compare_parameters(surf_empty,
                                                      surf_ads)
                     if param_check == 2 and options.verbose:
-                        print("        Warning: No calculator information detected for"
+                        print("        -Warning: No calculator information detected for"
                               " {} vs {}".format(surf_empty.info['filename'],
                                                  surf_ads.info['filename']))
 
                     elif not param_check:
                         if options.verbose:
-                            print("\        nWarning: Not included."
+                            print("\        n-Warning: Not included."
                                   " different calculator parameters detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
@@ -223,7 +223,7 @@ def fuzzy_match(structures, options):
 
                     if c_flag:
                         if options.verbose:
-                            print("\        nWarning: Not included."
+                            print("\        n-Warning: Not included."
                                   " different constraint settings detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
@@ -253,7 +253,7 @@ def fuzzy_match(structures, options):
                 if not red_diff_numbers in adsorbate_numbers:
                     #index = adsorbate_numbers.index(red_diff_numbers)
                     if options.verbose:
-                        print("        Adsorbate {} detected.".format(adsorbate),
+                        print("        -Adsorbate {} detected.".format(adsorbate),
                               "Include with 'cathub organize -a {}'".format(adsorbate))
                     continue
 
@@ -268,7 +268,7 @@ def fuzzy_match(structures, options):
                                                 gas_phase_candidates)
 
                 if not references:
-                    print("        Warning: Gas phase references could not be constructed for adsorbate {}.".format(adsorbate))
+                    print("        -Warning: Gas phase references could not be constructed for adsorbate {}.".format(adsorbate))
                     continue
 
                 equation = ''
@@ -290,7 +290,7 @@ def fuzzy_match(structures, options):
 
                 if not abs(dE) < options.max_energy:
                     if options.verbose:
-                        print("\n        Adsorbate {} detected with adsorption energy: {} eV.".format(adsorbate, dE),
+                        print("\n        -Adsorbate {} detected with adsorption energy: {} eV.".format(adsorbate, dE),
                               "This above current threshold of {} eV:".format(
                                   options.max_energy),
                               "Increase --max-energy to include")
@@ -322,7 +322,7 @@ def fuzzy_match(structures, options):
                     equation += '{}star'.format(adsorbate)
 
                 if options.verbose:
-                    print("        Adsorption energy found for {surface_ads}"
+                    print("        -Adsorption energy found for {surface_ads}"
                           .format(**locals()))
 
                 dft_code = options.dft_code or structure.info['filetype']
@@ -461,7 +461,7 @@ def main(options):
     print('\nInstructions:')
     print('=============')
     print("    1) Update the file '{root}publication.txt' with your publication info and email."
-          "\n\n    2) Make sure DFT-CODE and XC-FUNCTIONAL folder names are changed"
-          " with the right calculator information."
+          "\n\n    2) Make sure DFT-CODE and XC-FUNCTIONAL folder names + FACET and @site extensions are changed"
+          " with the right information."
           "\n\n    3) Run 'cathub folder2db {root}'".format(root=root),
           "to create a local database of reaction energies.\n")
