@@ -37,8 +37,8 @@ def db_to_dataframe(table_name, filename):
 
 def write_energies(db_filepath, reference_gases, dummy_gases,
                    dft_corrections_gases, beef_dft_helmholtz_offset,
-                   field_effects, adsorbate_parameters, write_gases,
-                   write_adsorbates, write_transition_states,
+                   field_effects, adsorbate_parameters, facet_conditional,
+                   write_gases, write_adsorbates, write_transition_states,
                    gas_jsondata_filepath, ads_jsondata_filepath,
                    ts_jsondata_filepath, rxn_expressions_filepath, ts_data,
                    temp, pH, write_mkm_input_files, verbose=True, latex=True):
@@ -71,7 +71,8 @@ def write_energies(db_filepath, reference_gases, dummy_gases,
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
-                                          adsorbate_parameters, reference_gases,
+                                          adsorbate_parameters,
+                                          facet_conditional, reference_gases,
                                           dft_corrections_gases, field_effects,
                                           temp, pH, verbose, latex)
     
@@ -344,9 +345,9 @@ def get_electric_field_contribution(field_effects, species_value, pH,
     return (U_RHE_energy_contribution, U_SHE_energy_contribution)
 
 def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
-                              adsorbate_parameters, reference_gases,
-                              dft_corrections_gases, field_effects, temp, pH,
-                              verbose, latex):
+                              adsorbate_parameters, facet_conditional,
+                              reference_gases, dft_corrections_gases,
+                              field_effects, temp, pH, verbose, latex):
     "Write formation energies to energies.txt after applying free energy corrections"
 
     # identify system ids for adsorbate species
@@ -402,7 +403,7 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         (site_wise_energy_contributions, facet_list) = get_adsorption_energies(
                     df2, df_out, species_list, species_name, products_list,
                     reference_gases, dft_corrections_gases, adsorbate_parameters,
-                    field_effects, pH)
+                    facet_conditional, field_effects, pH)
         site_wise_energy_contributions = np.asarray(site_wise_energy_contributions)
         
         site_wise_adsorption_energies = np.sum(site_wise_energy_contributions, axis=1)
@@ -522,7 +523,8 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
 
 def get_adsorption_energies(df, df_out, species_list, species_value,
                             products_list, reference_gases, dft_corrections_gases,
-                            adsorbate_parameters, field_effects, pH):
+                            adsorbate_parameters, facet_conditional,
+                            field_effects, pH):
     "Compute electronic adsorption energies for a given species at all suitable adsorption sites at a given U_SHE/RHE"
     
     indices = [index for index, value in enumerate(species_list) if value == species_value]
@@ -531,9 +533,7 @@ def get_adsorption_energies(df, df_out, species_list, species_value,
     site_wise_energy_contributions = []
     for index, reaction_index in enumerate(indices):
         facet = facet_list[index]
-        # NOTE: Reactions with unspecified adsorption site in the facet label are constant-charge NEB calculations and irrelevant for formation_energy calculations.
-        # Thus, considering only reactions with specified adsorption site in this code.
-        if '-' in facet:
+        if facet_conditional in facet:
             reactants = json.loads(df.reactants.iloc[reaction_index])
             products = products_list[reaction_index]
             reaction_energy = df.reaction_energy.iloc[reaction_index]
