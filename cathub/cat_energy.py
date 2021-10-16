@@ -256,10 +256,18 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
             G = 0.0
         else:
             [x, y, z] = xyz[species_index]
-            G = (energy_vector[species_index][-1]
-                 + (x - z) * reference_mu['H2O']
-                 - x * reference_mu['CO']
-                 - (x - z + y / 2) * reference_mu['H2_ref'])
+            # CO2 Reduction Reaction
+            if set(reference_gases) == set(['CO2', 'H2_ref', 'H2O']):
+                G = (energy_vector[species_index][-1]
+                     + (2 * x - z) * reference_mu['H2O']
+                     - x * reference_mu['CO2']
+                     - (2 * x - z + y / 2) * reference_mu['H2_ref'])
+            # CO Reduction Reaction
+            elif set(reference_gases) == set(['CO', 'H2_ref', 'H2O']):
+                G = (energy_vector[species_index][-1]
+                     + (x - z) * reference_mu['H2O']
+                     - x * reference_mu['CO']
+                     - (x - z + y / 2) * reference_mu['H2_ref'])
         energy_vector[species_index].append(G)
         
     df = pd.DataFrame(list(zip(surface, site, species, raw_energy,
@@ -466,10 +474,18 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
         else:
             z = 0
 
-        G = (energy_vector[species_index][-1]
-             + (x - z) * reference_mu['H2O']
-             - x * reference_mu['CO']
-             - (x - z + y / 2) * reference_mu['H2_ref'])
+        # CO2 Reduction Reaction
+        if set(reference_gases) == set(['CO2', 'H2_ref', 'H2O']):
+            G = (energy_vector[species_index][-1]
+                 + (2 * x - z) * reference_mu['H2O']
+                 - x * reference_mu['CO2']
+                 - (2 * x - z + y / 2) * reference_mu['H2_ref'])
+        # CO Reduction Reaction
+        elif set(reference_gases) == set(['CO', 'H2_ref', 'H2O']):
+            G = (energy_vector[species_index][-1]
+                 + (x - z) * reference_mu['H2O']
+                 - x * reference_mu['CO']
+                 - (x - z + y / 2) * reference_mu['H2_ref'])
         energy_vector[species_index].append(G)
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
