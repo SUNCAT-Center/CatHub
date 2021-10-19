@@ -191,10 +191,20 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                 print(field_effects['epsilon'])
                 print(raw_energy)
                 print()
-            elec_energy_calc.append(row.energy
-                                    + (x - z) * reference_gas_energies['H2O']
-                                    - x * reference_gas_energies['CO']
-                                    - (x - z + y / 2) * reference_gas_energies['H2'])
+
+            # CO2 Reduction Reaction
+            if set(reference_gases) == set(['CO2', 'H2_ref', 'H2O']):
+                elec_energy_calc.append(row.energy
+                                        + (2 * x - z) * reference_gas_energies['H2O']
+                                        - x * reference_gas_energies['CO2']
+                                        - (2 * x - z + y / 2) * reference_gas_energies['H2'])
+            # CO Reduction Reaction
+            elif set(reference_gases) == set(['CO', 'H2_ref', 'H2O']):
+                elec_energy_calc.append(row.energy
+                                        + (x - z) * reference_gas_energies['H2O']
+                                        - x * reference_gas_energies['CO']
+                                        - (x - z + y / 2) * reference_gas_energies['H2'])
+
             dft_corr.append(dft_corrections_gases[species_name] if species_name in dft_corrections_gases else 0.0)
             helm_offset.append(beef_dft_helmholtz_offset[species_name] if species_name in beef_dft_helmholtz_offset else 0.0)
             
