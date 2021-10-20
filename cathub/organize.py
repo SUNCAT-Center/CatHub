@@ -157,7 +157,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies:
+            if options.keep_all_energies or options.keep_all_slabs:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -166,14 +166,17 @@ def fuzzy_match(structures, options):
             sorted_surfaces += subset
 
         surfaces = sorted_surfaces
-        n_empty = 1  # Only consider lowest energy empty slab for now
+        if options.keep_all_slabs:
+            n_empty = len(surface)
+        else:
+            n_empty = 1  # Only consider lowest energy empty slab for now
         for i, surf_empty in enumerate(surfaces[:n_empty]):
             for j, surf_ads in enumerate(surfaces[i+1:]):
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
                 if options.verbose:
                     print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
-                                                get_chemical_formula(surf_ads)))
+                                                  get_chemical_formula(surf_ads)))
                     print('    -------------------')
 
                 # Check for calculator parameter consistency
@@ -268,7 +271,8 @@ def fuzzy_match(structures, options):
                                                 gas_phase_candidates)
 
                 if not references:
-                    print("        -Warning: Gas phase references could not be constructed for adsorbate {}.".format(adsorbate))
+                    print(
+                        "        -Warning: Gas phase references could not be constructed for adsorbate {}.".format(adsorbate))
                     continue
 
                 equation = ''
@@ -306,15 +310,18 @@ def fuzzy_match(structures, options):
                 key = equal_formula
 
                 if not options.keep_all_energies:
-                    if energy > collected_energies.get(
-                            key, {}).get(facet, {}).get(adsorbate, [float("inf")])[0]:
+                    if energy > np.min(list(collected_energies.get(
+                            key, {}).get(facet, {}).get(adsorbate, {}).values()) +[np.inf]):
                         print('FOUND:', surface_ads)
                         continue
                 else:
-                    n_energies = len((collected_energies.get(
-                        key, {}).get(facet, {}).get(adsorbate, [])))
+                    n_energies = len(collected_energies.get(
+                        key, {}).get(facet, {}).get(adsorbate, {}).values())
                     if not site:
                         site = 'site{}'.format(n_energies + 1)
+
+                if options.keep_all_slabs:
+                    key += '_Epot={}'.format(surf_empty.get_potential_energy())
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -324,6 +331,45 @@ def fuzzy_match(structures, options):
                 if options.verbose:
                     print("        -Adsorption energy found for {surface_ads}"
                           .format(**locals()))
+
+                if options.interactive:
+                    print(' ')
+                    include = input('Include reaction: {}({}) | {} | dE={} ?\n  return(yes) / n(no) / u(update) '.
+                                    format(key.split('_')[0], facet, equation.replace('__', '->'), round(dE, 3)))
+                    if include == 'n':
+                        continue
+                    if include == ('u' or 'update'):
+                        print('\nUpdating info for structure: "{}"'.format(
+                            surf_ads.info['filename']))
+                        print('  Provide updated info or press "return" to accept.')
+                        for update_key in ['site', 'facet', 'adsorbate']:
+                            update_value = input("    {} ({}): ".format(
+                                update_key, locals().get(update_key)))
+                            if not update_value:
+                                continue
+                            if update_key == 'site':
+                                site = update_value
+                                if '@' in equation:
+                                    equation = equation.split('@')[0]
+                                else:
+                                    equation = 'star'.join(
+                                        equation.split('star')[:-1])
+                                equation += '@' + site
+
+                            elif update_key == 'facet':
+                                facet = update_value
+
+                            elif update_key == 'adsorbate':
+                                old_symbols = sorted(
+                                    ase.atoms.Atoms(adsorbate).symbols)
+                                new_symbols = sorted(
+                                    ase.atoms.Atoms(update_value).symbols)
+                                if not old_symbols == new_symbols:
+                                    print(
+                                        '    Error: new adsorbate must contain same atoms as {}'.format(adsorbate))
+                                else:
+                                    equation = equation.replace('{}star'.format(
+                                        adsorbate), '{}star'.format(update_value))
 
                 dft_code = options.dft_code or structure.info['filetype']
                 dft_functional = options.xc_functional
@@ -343,9 +389,9 @@ def fuzzy_match(structures, options):
                 if not facet in collected_energies[key]:
                     collected_energies[key][facet] = {}
                 if not adsorbate in collected_energies[key][facet]:
-                    collected_energies[key][facet][adsorbate] = []
-                if not energy in collected_energies[key][facet][adsorbate]:
-                    collected_energies[key][facet][adsorbate] += [energy]
+                    collected_energies[key][facet][adsorbate] = {}
+                if not energy in list(collected_energies[key][facet][adsorbate].values()):
+                    collected_energies[key][facet][adsorbate][site] = energy
                     collected_structures[dft_code][dft_functional][key][facet]\
                         .setdefault(equation, {})[adsorbate] = surf_ads
 
@@ -367,10 +413,10 @@ def fuzzy_match(structures, options):
 
     for key, facets in collected_energies.items():
         for facet, adsorbates in facets.items():
-            for ads, energies in adsorbates.items():
-                for e in energies:
+            for ads, sites in adsorbates.items():
+                for site, e in sites.items():            
                     print("{key:15s}: {energy:.3f} eV".format(
-                        key='{}({}) + {}'.format(key, facet, ads),
+                        key='{}({}) + {}@{}'.format(key, facet, ads, site),
                         energy=e,
                     ))
 
