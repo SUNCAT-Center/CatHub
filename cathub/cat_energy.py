@@ -379,7 +379,6 @@ def write_adsorbate_energies(db_filepath, df_out, ads_jsondata_filepath,
             vibrational_energies[ads_species].append(vibrational_frequency * cm2eV)
 
     ## build dataframe data for adsorbate species
-    db = connect(str(db_filepath))
     surface, site, species, raw_energy, facet, elec_energy_calc = [], [], [], [], [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     solv_corr, formation_energy, efield_corr, energy_vector = [], [], [], []
@@ -763,7 +762,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             beta_list_map.append(beta_list_rxn_expressions[reaction_index])
 
     ## build dataframe data for transition state species
-    db = connect(str(db_filepath))
     surface, site, species, raw_energy, facet = [], [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
