@@ -226,17 +226,16 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                 zpe.append(0.0)
                 enthalpy.append(0.0)
                 entropy.append(0.0)
-            # RHE-scale dependency. Zero for gaseous species
-            rhe_corr.append(0.0)
             # Solvation correction. Zero for gaseous species.
             solv_corr.append(0.0)
     
             # Apply field effects
             if field_effects:
                 (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name, pH)
-                electric_field_contribution = U_RHE_energy_contribution + U_SHE_energy_contribution
-                efield_corr.append(electric_field_contribution)
+                rhe_corr.append(U_RHE_energy_contribution)
+                efield_corr.append(U_SHE_energy_contribution)
             else:
+                rhe_corr.append(0.0)
                 efield_corr.append(0.0)
     
             # compute energy vector
