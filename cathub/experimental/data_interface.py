@@ -1,8 +1,12 @@
+import sys
 import os
 import json
 import pandas
+from pandas import read_sql
 import numpy as np
-from cathub.postgresql import CathubPostgreSQL, get_value_str
+from sqlalchemy import create_engine
+from cathub.postgresql import CathubPostgreSQL, get_value_str, get_key_list, get_key_str
+from cathub.tools import get_pub_id
 
 
 init_commands = [
@@ -29,6 +33,7 @@ init_commands = [
     composition text,
     arrangement text,
     icsd_ids integer[],
+    icdd_ids text[],
     space_group text,
     lattice_parameter text,
     morphology text,
@@ -39,13 +44,13 @@ init_commands = [
     sample_id SERIAL PRIMARY KEY,
     mat_id integer REFERENCES material (mat_id),
     pub_id text REFERENCES publication (pub_id),
-    data jsonb 
+    data jsonb
     );""",
 
     """CREATE TABLE xps (
     mat_id integer PRIMARY KEY REFERENCES material (mat_id),
     sample_id integer REFERENCES sample (sample_id),
-    type text, 
+    type text,
     binding_energy DOUBLE PRECISION[],
     intensity DOUBLE PRECISION[]
     );""",  # type: pre, post
@@ -60,7 +65,7 @@ init_commands = [
     """CREATE TABLE echemical (
     id SERIAL PRIMARY KEY,
     type text,
-    total_time numeric, 
+    total_time numeric,
     time DOUBLE PRECISION[],
     potential DOUBLE PRECISION[],
     current DOUBLE PRECISION[],
@@ -68,7 +73,7 @@ init_commands = [
     );""",  # type: CV_initial, CV_end, CP, CA
 ]
 
-mat_columns = ['composition', 'arrangement', 'ICSD_ID', 'space_group',
+mat_columns = ['pub_id', 'composition', 'arrangement', 'ICSD_ID', 'ICDD_ID', 'space_group',
                'lattice_parameter_a(nm)', 'morphology']  # , 'XPS_ID', 'XRD(CuKa)ID']
 
 sample_columns = ['mat_id', 'pub_id', 'data']
@@ -82,6 +87,9 @@ class ExpSQL(CathubPostgreSQL):
 
     def __init__(self, user='experimental', schema='experimental', password=None):
         super().__init__(schema=schema, user=user, password=password)
+        #self.backend = 'postgres'
+        #self.connection = None
+
         #self.create_user('experimental', row_limit = None)
 
     def _initialize(self, con):
@@ -107,6 +115,48 @@ class ExpSQL(CathubPostgreSQL):
             cur.execute(init_command)
         self.initialized = True
 
+
+    def get_dataframe(self, table='sample', pub_id=None):
+        """
+        Get pandas dataframe containing experimental data
+
+        Parameters:
+
+        """
+
+        # Query SQL table to get reaction, publication, and structure info.
+        query = \
+            """SELECT * from experimental.{}""".format(table)
+        if pub_id is not None:
+            if table in ['publication', 'sample', 'material']:
+                query += " \nWHERE pub_id='{}'".format(pub_id)
+            elif table in ['xps', 'xrd']:
+                query += " \nWHERE mat_id in (select mat_id from material where pub_id='{}')".format(pub_id)
+            elif table == 'echemical':
+                query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(pub_id)
+
+        con = self.connection or self._connect()
+        print('Querying database\n')
+        dataframe = read_sql(query, con)
+        if self.connection is None:
+            con.close()
+
+        if len(dataframe) == 0:
+            print('No entries found')
+            print(query)
+            return dataframe
+        if 'data' in dataframe:
+            data_extr = dataframe['data'].values
+
+            for key in data_extr[0].keys():
+                dataframe[key] = [row[key] for row in data_extr]
+
+            dataframe = dataframe.drop('data', 1)
+
+        return dataframe
+
+
+
     def write(self, dataframes, doi=None):
         con = self.connection or self._connect()
         cur = con.cursor()
@@ -114,22 +164,54 @@ class ExpSQL(CathubPostgreSQL):
 
         main_table = dataframes['Tabulated data']
         main_table = main_table[main_table['DOI'] == doi]
-        print(main_table)
         XPS_table = dataframes['XPS']
         XRD_table = dataframes['XRD']
         CV_table = dataframes['CV']
         CVend_table = dataframes['CVend']
         Stability_table = dataframes['Stability Test']
 
-        import sys
+        pub_info = doi_request(doi)
+        tags = {'experimental': {'inputer_names': np.unique(main_table['inputer_name'].values).tolist()}}
+
+        dataset_names = list(set([n for n in main_table['dataset_name'].values if not pandas.isnull(n)]))
+        inputer_names = list(set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))
+        if dataset_names:
+            tags['dataset_names'] = dataset_names
+
+        if inputer_names:
+            tags['inputer_names'] = inputer_names
+
+        pub_info['tags'] = json.dumps(tags)
+
+        """Write publication """
+        pub_id = pub_info['pub_id']
+        cur.execute(
+            """SELECT id from publication where pub_id='{pub_id}'"""
+            .format(pub_id=pub_id))
+        id_p = cur.fetchone()
+        if id_p is None:  # len(row) > 0:
+            key_list = get_key_list('publication', start_index=1)
+            pub_values = [pub_info[k] for k in key_list]
+            key_str = get_key_str('publication', start_index=1)
+            value_str = get_value_str(pub_values, start_index=0)
+
+            insert_command = """INSERT INTO publication ({0}) VALUES
+            ({1});""".format(key_str, value_str)
+            print(insert_command)
+            cur.execute(insert_command)
+
+
+        main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(lambda x: str(x).split('/'))
+        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(x).split('/') if not (pandas.isnull(i) or i == 'nan')])
 
         XPS_ids = []
         for index, row in main_table.iterrows():
+            row['pub_id'] = pub_id
             XPS_id = row['XPS_ID']
             XRD_id = row['XRD(CuKa)ID']
             CV_init_id = row['CV_intial_ID']
             CV_end_id = row['CV_end_ID']
-            Stab_id = row['Stability_Test_ID']
+            Stab_id = row['stability_test_ID']
             XPS_post_id = row['XPS_post_test_ID']
 
             if pandas.isnull(XPS_id) or pandas.isnull(XRD_id):
@@ -145,13 +227,17 @@ class ExpSQL(CathubPostgreSQL):
             if not XPS_id in XPS_ids:
                 XPS_ids += [XPS_id]
 
+
                 # Material
                 mat_value_list = [row[c] for c in mat_columns]
-                mat_value_list[2] = [int(m) for m in str(
-                    mat_value_list[2]).split('/')]
+                #mat_value_list[4] =
+                #mat_value_list[4] = [m.replace('-', '') for m in str(
+                #    mat_value_list[4]).split('/')]
+
                 key_str = ', '.join(mat_columns)
                 key_str = key_str.replace(
-                    '_a(nm)', '').replace('ICSD_ID', 'icsd_ids')
+                    '_a(nm)', '').replace('ICSD_ID', 'icsd_ids').replace('ICDD_ID', 'icdd_ids')
+
 
                 value_str = get_value_str(mat_value_list)
 
@@ -193,19 +279,23 @@ class ExpSQL(CathubPostgreSQL):
                 cur.execute(query_xrd)
 
             # Sample table
+            pub_id = row.pop('pub_id')
             sample_dict = row.to_dict()
             clean_dict = {}
             for k, v in sample_dict.items():
-                if pandas.isnull(v):
-                    v = 'NULL'
+                if pandas.isnull(v) or v == '' or v == 'nan':
+                    v = None
                 if k == 'ICSD ID':
                     v = [int(m) for m in v.split('/')]
-                k = k.replace('(', '_').replace(')', '_').replace('=', '_').replace(',', '_').replace(
-                    '/', '_o_').replace('%', 'perc').replace('+', 'plus').replace('-', 'minus').replace('.', 'd')
+                if k == 'ICDD ID':
+                    v = [m for m in v.split('/')]
+
+                #k = k.replace('(', '\(')#.replace(')', '').replace('=', '-').replace(',', '_')#.replace(
+                #'/', '_o_').replace('%', 'perc').replace('+', 'plus').replace('-', 'minus').replace('.', 'd')
                 clean_dict[k] = v
 
             key_str = ', '.join(sample_columns)
-            value_str = get_value_str([mat_id, None, json.dumps(clean_dict)])
+            value_str = get_value_str([mat_id, pub_id, json.dumps(clean_dict)])
 
             query_sample = \
                 """INSERT INTO sample ({}) VALUES ({}) RETURNING sample_id
@@ -317,7 +407,7 @@ def clean_column_names(dataframe):
 def clear_duplicate_columns(data):
 
     values = np.array(data.values[1:, :], dtype=float)
-    print(values)
+
     columns = data.columns
 
     duplicates_dict = {}
@@ -392,26 +482,150 @@ def clear_duplicate_rows(dataframe):
     print(all_duplicates)
     dataframe = dataframe.drop(all_duplicates)
 
-    import sys
-    sys.exit()
     return dataframe, duplicates_dict
 
 
+def doi_request(doi):
+    import urllib.request
+    from urllib.error import HTTPError
+
+    BASE_URL = 'http://dx.doi.org/'
+
+    url = BASE_URL + doi
+    req = urllib.request.Request(url)
+    req.add_header('Accept', 'application/json')
+    try:
+        with urllib.request.urlopen(req) as f:
+            bibtex = f.read().decode()
+       # return bibtex
+    except HTTPError as e:
+        if e.code == 404:
+            print('DOI not found.')
+        else:
+            print('Service unavailable.')
+
+    data = json.loads(bibtex)
+
+    pub_info = {}
+    authors = []
+
+    for a in data['author']:
+        f = a['given']
+        l = a['family']
+        authors += ['{}, {}'.format(l, f)]
+
+
+    pub_info =\
+        {'title': data['title'],
+         'year': data['published']['date-parts'][0][0],
+         'authors': json.dumps(authors),
+         'journal': data['container-title'],
+         'volume': data['volume'],
+         'number': data['journal-issue']['issue'],
+         'pages': data['page'],
+         'tags': None,
+         'publisher': data['publisher'],
+         'doi': doi,
+         }
+    pub_id = get_pub_id(pub_info['title'], authors, pub_info['year'])
+    pub_info['pub_id'] = pub_id
+
+    return pub_info
+
+
+def plot_overpotential(dataframe, currents=[0.01, 0.1, 1]):
+    import pylab as p
+
+    p.figure(figsize=(12,6))
+    V = {}
+    idx = None
+    for I in currents:
+        V[I] = np.array([v if not v == '-' else None for v in dataframe['onset_potential(+/-{}_mA/cm2)'.format(I)]])
+        print(V[I])
+        if np.all([i is None for i in V[I]]):
+            continue
+        if idx is None:
+            sort_nonone = [v if v is not None else 100 for v in V[I]]
+            idx = np.argsort(sort_nonone)
+        p.plot(V[I][idx], label = '{} mA/cm2'.format(I))
+    ax = p.gca()
+    ax.set_xticks(range(len(V[I])))
+    ax.set_xticklabels(dataframe['composition'][idx])
+    p.xticks(rotation=70)
+    p.ylabel('Onset potential(V)')
+    p.xlabel('Material')
+    p.subplots_adjust(bottom=0.2)
+    #p.plot(dataframe['onset_potential(+/-0.1_mA/cm2)'])
+    #p.plot(dataframe['onset_potential(+/-0.01_mA/cm2)'])
+
+    p.legend()
+    return p
+
+def plot_cvs(dataframe, cv_types=['initial'], cv_ids=None):
+    import pylab as p
+    p.figure(figsize=(3,2.5))
+    dataframe = dataframe[dataframe['type']== 'CV_end']
+    print(dataframe)
+    for i in [10,12]:
+        p.plot(dataframe['potential'].values[i], dataframe['current'].values[i], label=i)
+    p.xlabel('Onset potential (V)')
+    p.ylabel('Current (mA/cm2)')
+    p.ylim(0,4)
+    p.xlim(1.1,1.6)
+    p.subplots_adjust(bottom=0.25, left=0.2)
+    #p.legend()
+    return p
+
+
+
 if __name__ == '__main__':
+    import sys
+
+    DB = ExpSQL(user='experimental', password='hGaPjHfo')  # 'catroot') #
+
+    #dataframe = DB.get_dataframe('sample', pub_id='HubertAcidic2020')
+    #print(dataframe)
+    #dataframe = DB.get_dataframe('xrd', pub_id='HubertAcidic2020')
+    #print(dataframe)
+    dataframe = DB.get_dataframe('echemical', pub_id='HubertAcidic2020')
+    #print(dataframe)
+    #var_columns = []
+    #columns = dataframe.columns
+    #for c in columns:
+#        print(c)#
+    #    try:
+    #        var_columns += [len(set(dataframe[c].values))]
+    #    except:
+    #        var_columns += [1]
+
+    #i#dx = np.argsort(var_columns)[::-1]
+    #col_new = columns[idx][4:14]
+    #print(dataframe[col_new])
+
+    #sys.exit()
+    #p = plot_overpotential(dataframe)
+    #p.show()
+
+    p = plot_cvs(dataframe)
+    p.show()
+    import sys
+    sys.exit()
 
     dataframes = {}
     filename = '/Volumes/GoogleDrive/Shared drives/SUNCAT_experimental_data/OxR _HxR Jaramillo Database.xlsx'
+
+    doi='10.1021/acscatal.0c02252'
+
 
     for table in ['Tabulated data', 'XPS', 'XRD', 'CV', 'CVend', 'Stability Test']:
         data = load_table(filename=filename, tablename=table)
         data = clean_column_names(data)
         dataframes[table] = data
 
-    print(dataframes['Tabulated data']['DOI'].values)
 
-    DB = ExpSQL(user='experimental', password='hGaPjHfo')  # 'catroot') #
+    DB.write(dataframes, doi=doi)
 
-    DB.write(dataframes, doi='10.1021/acscatal.0c02252')
+    #DB = ExpSQL(user='catroot', password='Kalle kamel har 2 pukler')
 
     # print(data.columns)
     # print(len(data_material.to_dict('records')))

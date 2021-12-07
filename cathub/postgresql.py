@@ -137,6 +137,7 @@ class CathubPostgreSQL:
 
     def __init__(self, user='apiuser', schema='public', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
+        print(password)        
         self.initialized = False
         self.connection = None
         self.id = None
@@ -153,7 +154,6 @@ class CathubPostgreSQL:
 
         if not user in ['catroot', 'apiuser', 'postgres']:
             self.schema = user
-
         if password is None:
             password = os.environ.get('DB_PASSWORD')
 
@@ -240,9 +240,9 @@ class CathubPostgreSQL:
         cur.execute('CREATE SCHEMA {0};'.format(user))
         # self._initialize(schema=schema_name)
         password = pwgen(8)
-        cur.execute(
-            "CREATE USER {user} with PASSWORD '{password}';"
-            .format(user=user, password=password))
+        #cur.execute(
+        #    "CREATE USER {user} with PASSWORD '{password}';"
+        #    .format(user=user, password=password))
 
         """ Grant SELECT on public schema """
         cur.execute('GRANT USAGE ON SCHEMA public TO {user};'
@@ -514,15 +514,13 @@ class CathubPostgreSQL:
         self.stdout.write('Deleting publication: {pub_id} from {schema}\n'
                           .format(pub_id=pub_id, schema=schema))
 
-        cur.execute("""SELECT to_regclass('keys');""")
-        if cur.fetchone()[0] is not None:  # remove data from old tables
-            old_tables = ['text_key_values', 'number_key_values',
-                          'species', 'keys']
-            for table in old_tables:
-                cur.execute(
-                    """DELETE FROM {schema}.{table}"""
-                    .format(schema=schema,
-                            table=table))
+        old_tables = ['text_key_values', 'number_key_values',
+                      'species', 'keys']
+        for table in old_tables:
+            cur.execute(
+                """DELETE FROM {schema}.{table}"""
+                .format(schema=schema,
+                        table=table))
 
         cur.execute(
             """DELETE FROM {schema}.systems
@@ -1125,8 +1123,11 @@ def get_value_str(values, start_index=0):
     value_str = "'{0}'".format(values[0])
     for v in values[1:]:
         if isinstance(v, list):
-            value_str += ", '{0}'".format(
-                str(v).replace('[', '{').replace(']', '}'))
+            if len(v) == 0:
+                value_str += ", {0}".format('NULL')
+            else:
+                value_str += ", '{0}'".format(
+                    str(v).replace('[', '{').replace(']', '}').replace("'", '"'))
         elif v is None or v == '' or v == '-' or v == 'nan' or pd.isnull(v):
             value_str += ", {0}".format('NULL')
         elif isinstance(v, str):
