@@ -16,7 +16,7 @@ Path().expanduser()
 
 accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'castep', 'crystal',
                     'ulm', 'cube', 'elk', 'espresso', 'gaussian', 'aims',
-                    'dacapo', 'turbomole']
+                    'dacapo', 'turbomole', 'db']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': 'Fancy title',
@@ -134,67 +134,80 @@ def collect_structures(foldername,
             except Exception as e:
                 continue
             if filetype in accepted_formats:
-                try:
-                    structure = ase.io.read(posix_filename, ':')
-                    structure[-1].info['filename'] = posix_filename
-                    structure[-1].info['filetype'] = ase.io.formats.filetype(
-                        posix_filename)
+                if filetype == 'db':
+                    with ase.db.connect(posix_filename) as db:
+                        count = db.count()
+                        print('Processing ASE db with {} structures'.format(count))
+                        for row in db.select('energy'):
+                            structure = [row.toatoms()]
+                            structure[-1].info['filename'] = posix_filename
+                            structure[-1].info['filetype'] = ase.io.formats.filetype(
+                                posix_filename)
+                            structures += [structure]
+                else:
                     try:
-                        structure[-1].get_potential_energy()
-                        # ensure that the structure has an energy
-                        structures.append(structure)
-                    except RuntimeError:
-                        if verbose:
-                            print("Did not add {posix_filename} since it has no energy"
-                                  .format(
-                                      posix_filename=posix_filename,
-                                  ))
-                except TypeError:
-                    print("Warning: Could not read {posix_filename}"
-                          .format(
-                              posix_filename=posix_filename,
-                          ))
+                        structure = ase.io.read(posix_filename, ':')
+                        structure[-1].info['filename'] = posix_filename
+                        structure[-1].info['filetype'] = ase.io.formats.filetype(
+                            posix_filename)
+                        try:
+                            structure[-1].get_potential_energy()
+                            # ensure that the structure has an energy
+                            structures.append(structure)
+                        except RuntimeError:
+                            if verbose:
+                                print("Did not add {posix_filename} since it has no energy"
+                                      .format(
+                                          posix_filename=posix_filename,
+                                      ))
 
-                except StopIteration:
-                    print("Warning: StopIteration {posix_filename} hit."
-                          .format(
-                              posix_filename=posix_filename,
-                          ))
-                except IndexError:
-                    print("Warning: File {posix_filename} looks incomplete"
-                          .format(
-                              posix_filename=posix_filename,
-                          ))
-                except OSError as e:
-                    print("Error with {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
-                except AssertionError as e:
-                    print("Hit an assertion error with {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
-                except ValueError as e:
-                    print("Trouble reading {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
-                except DeprecationWarning as e:
-                    print("Trouble reading {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
-                except ImportError as e:
-                    print("Trouble reading {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
-                except ase.io.formats.UnknownFileTypeError as e:
-                    print("Trouble reading {posix_filename}: {e}".format(
-                        posix_filename=posix_filename,
-                        e=e,
-                    ))
+                    except TypeError:
+                        print("Warning: Could not read {posix_filename}"
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
+
+                    except StopIteration:
+                        print("Warning: StopIteration {posix_filename} hit."
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
+                    except IndexError:
+                        print("Warning: File {posix_filename} looks incomplete"
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
+                    except OSError as e:
+                        print("Error with {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except AssertionError as e:
+                        print("Hit an assertion error with {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ValueError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except DeprecationWarning as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ImportError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ase.io.formats.UnknownFileTypeError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+
     return structures
 
 

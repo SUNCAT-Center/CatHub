@@ -1,3 +1,5 @@
+import ase
+from ase import Atoms
 import ase.atoms
 import ase.data
 import numpy as np
@@ -71,14 +73,17 @@ def construct_reference_system(formula,
     if candidates is None:
         candidates = sorted_candidates
 
-    all_symbols = list(extract_atoms(formula))
+    if formula in candidates:
+        return [formula], [1]
+
+    atoms = Atoms(formula)
+    all_symbols = atoms.symbols
     symbols = list(set(all_symbols))
     references = []
     if 'H' in symbols:
         symbols.remove('H')
         symbols += ['H']
     residual_symbols = list(symbols.copy())
-
     prefactors = []
     counts_tmp = {}
 
@@ -87,12 +92,12 @@ def construct_reference_system(formula,
 
     i = 0
     while len(residual_symbols) > 0 and i < 10:
+        residual_symbols += add
         for r in remove:
             try:
                 residual_symbols.remove(r)
             except:
                 pass
-        residual_symbols += add
         remove = []
         add = []
         for symbol in residual_symbols:
@@ -100,10 +105,10 @@ def construct_reference_system(formula,
                 continue
             if not symbol in counts_tmp:
                 counts_tmp[symbol] = 0
-            symbol_candidates = [c for c in candidates if symbol in c
+            symbol_candidates = [c for c in candidates if symbol in Atoms(c).symbols
                                  and not c in references]
             ref_list = preffered_references.get(symbol, [])
-            symbol_candidates = [c for c in candidates if symbol in c
+            symbol_candidates = [c for c in candidates if symbol in Atoms(c).symbols
                                  and not c in references
                                  and not c in ref_list]
             ref_list += symbol_candidates
@@ -120,9 +125,8 @@ def construct_reference_system(formula,
                         symbols=symbols,
                         candidates=candidates,
                         pref=[preffered_references.get(s, '') for s in symbols]))
-
             for ref in ref_list:
-                ref_atoms = list(extract_atoms(ref))
+                ref_atoms = list(Atoms(ref).symbols)
                 count_ref = ref_atoms.count(symbol)
                 count = all_symbols.count(symbol)
                 prefactor = (count - counts_tmp[symbol]) / count_ref
@@ -135,16 +139,16 @@ def construct_reference_system(formula,
                         counts_tmp[a] = 0
                     count_ref = ref_atoms.count(a)
                     counts_tmp[a] += prefactor * count_ref
-
                 references += [ref]
                 prefactors += [prefactor]
-                residual = list(set(extract_atoms(ref).replace(symbol, '')))
-
+                residual = set(
+                    [atom for atom in ref_atoms if not atom == symbol])
                 remove += [symbol]
 
                 for r in residual:
-                    if not r in symbols:
+                    if not r in residual_symbols or r in remove:
                         add += [r]
+
                 break
         i += 1
     if not len(residual_symbols) == 0:

@@ -351,8 +351,7 @@ class FolderReader:
         elif self.update:
             ase_tools.update_ase(self.cathub_db, id,
                                  self.stdout, **key_value_pairs)
-
-        self.ase_ids.update({'bulk' + self.crystal: ase_id})
+        self.ase_ids.update({'bulk' + (self.crystal or ''): ase_id})
 
     def read_slab(self, root):
         self.facet = root.split('/')[-1].split('_')[0]
