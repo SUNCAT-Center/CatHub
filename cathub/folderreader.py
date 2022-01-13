@@ -758,7 +758,7 @@ class FolderReader:
         for key in ['reactants', 'products']:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
-                reaction_info[key].update({r: original_prefactors[key][i]})
+                reaction_info[key].update({r: round(original_prefactors[key][i], 9)})
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
@@ -905,6 +905,8 @@ class FolderReader:
         del self.structures[reaction_side][index]
 
     def add_empty_slabs(self, reaction_side, n_slabs):
+        if np.isclose(n_slabs, 0):
+            return
         found_slab = False
         for key, atoms in self.reaction_atoms.items():
             if '' in atoms:
@@ -918,7 +920,7 @@ class FolderReader:
                     break
         if not found_slab:
             self.append_reaction_entry(reaction_side,
-                                       n_ads - 1)
+                                       n_slabs)
 
     def clear_extra_empty_slabs(self):
         n_r, n_p = self.get_n_empty_slabs()
@@ -927,8 +929,15 @@ class FolderReader:
             for side, species in self.reaction_atoms.items():
                 i = species.index('')
                 self.prefactors[side][i] -= diff
-                if self.prefactors[side][i] == 0:
+                if np.isclose(self.prefactors[side][i], 0):
                     self.delete_reaction_entry(side, i)
+        elif np.isclose(n_r, 0) or np.isclose(n_p, 0):
+            for side, species in self.reaction_atoms.items():
+                if '' in species:
+                    i = species.index('')
+                    if np.isclose(self.prefactors[side][i], 0):
+                        self.delete_reaction_entry(side, i)
+
 
     def get_reaction_energy(self):
         energies = {}
