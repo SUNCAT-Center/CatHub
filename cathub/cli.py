@@ -567,8 +567,6 @@ def connect(user):
     default='XC-FUNCTIONAL',
     show_default=True,
     help="The DFT exchange-correlation functional used for calculations")
-
-
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 

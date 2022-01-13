@@ -140,7 +140,7 @@ def collect_structures(foldername,
                         print('Processing ASE db with {} structures'.format(count))
                         for row in db.select('energy'):
                             structure = [row.toatoms()]
-                            structure[-1].info['filename'] = posix_filename
+                            structure[-1].info['filename'] = row.formula + '@' + posix_filename
                             structure[-1].info['filetype'] = ase.io.formats.filetype(
                                 posix_filename)
                             structures += [structure]

@@ -311,7 +311,7 @@ def fuzzy_match(structures, options):
 
                 if not options.keep_all_energies:
                     if energy > np.min(list(collected_energies.get(
-                            key, {}).get(facet, {}).get(adsorbate, {}).values()) +[np.inf]):
+                            key, {}).get(facet, {}).get(adsorbate, {}).values()) + [np.inf]):
                         print('FOUND:', surface_ads)
                         continue
                 else:
@@ -370,6 +370,7 @@ def fuzzy_match(structures, options):
                                 else:
                                     equation = equation.replace('{}star'.format(
                                         adsorbate), '{}star'.format(update_value))
+                                    adsorbate = adsorbate.replace(adsorbate, update_value)
 
                 dft_code = options.dft_code or structure.info['filetype']
                 dft_functional = options.xc_functional
@@ -414,7 +415,7 @@ def fuzzy_match(structures, options):
     for key, facets in collected_energies.items():
         for facet, adsorbates in facets.items():
             for ads, sites in adsorbates.items():
-                for site, e in sites.items():            
+                for site, e in sites.items():
                     print("{key:15s}: {energy:.3f} eV".format(
                         key='{}({}) + {}@{}'.format(key, facet, ads, site),
                         energy=e,
