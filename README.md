@@ -60,7 +60,7 @@ Organizing a general folder into a structured folder:
 
 New: organize in interactive manner to update adsorbate name, site and facet on the run:
 
-    cathub organize < foldername > -I ...
+    cathub organize <foldername> -I ...
 
 As an alternative to cathub organize, create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
 
