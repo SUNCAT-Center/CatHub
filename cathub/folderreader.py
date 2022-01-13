@@ -1,5 +1,6 @@
 from .cathubsqlite import CathubSQLite
-from .tools import get_bases, clear_prefactor, clear_state, get_pub_id, extract_atoms
+from .tools import get_bases, clear_prefactor, clear_state, get_pub_id,\
+    extract_atoms
 from .ase_tools import collect_structures
 from . import ase_tools
 
@@ -351,8 +352,7 @@ class FolderReader:
         elif self.update:
             ase_tools.update_ase(self.cathub_db, id,
                                  self.stdout, **key_value_pairs)
-
-        self.ase_ids.update({'bulk' + self.crystal: ase_id})
+        self.ase_ids.update({'bulk' + (self.crystal or ''): ase_id})
 
     def read_slab(self, root):
         self.facet = root.split('/')[-1].split('_')[0]
@@ -653,30 +653,13 @@ class FolderReader:
                                          **key_value_pairs)
                 self.ase_ids.update({species: ase_id})
 
-            # For high coverage, re-balance chemical equation
+            # For high coverage, re-balance chemical equation if prefactor
+            # and number of adsorbates doesn't match
             if n_ads > 1 and not \
                self.prefactors[reaction_side][mol_index] == n_ads:
-                for key1, states in self.states.items():
-                    indices_gas = [i for i, s in enumerate(states) if
-                                   s == 'gas']
-                    for i in indices_gas:
-                        self.prefactor_scale[key1][i] = n_ads
-
-                    indices_ads = [i for i, s in enumerate(states) if
-                                   s == 'star' and not
-                                   self.reaction_atoms[key1][i] == '']
-                    for i in indices_ads:
-                        if key1 == reaction_side and i == mol_index:
-                            continue
-                        self.prefactor_scale[key1][i] = n_ads
-
-                    if len(indices_ads) > 0:
-                        n = len(indices_ads)
-                        self.add_empty_slabs(key1, - (n_ads - 1) * n)
-            # Assume adsorbate is balanced in equation, and balance empty slabs
-            elif n_ads > 1 and self.prefactors[reaction_side][mol_index] == n_ads:
-                self.prefactor_scale[reaction_side][mol_index] = 1/n_ads
-                self.add_empty_slabs(reaction_side, n_ads - 1)
+                self.prefactor_scale[reaction_side][mol_index] /= n_ads
+                self.add_empty_slabs(reaction_side,
+                    self.prefactors[reaction_side][mol_index] * (1-1/n_ads))
 
             if supercell_factor > 1:
                 for key1, states in self.states.items():
@@ -775,7 +758,7 @@ class FolderReader:
         for key in ['reactants', 'products']:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
-                reaction_info[key].update({r: original_prefactors[key][i]})
+                reaction_info[key].update({r: round(original_prefactors[key][i], 9)})
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
@@ -922,6 +905,8 @@ class FolderReader:
         del self.structures[reaction_side][index]
 
     def add_empty_slabs(self, reaction_side, n_slabs):
+        if np.isclose(n_slabs, 0):
+            return
         found_slab = False
         for key, atoms in self.reaction_atoms.items():
             if '' in atoms:
@@ -929,11 +914,13 @@ class FolderReader:
                 i = atoms.index('')
                 if key == reaction_side:
                     self.prefactors[key][i] += n_slabs
+                    break
                 else:  # substract from other side
                     self.prefactors[key][i] -= n_slabs
+                    break
         if not found_slab:
             self.append_reaction_entry(reaction_side,
-                                       n_ads - 1)
+                                       n_slabs)
 
     def clear_extra_empty_slabs(self):
         n_r, n_p = self.get_n_empty_slabs()
@@ -942,8 +929,15 @@ class FolderReader:
             for side, species in self.reaction_atoms.items():
                 i = species.index('')
                 self.prefactors[side][i] -= diff
-                if self.prefactors[side][i] == 0:
+                if np.isclose(self.prefactors[side][i], 0):
                     self.delete_reaction_entry(side, i)
+        elif np.isclose(n_r, 0) or np.isclose(n_p, 0):
+            for side, species in self.reaction_atoms.items():
+                if '' in species:
+                    i = species.index('')
+                    if np.isclose(self.prefactors[side][i], 0):
+                        self.delete_reaction_entry(side, i)
+
 
     def get_reaction_energy(self):
         energies = {}
