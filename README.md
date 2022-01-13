@@ -39,7 +39,7 @@ Get reactions in pandas dataframe:
                                  facet = '100'
                                  )
 
-Get atomic structure seperately:
+Get atomic structure separately:
 
     # Get atoms for one reaction_id taken from dataframe
     atoms_list = db.get_atoms_for_reaction(reaction_id)
@@ -56,7 +56,11 @@ Quick view of atomic structures on Catalysis Hub with ase db CLI:
 
 Organizing a general folder into a structured folder:
 
-    cathub organize <folderame> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
+    cathub organize <foldername> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
+
+New: organize in interactive manner to update adsorbate name, site and facet on the run:
+
+    cathub organize < foldername > -I ...
 
 As an alternative to cathub organize, create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
 
