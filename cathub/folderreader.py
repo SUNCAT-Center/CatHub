@@ -43,7 +43,7 @@ class FolderReader:
     """
 
     def __init__(self, folder_name, debug=False, strict=True, verbose=False,
-                 update=True, energy_limit=5, stdin=sys.stdin,
+                 update=False, energy_limit=5, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.debug = debug
         self.strict = strict
@@ -99,8 +99,8 @@ class FolderReader:
             self.user_base_level -= 1
 
         self.stdout.write('---------------------- \n')
-        self.stdout.write('Starting folderreader! \n')
-        self.stdout.write('---------------------- \n')
+        self.stdout.write('Starting folderreader \n')
+        self.stdout.write('---------------------- \n\n')
         found_reaction = False
         for root, dirs, files in os.walk(self.user_base):
             for omit_folder in self.omit_folders:  # user specified omit_folder
@@ -156,22 +156,24 @@ class FolderReader:
                 id = db.check(
                     key_values['chemical_composition'],
                     key_values['reaction_energy'])
+                E_r = round(key_values['reaction_energy'], 3)
                 if id is None:
                     try:
                         id = db.write(key_values)
+
                         self.stdout.write(
-                            '  Written to reaction db row id = {}\n'.format(id))
+                            '    Written to database with E_r = {}\n'.format(E_r))# row id = {}\n'.format(id))
                     except BaseException as e:
                         self.raise_error(
-                            'Writing to db: {}. {}'.format(e, self.root))
+                            '    Writing error: {}. {}'.format(e, self.root))
 
                 elif self.update:
                     db.update(id, key_values)
                     self.stdout.write(
-                        '  Updated reaction db row id = {}\n'.format(id))
+                        '    Updated Reaction\n') # row id = {}\n'.format(id))
                 else:
                     self.stdout.write(
-                        '  Already in reaction db with row id = {}\n'.format(id))
+                        '    Already in database with E_r = {}\n'.format(E_r)) # with row id = {}\n'.format(id))
         assert self.cathub_db is not None, \
             'Wrong folder! No reactions found in {base}'\
             .format(base=self.user_base)
@@ -196,7 +198,7 @@ class FolderReader:
         publication_keys = {}
         try:
             with open(root + '/publication.txt', 'r') as f:
-                pub_data = yaml.load(f)
+                pub_data = yaml.load(f, Loader=yaml.FullLoader)
             if 'url' in pub_data.keys():
                 del pub_data['url']
             self.title = pub_data['title']
@@ -209,7 +211,6 @@ class FolderReader:
                 self.doi = pub_data['doi']
             if 'tags' not in pub_data:
                 pub_data.update({'tags': None})
-                self.stdout.write('ERROR: No tags\n')
 
             for key, value in pub_data.items():
                 if isinstance(value, list):
@@ -256,23 +257,34 @@ class FolderReader:
 
         except BaseException:
             self.energy_corrections = {}
-
+        pub_warnings = []
         if pub_data['title'] is None:
             self.title = os.path.basename(root)
             pub_data.update({'title': self.title})
-        if pub_data['authors'] is None:
+            pub_warnings += ['Title']
+
+        if pub_data['authors'] is None or \
+            pub_data['authors'][0].split(',')[0]=='Lastname':
             self.authors = [self.user]
             pub_data.update({'authors': self.authors})
+            pub_warnings += ['Authors']
+
         if pub_data['year'] is None:
             self.year = date.today().year
             pub_data.update({'year': self.year})
+            pub_warnings += ['Year']
+
         if pub_data['email']:
             self.user = pub_data['email']
+        if pub_warnings:
+            self.raise_warning(
+        'Please update your publications.txt: {}'\
+        .format(root + '/publication.txt'))
 
         self.pub_id = get_pub_id(self.title, self.authors, self.year)
         self.cathub_db = '{}{}.db'.format(self.data_base, self.pub_id)
         self.stdout.write(
-            'Writing to .db file {}:\n \n'.format(self.cathub_db))
+            '\nWriting reactions and structures to {}:\n'.format(self.cathub_db))
         pub_data.update({'pub_id': self.pub_id})
         pid = self.write_publication(pub_data)
 
@@ -318,12 +330,6 @@ class FolderReader:
         else:
             self.metal = basename
             self.crystal = None
-        self.stdout.write(
-            '------------------------------------------------------\n')
-        self.stdout.write(
-            '                    Surface:  {}\n'.format(self.metal))
-        self.stdout.write(
-            '------------------------------------------------------\n')
 
         self.ase_ids = {}
 
@@ -356,6 +362,14 @@ class FolderReader:
 
     def read_slab(self, root):
         self.facet = root.split('/')[-1].split('_')[0]
+        self.stdout.write(
+        '\n--------------------------------\n')
+        self.stdout.write(
+            'Surface: {}({})\n'.format(self.metal, self.facet))
+        self.stdout.write(
+        '--------------------------------\n')
+
+
         self.ase_facet = 'x'.join(list(self.facet))
 
         empty_structures = collect_structures(root)
@@ -402,7 +416,7 @@ class FolderReader:
             folder_name)  # reaction dict
 
         self.stdout.write(
-            '----------- REACTION:  {} --> {} --------------\n'
+            '{} --> {}\n'
             .format('+'.join(self.reaction['reactants']),
                     '+'.join(self.reaction['products'])))
 
@@ -655,8 +669,7 @@ class FolderReader:
 
             # For high coverage, re-balance chemical equation if prefactor
             # and number of adsorbates doesn't match
-            if n_ads > 1 and not \
-               self.prefactors[reaction_side][mol_index] == n_ads:
+            if n_ads > 1:
                 self.prefactor_scale[reaction_side][mol_index] /= n_ads
                 self.add_empty_slabs(reaction_side,
                     self.prefactors[reaction_side][mol_index] * (1-1/n_ads))
@@ -793,11 +806,11 @@ class FolderReader:
         self.warnings.append('Warning: ' + message)
 
     def print_warnings(self):
-        self.stdout.write('-------------------------------------------\n')
+        self.stdout.write('\n\n -------------------------------------------\n')
         self.stdout.write('All errors and warnings: ' + '\n')
         for warning in self.warnings:
             self.stdout.write('    ' + warning + '\n')
-        self.stdout.write('-------------------------------------------\n')
+        self.stdout.write('-------------------------------------------\n\n')
 
     def get_reaction_atoms(self):
         self.reaction_atoms = {'reactants': [],
