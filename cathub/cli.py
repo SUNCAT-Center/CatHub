@@ -281,7 +281,7 @@ def make_folders(template, custom_base):
 
     Start by creating a template file by calling:
 
-    $ cathub make_folders  <template_name>
+    $ cathub make-folders  <template_name>
 
     Then open the template and modify it to so that it contains information
     about your data. You will need to enter publication/dataset information,
@@ -320,11 +320,11 @@ def make_folders(template, custom_base):
 
     Then, save the template and call:
 
-    $ cathub make_folders <template_name>
+    $ cathub make-folders <template_name>
 
     And folders will be created automatically.
 
-    You can create several templates and call make_folders again
+    You can create several templates and call make-folders again
     if you, for example, are using different functionals or are
     doing different reactions on different surfaces.
 
@@ -358,7 +358,7 @@ def make_folders(template, custom_base):
                 '\n')
             print("Created template file: {template}\n".format(**locals()) +
                   '  Please edit it and run the script again to create your folderstructure.\n' +
-                  '  Run cathub make_folders --help for instructions')
+                  '  Run cathub make-folders --help for instructions')
             return
 
     with open(template) as infile:
@@ -447,7 +447,7 @@ def connect(user):
     " file (paths) are should be ignored.")
 @click.option(
     '-E', '--energy-corrections',
-    default={},
+    default='',
     type=str,
     help="Energy correction to gas phase molecules.")
 @click.option(
@@ -464,6 +464,11 @@ def connect(user):
     help="Specify the maximum density (#atoms/A^3)"
     " below which the structures are"
     " considered gas-phase molecules.")
+@click.option(
+    '-hc', '--high-coverage',
+    type=bool,
+    is_flag=True,
+    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
 @click.option(
     '-i', '--include-pattern',
     type=str,
@@ -587,7 +592,8 @@ def organize(**kwargs):
             key, value = e_c.split('=')
             e_c_dict.update({key: float(value)})
         kwargs['energy_corrections'] = e_c_dict
-
+    else:
+        kwargs['energy_corrections'] = {}
     options = collections.namedtuple(
         'options',
         kwargs.keys()
