@@ -34,6 +34,7 @@ def fuzzy_match(structures, options):
                         )
     adsorbate_numbers = [sorted(ase.atoms.Atoms(ads).numbers)
                          for ads in options.adsorbates]  # .split(',')]
+
     # group in to bulk, surface, or bulk
     molecules, surfaces, bulks = [], [], []
     gas_phase_candidates = []
@@ -157,7 +158,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies or options.keep_all_slabs:
+            if options.keep_all_energies:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -167,7 +168,7 @@ def fuzzy_match(structures, options):
 
         surfaces = sorted_surfaces
         if options.keep_all_slabs:
-            n_empty = len(surface)
+            n_empty = len(surfaces)
         else:
             n_empty = 1  # Only consider lowest energy empty slab for now
         for i, surf_empty in enumerate(surfaces[:n_empty]):
@@ -252,6 +253,15 @@ def fuzzy_match(structures, options):
 
                 red_diff_numbers, rep = \
                     cathub.ase_tools.get_reduced_numbers(diff_numbers)
+                if rep > 1:
+                    adsorbate = str(rep) + adsorbate
+                red_ads_numbers, rep_ads = \
+                    cathub.ase_tools.get_reduced_numbers(adsorbate_numbers)
+
+                if rep_ads > 1 and rep_ads == rep:
+                    red_diff_numbers *= rep
+                elif rep > 1 and not options.high_coverage:
+                    continue
 
                 if not red_diff_numbers in adsorbate_numbers:
                     #index = adsorbate_numbers.index(red_diff_numbers)
@@ -263,7 +273,7 @@ def fuzzy_match(structures, options):
                 dE = surf_ads.get_potential_energy() \
                     - surf_empty.get_potential_energy()
 
-                dE /= rep
+                #dE /= rep
 
                 references, prefactors = \
                     gas_phase_references \
@@ -319,9 +329,10 @@ def fuzzy_match(structures, options):
                         key, {}).get(facet, {}).get(adsorbate, {}).values())
                     if not site:
                         site = 'site{}'.format(n_energies + 1)
+                    #key += '_{}'.format(surf_empty.get_potential_energy())
 
                 if options.keep_all_slabs:
-                    key += '_Epot={}'.format(surf_empty.get_potential_energy())
+                    key = surf_empty.get_chemical_formula()
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -383,8 +394,7 @@ def fuzzy_match(structures, options):
                     .setdefault('empty_slab', surf_empty)
 
                 key_count[key] = key_count.get(key, 0) + 1
-                if rep > 1:
-                    adsorbate = str(rep) + adsorbate
+
                 if not key in collected_energies:
                     collected_energies[key] = {}
                 if not facet in collected_energies[key]:
@@ -416,8 +426,12 @@ def fuzzy_match(structures, options):
         for facet, adsorbates in facets.items():
             for ads, sites in adsorbates.items():
                 for site, e in sites.items():
+                    if site is not None:
+                        site = '@{}'.format(site)
+                    else:
+                        site=''
                     print("{key:15s}: {energy:.3f} eV".format(
-                        key='{}({}) + {}@{}'.format(key, facet, ads, site),
+                        key='{}({}) + {}{}'.format(key, facet, ads, site),
                         energy=e,
                     ))
 
@@ -426,7 +440,6 @@ def fuzzy_match(structures, options):
 
 def dict_representer(dumper, data):
     return dumper.represent_dict(data.items())
-
 
 def create_folders(options, structures, publication_template, root=''):
     out_format = 'json'
