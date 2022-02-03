@@ -231,7 +231,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
     
             # Apply field effects
             if field_effects:
-                (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name, pH)
+                (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_name, pH, reference_gases)
                 rhe_corr.append(U_RHE_energy_contribution)
                 efield_corr.append(U_SHE_energy_contribution)
             else:
@@ -313,7 +313,7 @@ def write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
     return df_out
 
 def get_electric_field_contribution(field_effects, species_value, pH,
-                                    reactants=None, beta=None):
+                                    reference_gases, reactants=None, beta=None):
     epsilon = field_effects['epsilon']
     U_RHE = field_effects['U_RHE']
     mu = field_effects['mu']
@@ -329,7 +329,33 @@ def get_electric_field_contribution(field_effects, species_value, pH,
         else:
             n = 0
     else:
-        n = 0
+        if '_ref' in species_value or species_value == 'H2':
+            chemical_symbols_dict = {}
+        else:
+            chemical_symbols_dict = formula_to_chemical_symbols(species_value)
+        
+        # xCO + (x-z+y/2)H2 --> CxHyOz + (x-z)H2O
+        if 'C' in chemical_symbols_dict:
+            x = chemical_symbols_dict['C']
+        else:
+            x = 0
+        if 'H' in chemical_symbols_dict:
+            y = chemical_symbols_dict['H']
+        else:
+            y = 0
+        if 'O' in chemical_symbols_dict:
+            z = chemical_symbols_dict['O']
+        else:
+            z = 0
+
+        # CO2 Reduction Reaction
+        if set(reference_gases) == set(['CO2', 'H2_ref', 'H2O']):
+            n_H2gas = (2 * x - z + y / 2)
+        # CO Reduction Reaction
+        elif set(reference_gases) == set(['CO', 'H2_ref', 'H2O']):
+            n_H2gas = (x - z + y / 2)
+
+        n = 2 * n_H2gas
 
     # # U_RHE derived from epsilon
     # UM_PZC = -0.54  # zero-charge potential of the metal electrode in V vs. SHE for Cu(100)
@@ -592,7 +618,7 @@ def get_adsorption_energy(df_out, species_value, reactants, products, reaction_e
         solvation_correction = 0.0
 
     # Apply field effects
-    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, pH, reactants)
+    (U_RHE_energy_contribution, U_SHE_energy_contribution) = get_electric_field_contribution(field_effects, species_value, pH, reference_gases, reactants)
     return (adsorption_energy_RHE0, U_RHE_energy_contribution, U_SHE_energy_contribution, solvation_correction)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
