@@ -67,7 +67,7 @@ class FolderReader:
         self.stdout = stdout
 
         self.cathub_db = None
-        self.coverages = None
+        self.coverages = {}
         self.omit_folders = []
         self.doi = None
         self.title = None
@@ -637,9 +637,9 @@ class FolderReader:
                         continue
                     molecule_atn = sorted(
                         ase_tools.get_numbers_from_formula(molecule))
-                    for n_ads in range(1, 5):
+                    for n_ads in range(1, len(ads_atn)+1):
                         mol_atn = sorted(molecule_atn * n_ads)
-                        if (ads_atn == mol_atn or len(ads_atn) == 0):
+                        if (ads_atn == mol_atn):
                             found = True
                             reaction_side = key
                             mol_index = n
@@ -654,6 +654,7 @@ class FolderReader:
                     {'species': clear_state(species),
                      'n': n_ads,
                      'site': str(self.sites.get(species, ''))})
+                self.coverages.update({clear_state(species): n_ads})
                 if ase_id is None:
                     ase_id = ase_tools.write_ase(slab,
                                                  self.cathub_db,
