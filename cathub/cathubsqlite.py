@@ -472,7 +472,7 @@ class CathubSQLite:
         cur.execute("""
         SELECT
         surface_composition, facet, reactants, products, reaction_energy,
-        activation_energy, sites, dft_functional, dft_code
+        activation_energy, sites, dft_functional, dft_code, coverages
         FROM
         reaction;""")
         rows = cur.fetchall()
@@ -491,7 +491,7 @@ class CathubSQLite:
                 in include_columns]]
 
         extra_header_names = ['Activation Energy', 'Sites',
-                              'DFT Functional', 'DFT Code']
+                              'DFT Functional', 'DFT Code', 'Coverages']
         headers = ['Surface Composition', 'Facet',
                    'Equation', 'Reaction Energy'] + \
                    [extra_header_names[i-5] for i in include_columns]
