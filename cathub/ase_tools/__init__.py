@@ -14,7 +14,7 @@ from pathlib import Path
 Path().expanduser()
 
 
-accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'castep', 'crystal',
+accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'vasp-out', 'castep', 'crystal',
                     'ulm', 'cube', 'elk', 'espresso', 'gaussian', 'aims',
                     'dacapo', 'turbomole', 'db']
 
