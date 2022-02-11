@@ -548,10 +548,10 @@ class FolderReader:
                                    .format(f))
                 continue
 
-            """Get supercell size relative to empty slab"""
-            # Get empty slab atomic numbers rescaled to adsorbate slab
+            """Correct supercell for empty slab"""
             supercell_factor = 1
-            if len(empty_atn * 3) < len(atns * 2):
+            if len(empty_atn * 3) < len(atns * 2) or \
+                len(empty_atn * 2) > len(atns * 3):
                 reduced_empty_atn, rep_empty = \
                     ase_tools.get_reduced_numbers(empty_atn)
                 n = 0
@@ -566,6 +566,11 @@ class FolderReader:
                         break
                 empty_atn = sorted(reduced_empty_atn * n)
                 supercell_factor = n / rep_empty
+
+            if supercell_factor != 1 and 'star' in reactant_entries:
+                self.raise_warning('Empty slab has different size: {}'
+                .format(self.empty.info['filename'].replace(' ', '\ ')) +
+                '. Using slab/empty-slab correction factor of {}'.format(supercell_factor))
 
             """Atomic numbers of adsorbate"""
             ads_atn = []
@@ -771,16 +776,16 @@ class FolderReader:
         if not -self.energy_limit < reaction_energy < self.energy_limit:
             self.raise_warning('reaction energy is very large ({} eV)'
                              .format(reaction_energy) +
-                             'for folder: {}. \n  '.format(root) +
+                             'for folder: {}. \n  '.format(root.replace(' ', '\ ')) +
                              'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
 
         if activation_energy is not None:
             if activation_energy < reaction_energy:
-                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV \n  Folder: {}'.format(
+                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV for folder: {}'.format(
                     activation_energy, reaction_energy, root))
             if not activation_energy < self.energy_limit:
-                self.raise_warning(' Very large activation energy: {} eV \n  Folder: {}'
+                self.raise_warning(' Very large activation energy: {} eV for folder: {}'
                                  .format(activation_energy, root))
 
         reaction_info = {'reactants': {},
