@@ -115,7 +115,8 @@ def collect_structures(foldername,
             if inc_pattern:
                 if not np.any([pat in posix_filename for pat in inc_pattern]):
                     continue
-                print(posix_filename)
+                if verbose:
+                    print(i, posix_filename)
             if exc_pattern:
                 if np.any([pat in posix_filename for pat in exc_pattern]):
                     continue
