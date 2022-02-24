@@ -1,6 +1,7 @@
 import sys
 import collections
 import math
+import json
 from functools import reduce
 from ase import Atoms
 from ase.io import read
@@ -132,16 +133,22 @@ def collect_structures(foldername,
                         print('Processing ASE db with {} structures'.format(count))
                         for row in db.select('energy'):
                             structure = [row.toatoms()]
-                            structure[-1].info['filename'] = row.formula + '@' + posix_filename
-                            structure[-1].info['filetype'] = ase.io.formats.filetype(
-                                posix_filename)
+                            structure[-1].info['filename'] = row.formula + \
+                                '@' + posix_filename
+                            structure[-1].info['filetype'] = filetype
                             structures += [structure]
                 else:
                     try:
                         structure = ase.io.read(posix_filename, ':')
                         structure[-1].info['filename'] = posix_filename
-                        structure[-1].info['filetype'] = ase.io.formats.filetype(
-                            posix_filename)
+                        structure[-1].info['filetype'] = filetype
+                        if filetype == 'json':  # ASE doesn't read parameters from json :(
+                            if structure[-1].calc.parameters == {}:
+                                structure[-1].calc.parameters \
+                                    = json.load(
+                                        open(posix_filename,
+                                             'r'))['1']['calculator_parameters']
+
                         try:
                             structure[-1].get_potential_energy()
                             # ensure that the structure has an energy
