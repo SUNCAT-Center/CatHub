@@ -142,12 +142,12 @@ def collect_structures(foldername,
                         structure = ase.io.read(posix_filename, ':')
                         structure[-1].info['filename'] = posix_filename
                         structure[-1].info['filetype'] = filetype
-                        if filetype == 'json':  # ASE doesn't read parameters from json :(
+                        if filetype == 'json' and structure[-1].calc:  # ASE doesn't read parameters from json :(
                             if structure[-1].calc.parameters == {}:
                                 structure[-1].calc.parameters \
                                     = json.load(
                                         open(posix_filename,
-                                             'r'))['1']['calculator_parameters']
+                                             'r'))['1'].get('calculator_parameters', {})
 
                         try:
                             structure[-1].get_potential_energy()
