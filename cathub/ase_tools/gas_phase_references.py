@@ -77,7 +77,7 @@ def construct_reference_system(formula,
         return [formula], [1]
 
     atoms = Atoms(formula)
-    all_symbols = atoms.symbols
+    all_symbols = list(atoms.symbols)
     symbols = list(set(all_symbols))
     references = []
     if 'H' in symbols:
