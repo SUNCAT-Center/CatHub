@@ -16,7 +16,7 @@ Path().expanduser()
 
 
 accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'vasp-out', 'castep', 'crystal',
-                    'ulm', 'cube', 'elk', 'espresso', 'gaussian', 'aims',
+                    'ulm', 'cube', 'elk', 'espresso-out', 'gaussian', 'aims',
                     'dacapo', 'turbomole', 'db']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
