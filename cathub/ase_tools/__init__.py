@@ -1,6 +1,7 @@
 import sys
 import collections
 import math
+import json
 from functools import reduce
 from ase import Atoms
 from ase.io import read
@@ -14,35 +15,26 @@ from pathlib import Path
 Path().expanduser()
 
 
-accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'castep', 'crystal',
-                    'ulm', 'cube', 'elk', 'espresso', 'gaussian', 'aims',
+accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'vasp-out', 'castep', 'crystal',
+                    'ulm', 'cube', 'elk', 'espresso-out', 'gaussian', 'aims',
                     'dacapo', 'turbomole', 'db']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
-    'title': 'Fancy title',
-    'authors': ['Doe, John', 'Einstein, Albert'],
-    'journal': 'JACS',
-    'volume': '1',
-    'number': '1',
-    'pages': '23-42',
-    'year': '2017',
+    'title': None,
+    'authors': ['Lastname, Firstname', 'Lastname2, Firstname2'],
+    'journal': 'Submitted',
+    'volume': None,
+    'number': None,
+    'pages': None,
+    'year': 2022,
     'email': 'winther@stanford.edu',
-    'publisher': 'ACS',
-    'doi': '10.NNNN/....',
+    'publisher': None,
+    'doi': None,
 })
 
-REACTION_TEMPLATE = collections.OrderedDict({
-    'title': 'Fancy title',
-    'authors': ['Doe, John', 'Einstein, Albert'],
-    'journal': 'JACS',
-    'volume': '1',
-    'number': '1',
-    'pages': '23-42',
-    'year': '2017',
-    'email': 'winther@stanford.edu',
-    'publisher': 'ACS',
-    'doi': '10.NNNN/....',
-    'DFT_code': 'Quantum Espresso',
+REACTION_TEMPLATE = PUBLICATION_TEMPLATE.copy()
+REACTION_TEMPLATE.update(collections.OrderedDict({
+    'DFT_code': 'DFT CODE',
     'DFT_functionals': ['BEEF-vdW', 'HSE06'],
     'reactions': [
         collections.OrderedDict({'reactants':
@@ -59,7 +51,7 @@ REACTION_TEMPLATE = collections.OrderedDict({
     'crystal_structures': ['fcc', 'hcp'],
     'facets': ['111'],
     'energy_corrections': {},
-})
+}))
 
 
 def get_chemical_formula(atoms, mode='metal'):
@@ -124,7 +116,8 @@ def collect_structures(foldername,
             if inc_pattern:
                 if not np.any([pat in posix_filename for pat in inc_pattern]):
                     continue
-                print(posix_filename)
+                if verbose:
+                    print(i, posix_filename)
             if exc_pattern:
                 if np.any([pat in posix_filename for pat in exc_pattern]):
                     continue
@@ -140,16 +133,22 @@ def collect_structures(foldername,
                         print('Processing ASE db with {} structures'.format(count))
                         for row in db.select('energy'):
                             structure = [row.toatoms()]
-                            structure[-1].info['filename'] = posix_filename
-                            structure[-1].info['filetype'] = ase.io.formats.filetype(
-                                posix_filename)
+                            structure[-1].info['filename'] = row.formula + \
+                                '@' + posix_filename
+                            structure[-1].info['filetype'] = filetype
                             structures += [structure]
                 else:
                     try:
                         structure = ase.io.read(posix_filename, ':')
                         structure[-1].info['filename'] = posix_filename
-                        structure[-1].info['filetype'] = ase.io.formats.filetype(
-                            posix_filename)
+                        structure[-1].info['filetype'] = filetype
+                        if filetype == 'json' and structure[-1].calc:  # ASE doesn't read parameters from json :(
+                            if structure[-1].calc.parameters == {}:
+                                structure[-1].calc.parameters \
+                                    = json.load(
+                                        open(posix_filename,
+                                             'r'))['1'].get('calculator_parameters', {})
+
                         try:
                             structure[-1].get_potential_energy()
                             # ensure that the structure has an energy
@@ -264,7 +263,7 @@ def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None,
     db_ase = ase.db.connect(db_file)
     _normalize_key_value_pairs_inplace(key_value_pairs)
     id = db_ase.write(atoms, data=data, **key_value_pairs)
-    stdout.write('  writing atoms to ASE db row id = {}\n'.format(id))
+    #stdout.write('  writing atoms to ASE db row id = {}\n'.format(id))
     unique_id = db_ase.get(id)['unique_id']
     return unique_id
 
