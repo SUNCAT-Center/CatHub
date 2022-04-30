@@ -26,3 +26,5 @@ wheels/
 /.project
 /.pydevproject
 /.pylintrc
+.DS_Store
+.vscode/launch.json
