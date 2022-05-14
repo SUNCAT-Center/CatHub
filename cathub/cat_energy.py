@@ -1342,7 +1342,7 @@ def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
     '''
     system_dir_path = (db_filepath.parent
                        / f'{adsorbate_parameters["desired_surface"]}'
-                       / f'_{adsorbate_parameters["desired_facet"]}')
+                       f'_{adsorbate_parameters["desired_facet"]}')
     Path.mkdir(system_dir_path, parents=True, exist_ok=True)
     energies_filepath = (system_dir_path
                          / f'energies_f{field_effects["epsilon"]:.2e}.txt')
