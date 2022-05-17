@@ -6,7 +6,7 @@ from pandas import read_sql
 import numpy as np
 from sqlalchemy import create_engine
 from cathub.postgresql import CathubPostgreSQL, get_value_str, get_key_list, get_key_str
-from cathub.tools import get_pub_id
+from cathub.tools import get_pub_id, doi_request
 
 
 init_commands = [
@@ -116,7 +116,8 @@ class ExpSQL(CathubPostgreSQL):
         self.initialized = True
 
 
-    def get_dataframe(self, table='sample', pub_id=None):
+    def get_dataframe(self, table='sample', sample_ids=None, mat_ids=None, pub_id=None,
+        include_replicates=False):
         """
         Get pandas dataframe containing experimental data
 
@@ -127,13 +128,22 @@ class ExpSQL(CathubPostgreSQL):
         # Query SQL table to get reaction, publication, and structure info.
         query = \
             """SELECT * from experimental.{}""".format(table)
+        if sample_ids is not None:
+            query += " \nWHERE sample_id in ({})".format(','.join([str(i) for i in sample_ids]))
+        elif mat_ids is not None:
+            query += " \nWHERE mat_id in ({})".format(','.join([str(i) for i in mat_ids]))
         if pub_id is not None:
             if table in ['publication', 'sample', 'material']:
                 query += " \nWHERE pub_id='{}'".format(pub_id)
+                if table == 'sample' and not include_replicates:
+                    query += "and data->>'replicate' = '1'"
             elif table in ['xps', 'xrd']:
                 query += " \nWHERE mat_id in (select mat_id from material where pub_id='{}')".format(pub_id)
             elif table == 'echemical':
-                query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(pub_id)
+                if not include_replicates:
+                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}' and data->>'replicate' = '1')".format(pub_id)
+                else:
+                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(pub_id)
 
         con = self.connection or self._connect()
         print('Querying database\n')
@@ -484,59 +494,11 @@ def clear_duplicate_rows(dataframe):
 
     return dataframe, duplicates_dict
 
-
-def doi_request(doi):
-    import urllib.request
-    from urllib.error import HTTPError
-
-    BASE_URL = 'http://dx.doi.org/'
-
-    url = BASE_URL + doi
-    req = urllib.request.Request(url)
-    req.add_header('Accept', 'application/json')
-    try:
-        with urllib.request.urlopen(req) as f:
-            bibtex = f.read().decode()
-       # return bibtex
-    except HTTPError as e:
-        if e.code == 404:
-            print('DOI not found.')
-        else:
-            print('Service unavailable.')
-
-    data = json.loads(bibtex)
-
-    pub_info = {}
-    authors = []
-
-    for a in data['author']:
-        f = a['given']
-        l = a['family']
-        authors += ['{}, {}'.format(l, f)]
-
-
-    pub_info =\
-        {'title': data['title'],
-         'year': data['published']['date-parts'][0][0],
-         'authors': json.dumps(authors),
-         'journal': data['container-title'],
-         'volume': data['volume'],
-         'number': data['journal-issue']['issue'],
-         'pages': data['page'],
-         'tags': None,
-         'publisher': data['publisher'],
-         'doi': doi,
-         }
-    pub_id = get_pub_id(pub_info['title'], authors, pub_info['year'])
-    pub_info['pub_id'] = pub_id
-
-    return pub_info
-
-
 def plot_overpotential(dataframe, currents=[0.01, 0.1, 1]):
     import pylab as p
 
-    p.figure(figsize=(12,6))
+    pub_id = set(dataframe['pub_id'].values)
+
     V = {}
     idx = None
     for I in currents:
@@ -547,35 +509,59 @@ def plot_overpotential(dataframe, currents=[0.01, 0.1, 1]):
         if idx is None:
             sort_nonone = [v if v is not None else 100 for v in V[I]]
             idx = np.argsort(sort_nonone)
-        p.plot(V[I][idx], label = '{} mA/cm2'.format(I))
+        p.plot(V[I][idx], '.-', markersize=12, linewidth=2, label = '{} mA/cm2'.format(I))
     ax = p.gca()
+
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
+        verticalalignment='center', horizontalalignment='center', bbox=props)
+
+
     ax.set_xticks(range(len(V[I])))
-    ax.set_xticklabels(dataframe['composition'][idx])
+    ax.set_xticklabels(dataframe['composition'].values[idx])
     p.xticks(rotation=70)
-    p.ylabel('Onset potential(V)')
-    p.xlabel('Material')
-    p.subplots_adjust(bottom=0.2)
-    #p.plot(dataframe['onset_potential(+/-0.1_mA/cm2)'])
-    #p.plot(dataframe['onset_potential(+/-0.01_mA/cm2)'])
+    p.ylabel('Onset potential(V)', fontsize=18)
+    p.xlabel('Material', fontsize=18)
+    p.title('Catalytic Performance', fontsize=18)
+    p.subplots_adjust(bottom=0.3)
 
     p.legend()
     return p
 
-def plot_cvs(dataframe, cv_types=['initial'], cv_ids=None):
+def plot_cvs(dataframe, dataframe_sample, cv_types=['initial'], cv_ids=None):
     import pylab as p
-    p.figure(figsize=(3,2.5))
+
+    pub_id = set(dataframe_sample['pub_id'].values)
+
     dataframe = dataframe[dataframe['type']== 'CV_end']
-    print(dataframe)
-    for i in [10,12]:
-        p.plot(dataframe['potential'].values[i], dataframe['current'].values[i], label=i)
-    p.xlabel('Onset potential (V)')
-    p.ylabel('Current (mA/cm2)')
-    p.ylim(0,4)
-    p.xlim(1.1,1.6)
+
+    if cv_ids is None:
+        cv_ids = range(len(dataframe))
+    for i in cv_ids:
+        sample_id = dataframe['sample_id'].values[i]
+        material = dataframe_sample[dataframe_sample['sample_id'] == sample_id]['composition'].values[0]
+
+        p.plot(dataframe['potential'].values[i], dataframe['current'].values[i],
+            linewidth=2, label=material)
+
+    #p.ylim(0,4)
+    p.xlim(1.45,1.6)
+    ax = p.gca()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
+        verticalalignment='center', horizontalalignment='center', bbox=props)
+
+    p.legend()
+    p.xlabel('Potential (V)', fontsize=18)
+    p.ylabel('Current (mA/cm2)', fontsize=18)
+
     p.subplots_adjust(bottom=0.25, left=0.2)
-    #p.legend()
+    p.legend()
     return p
 
+def get_publication_label(dataframe):
+    title = dataframe['title'].values[0]
+    authors = dataframe['authors'].values[0]
 
 
 if __name__ == '__main__':
@@ -583,11 +569,29 @@ if __name__ == '__main__':
 
     DB = ExpSQL(user='experimental', password='hGaPjHfo')  # 'catroot') #
 
-    #dataframe = DB.get_dataframe('sample', pub_id='HubertAcidic2020')
-    #print(dataframe)
-    #dataframe = DB.get_dataframe('xrd', pub_id='HubertAcidic2020')
-    #print(dataframe)
-    dataframe = DB.get_dataframe('echemical', pub_id='HubertAcidic2020')
+    dataframe_testing = DB.get_dataframe('sample', pub_id='HubertAcidic2020')
+    #idx = (dataframe_testing['replicate'] == '-')
+    #dataframe_testing = dataframe_testing[idx]
+    print(dataframe_testing)
+
+    print(idx)
+
+    dataframe_publication = DB.get_dataframe('publication', pub_id='HubertAcidic2020')
+    pub_info = dataframe_publication.to_dict(orient='records')[0]
+
+    pub_print = '"{}", \n{}. $\mathit{{{}}}$, {},{},{},({}), #{}, \n{}'\
+        .format(pub_info['title'],
+         pub_info['authors'][0] + 'et. al' if True else ";".join(pub_info['authors']),
+         pub_info['journal'],
+         pub_info['volume'],
+         pub_info['number'],
+         pub_info['pages'],
+         pub_info['year'],
+         pub_info['pub_id'],
+         pub_info['doi']
+         )
+
+
     #print(dataframe)
     #var_columns = []
     #columns = dataframe.columns
@@ -606,7 +610,16 @@ if __name__ == '__main__':
     #p = plot_overpotential(dataframe)
     #p.show()
 
-    p = plot_cvs(dataframe)
+    #p = plot_cvs(dataframe)
+    p = plot_overpotential(dataframe_testing)
+
+    ax = p.gca()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    ax.text(0.5, 0.8, pub_print, transform=ax.transAxes, fontsize=10,
+        verticalalignment='center', horizontalalignment='center', bbox=props)
+
+    #p.annotate(pub_print, xy=(0.7,0.5), textcoords='axes fraction')
+
     p.show()
     import sys
     sys.exit()
