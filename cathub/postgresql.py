@@ -725,21 +725,10 @@ class CathubPostgreSQL:
         cur = con.cursor()
 
         pub_id = pub_dict['pub_id']
-
-        values = pub_dict.values()
-        key_str = ', '.join(pub_dict.keys())
-        value_str = "'{0}'".format(values[0])
-        for v in values[1:]:
-            if isinstance(v, text):
-                v = v.encode('utf8', 'ignore')
-            if v is None or v == '':
-                value_str += ", {0}".format('NULL')
-            elif isinstance(v, str):
-                value_str += ", '{0}'".format(v)
-            elif isinstance(v, list):
-                value_str += ", '{0}'".format(json.dumps(v))
-            else:
-                value_str += ", {0}".format(v)
+        key_str = get_key_str('publication', start_index=1)
+        key_list = get_key_list('publication', start_index=1)
+        values = [pub_dict[key] for key in key_list]
+        value_str = get_value_str(values)
 
         update_command = \
             """UPDATE publication SET ({0}) = ({1}) WHERE pub_id='{2}';"""\

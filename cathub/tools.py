@@ -1,6 +1,8 @@
 import os
 from ase import Atoms
-
+import json
+import urllib.request
+from urllib.error import HTTPError
 
 def get_pub_id(title, authors, year):
     "construct publication id"
@@ -165,3 +167,48 @@ def get_state(name):
     else:
         state = 'star'
     return state
+
+def doi_request(doi):
+
+    BASE_URL = 'http://dx.doi.org/'
+
+    url = BASE_URL + doi
+    req = urllib.request.Request(url)
+    req.add_header('Accept', 'application/json')
+    try:
+        with urllib.request.urlopen(req) as f:
+            bibtex = f.read().decode()
+       # return bibtex
+    except HTTPError as e:
+        if e.code == 404:
+            print('DOI not found.')
+        else:
+            print('Service unavailable.')
+
+    data = json.loads(bibtex)
+
+    pub_info = {}
+    authors = []
+
+    for a in data['author']:
+        f = a['given']
+        l = a['family']
+        authors += ['{}, {}'.format(l, f)]
+
+
+    pub_info =\
+        {'title': data['title'],
+         'year': data['published']['date-parts'][0][0],
+         'authors': json.dumps(authors),
+         'journal': data['container-title'],
+         'volume': data.get('volume'),
+         'number': data.get('journal-issue', {}).get('issue'),
+         'pages': data.get('page'),
+         'tags': None,
+         'publisher': data['publisher'],
+         'doi': doi,
+         }
+    pub_id = get_pub_id(pub_info['title'], authors, pub_info['year'])
+    pub_info['pub_id'] = pub_id
+
+    return pub_info
