@@ -29,7 +29,7 @@ class CatEnergyTestCase(unittest.TestCase):
         '''
         Test function to read parameter file for a desired configuration
         '''
-        config_file_path = f'{DESIRED_SURFACE}_{DESIRED_FACET}.yaml'
+        config_file_path = f'cat_energy/{DESIRED_SURFACE}_{DESIRED_FACET}.yaml'
         with open(config_file_path, 'r', encoding='utf-8') as stream:
             try:
                 params = yaml.safe_load(stream)

@@ -1,0 +1,93 @@
+name: 'Cu-fcc_100'
+db_filename: 'PasumarthiCOR2022.db'
+gas_jsondata_filename: 'gas_vibration_data_hongjie.json'
+ads_jsondata_filename: 'ads_vibration_data.json'
+ts_jsondata_filename: 'ts_vibration_data.json'
+rxn_expressions_filename: 'rxn_expressions.txt'
+
+### GAS
+reference_gases:
+    - 'CO'
+    - 'H2O'
+    - 'H2_ref'
+dummy_gases:
+    - 'ele'
+    - 'H'
+    - 'O2'
+
+# BEEF-vdW functional in eV
+dft_corrections_gases:
+    'H2' : 0.09
+    'H2_ref' : 0.09
+
+dft_corrections_adsorbates: {}
+
+# TODO: Ask Frank for the Helmholtz calculation source or else remove the parameter.
+beef_dft_helmholtz_offset:  # in eV
+    'CO' : -0.0172  # CO in Helmholtz Plane
+
+facet_conditional: ''
+
+adsorbate_parameters:
+    'solvation_corrections':
+        'CO_HP' : 0.0
+        'CO' : -0.059
+        'OCCO' : -0.191
+        'OCCOH' : -0.275
+        'CCO' : -0.084
+        'OCCH' : -0.097
+        'COH' : -0.107
+        'C' : 0.003
+        'CH' : 0.000
+        'CHO' : -0.107
+        'CHOH' : -0.110
+        'CH2' : 0.002
+        'CH3' : 0.002
+        'OH' : 0.009
+        'H' : 0.001
+
+### POTENTIAL-DEPENDENT FIELD EFFECTS (pH, UM_PZC) - field parameters
+# NOTE: Using values corresponding to Helmholtz Plane (HP) for Gas: CO_HP
+# epsilon_range: [-0.506]  # field for U_RHE=-0.73
+epsilon_range: [-1.2, -1.1, -1.0, -0.9, -0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0.0, 0.1]
+'pH' : 7
+field_effects:
+    'U_RHE' : -0.73  # Potential V vs. Reversible Hydrogen Electrode
+    'mu':  # Intrinsic Dipole Moment in eA
+        'CO_g' : 0.0357
+        'CO' : 0.028
+        'OCCO' : 0.414
+        'OCCOH' : 0.270
+        'CCO' : 0.217
+        'OCCH' : 0.086
+        'COH' : -0.091
+        'C' : 0.100
+        'CH' : -0.010
+        'CHO' : 0.109
+        'CHOH' : 0.020
+        'CH2' : -0.071
+        'CH3' : -0.055
+        'OH' : -0.153
+        'H' : 0.050
+    'alpha':  # Polarizability in eA^2/V
+        'CO_g' : 0.254
+        'CO' : 0.180
+        'OCCO' : 0.232
+        'OCCOH' : 0.360
+        'CCO' : 0.257
+        'OCCH' : 0.233
+        'COH' : 0.171
+        'C' : -0.017
+        'CH' : 0.016
+        'CHO' : 0.294
+        'CHOH' : 0.197
+        'CH2' : 0.081
+        'CH3' : 0.115
+        'OH' : 0.049
+        'H' : -0.007
+
+temp: 300  # temperature in K
+
+## Transition States
+ts_data:
+
