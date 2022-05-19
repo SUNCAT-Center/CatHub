@@ -11,6 +11,7 @@ from ase.db.postgresql import PostgreSQLDatabase
 from past.utils import PY2
 
 from .cathubsqlite import CathubSQLite
+from .config import server_name, public_access
 
 init_commands = [
     """CREATE TABLE publication (
@@ -132,17 +133,18 @@ class CathubPostgreSQL:
     on postgreSQL server.
     """
 
-    def __init__(self, user='catroot', password=None, stdin=sys.stdin,
+    def __init__(self, user='apiuser', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.initialized = False
         self.connection = None
         self.id = None
-        self.server = 'catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com'
+        self.server = server_name
         self.database = 'catalysishub'
-        if user == 'catroot' or user == 'catvisitor':
+        if user == 'apiuser':
             self.schema = 'public'
-            if password is None:
-                password = os.environ['DB_PASSWORD']
+            password = public_access[user]
+        elif user == 'catroot':
+            self.schema = 'public'
         elif user == 'postgres':  # For testing on travis
             self.schema = 'public'
             self.server = 'localhost'
@@ -150,11 +152,18 @@ class CathubPostgreSQL:
             self.password = ''
         else:
             self.schema = user
+
+        if password is None:
+            password = os.environ.get('DB_PASSWORD')
+
+        assert password is not None, \
+            'Please specify password or set "DB_PASSWORD" environment variable'
+
         self.user = user
         self.password = password
         self.stdin = stdin
         self.stdout = stdout
-        self.server_name = "postgres://{0}:{1}@{2}:5432/{3}".format(
+        self.server_name = "postgresql://{0}:{1}@{2}:5432/{3}".format(
             self.user, self.password, self.server, self.database)
 
     def _connect(self):
@@ -404,7 +413,7 @@ class CathubPostgreSQL:
                         schema=to_schema, columns=columns,
                         pub_id=pub_id))
             cur.execute(
-            """UPDATE {schema}.publication SET
+                """UPDATE {schema}.publication SET
                 stime = {mtime}
                 WHERE pub_id = '{pub_id}'"""
                 .format(schema=to_schema,
@@ -488,15 +497,10 @@ class CathubPostgreSQL:
         return username
 
     def delete_publication(self, pub_id, schema='upload'):
-        """ Delete dataset from upload schema"""
-        if schema == 'upload':
-            user = 'upload_admin'
-        elif schema == 'public':
-            user = 'catroot'
+        """ Delete dataset from upload or public schema"""
 
-        if not self.user == 'catroot':
-            assert self.user == user, \
-                "You don't have permission to perform this operation"
+        assert self.user == 'catroot', \
+            "You don't have permission to perform this operation"
 
         con = self.connection or self._connect()
         cur = con.cursor()
@@ -504,10 +508,9 @@ class CathubPostgreSQL:
         self.stdout.write('Deleting publication: {pub_id} from {schema}\n'
                           .format(pub_id=pub_id, schema=schema))
 
-        cur.execute("""SELECT to_regclass('keys');""")
-        if cur.fetchone()[0] is not None:  # remove data from old tables
+        if schema=='upload':
             old_tables = ['text_key_values', 'number_key_values',
-                          'species', 'keys']
+                'species', 'keys']
             for table in old_tables:
                 cur.execute(
                     """DELETE FROM {schema}.{table}"""
@@ -840,7 +843,7 @@ class CathubPostgreSQL:
                     # write one row at the time until ase is updated
                     # db2.write(rows)
                     for row in rows:
-                        db2.write(row)
+                        db2.write(row, data=row.data)
 
                 nrows += len(rows)
                 t2 = time.time()

@@ -7,6 +7,7 @@ import pprint
 import ase.db
 
 from cathub.cathubsqlite import CathubSQLite
+from cathub.postgresql import CathubPostgreSQL
 
 all_columns = {'reactions': ['chemicalComposition', 'surfaceComposition',
                              'facet', 'sites', 'coverages', 'reactants',
@@ -267,8 +268,8 @@ def get_logfile(aseId=None, fname=None):
 
 
 def get_ase_db():
-    return ase.db.connect(
-        'postgresql://catvisitor:eFjohbnD57WLYAJX@catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub')
+    server_name = CathubPostgreSQL().server_name
+    return ase.db.connect(server_name)
 
 
 def get_atomsrow_by_id(unique_id):

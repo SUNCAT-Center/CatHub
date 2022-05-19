@@ -29,7 +29,7 @@ def test_file_organization():
 
 def test_file_organization_module():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'include_pattern': '.',
@@ -45,7 +45,9 @@ def test_file_organization_module():
         'keep_all_energies': True,
         'gas_dir': '',
         'use_cache': False,
-        'energy_corrections': {}
+        'energy_corrections': {},
+        'skip_parameters': '',
+        'skip_constraints': '',
 
     })
 
@@ -56,7 +58,7 @@ def test_file_organization_module():
 
 def test_file_organization_module_non_keep():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'dft_code': '',
@@ -72,7 +74,9 @@ def test_file_organization_module_non_keep():
         'keep_all_energies': False,
         'gas_dir': '',
         'use_cache': False,
-        'energy_corrections': {}        
+        'energy_corrections': {},
+        'skip_parameters': '',
+        'skip_constraints': '',
 
     })
 
@@ -80,9 +84,10 @@ def test_file_organization_module_non_keep():
         ('python {path}/make_test_slabs.py'.format(path=path)).split())
     cathub.organize.main(options)
 
+
 def test_file_organization_module_collect_only():
     options = Struct(**{
-        'adsorbates': 'O,H2',
+        'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'dft_code': '',
@@ -98,7 +103,7 @@ def test_file_organization_module_collect_only():
         'keep_all_energies': False,
         'gas_dir': '',
         'use_cache': False,
-        'energy_corrections': {}        
+        'energy_corrections': {}
 
     })
 
