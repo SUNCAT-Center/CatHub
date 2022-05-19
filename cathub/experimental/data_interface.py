@@ -62,6 +62,20 @@ init_commands = [
     intensity DOUBLE PRECISION[]
     );""",
 
+    """CREATE TABLE xas_ledge (
+    mat_id integer PRIMARY KEY REFERENCES material (mat_id),
+    type text,
+    energy DOUBLE PRECISION[],
+    intensity DOUBLE PRECISION[]
+    );""",
+
+    """CREATE TABLE xas_kedge (
+    mat_id integer PRIMARY KEY REFERENCES material (mat_id),
+    type text,
+    energy DOUBLE PRECISION[],
+    intensity DOUBLE PRECISION[]
+    );""",
+
     """CREATE TABLE echemical (
     id SERIAL PRIMARY KEY,
     type text,
@@ -178,10 +192,10 @@ class ExpSQL(CathubPostgreSQL):
         XRD_table = dataframes['XRD']
         CV_table = dataframes['CV']
         CVend_table = dataframes['CVend']
-        Stability_table = dataframes['Stability Test']
+        #Stability_table = dataframes['Stability Test']
 
         pub_info = doi_request(doi)
-        tags = {'experimental': {'inputer_names': np.unique(main_table['inputer_name'].values).tolist()}}
+        tags = {'experimental': {'inputer_names': list(set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))}} #np.unique(main_table['inputer_name'].values).tolist()}}
 
         dataset_names = list(set([n for n in main_table['dataset_name'].values if not pandas.isnull(n)]))
         inputer_names = list(set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))
@@ -199,6 +213,7 @@ class ExpSQL(CathubPostgreSQL):
             """SELECT id from publication where pub_id='{pub_id}'"""
             .format(pub_id=pub_id))
         id_p = cur.fetchone()
+
         if id_p is None:  # len(row) > 0:
             key_list = get_key_list('publication', start_index=1)
             pub_values = [pub_info[k] for k in key_list]
@@ -212,7 +227,7 @@ class ExpSQL(CathubPostgreSQL):
 
 
         main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(lambda x: str(x).split('/'))
-        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(x).split('/') if not (pandas.isnull(i) or i == 'nan')])
+        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(x).split('/') if not (pandas.isnull(i) or i == 'nan' or i =='-')])
 
         XPS_ids = []
         for index, row in main_table.iterrows():
@@ -224,26 +239,17 @@ class ExpSQL(CathubPostgreSQL):
             Stab_id = row['stability_test_ID']
             XPS_post_id = row['XPS_post_test_ID']
 
-            if pandas.isnull(XPS_id) or pandas.isnull(XRD_id):
-                continue
-
-            elif not XPS_id in XPS_table:
-                continue
-
-            elif not XRD_id in XRD_table:
-                continue
-
-            print(XRD_id, XRD_id, CV_init_id)
+            #if not (pandas.isnull(XPS_id) or pandas.isnull(XRD_id)):
+            print(XPS_id)
             if not XPS_id in XPS_ids:
-                XPS_ids += [XPS_id]
-
+                if XPS_id is not None:
+                    XPS_ids += [XPS_id]
 
                 # Material
                 mat_value_list = [row[c] for c in mat_columns]
                 #mat_value_list[4] =
                 #mat_value_list[4] = [m.replace('-', '') for m in str(
                 #    mat_value_list[4]).split('/')]
-
                 key_str = ', '.join(mat_columns)
                 key_str = key_str.replace(
                     '_a(nm)', '').replace('ICSD_ID', 'icsd_ids').replace('ICDD_ID', 'icdd_ids')
@@ -257,36 +263,36 @@ class ExpSQL(CathubPostgreSQL):
                 print(query_mat)
                 cur.execute(query_mat)
                 mat_id = cur.fetchone()[0]
+                if XPS_id in XPS_table:
+                    # XPS
+                    E = XPS_table[XPS_id].values[1:]
+                    idx = [not pandas.isnull(e) for e in E]
+                    E = np.array(E)[idx]
+                    I = np.array(XPS_table[XPS_id + '.1'].values[1:])[idx]
 
-                # XPS
-                E = XPS_table[XPS_id].values[1:]
-                idx = [not pandas.isnull(e) for e in E]
-                E = np.array(E)[idx]
-                I = np.array(XPS_table[XPS_id + '.1'].values[1:])[idx]
+                    key_str = ', '.join(xps_columns)
+                    xps_value_list = [mat_id, None, 'pre', list(E), list(I)]
+                    value_str = get_value_str(xps_value_list)
 
-                key_str = ', '.join(xps_columns)
-                xps_value_list = [mat_id, None, 'pre', list(E), list(I)]
-                value_str = get_value_str(xps_value_list)
+                    query_xps = \
+                        """INSERT INTO xps ({}) VALUES ({})
+                        """.format(key_str, value_str)
+                    cur.execute(query_xps)
 
-                query_xps = \
-                    """INSERT INTO xps ({}) VALUES ({})
-                    """.format(key_str, value_str)
-                cur.execute(query_xps)
+                if XRD_id in XRD_table:
+                    Deg = XRD_table[XRD_id].values[1:]
+                    idx = [not (pandas.isnull(d) or d == '--') for d in Deg]
+                    Deg = np.array(Deg)[idx]
+                    I = np.array(XRD_table[XRD_id + '.1'].values[1:])[idx]
 
-                # XRD
-                Deg = XRD_table[XRD_id].values[1:]
-                idx = [not (pandas.isnull(d) or d == '--') for d in Deg]
-                Deg = np.array(Deg)[idx]
-                I = np.array(XRD_table[XRD_id + '.1'].values[1:])[idx]
+                    key_str = ', '.join(xrd_columns)
+                    xrd_value_list = [mat_id, 'pre', list(Deg), list(I)]
+                    value_str = get_value_str(xrd_value_list)
 
-                key_str = ', '.join(xrd_columns)
-                xrd_value_list = [mat_id, 'pre', list(Deg), list(I)]
-                value_str = get_value_str(xrd_value_list)
-
-                query_xrd = \
-                    """INSERT INTO xrd ({}) VALUES ({})
-                    """.format(key_str, value_str)
-                cur.execute(query_xrd)
+                    query_xrd = \
+                        """INSERT INTO xrd ({}) VALUES ({})
+                        """.format(key_str, value_str)
+                    cur.execute(query_xrd)
 
             # Sample table
             pub_id = row.pop('pub_id')
@@ -317,14 +323,15 @@ class ExpSQL(CathubPostgreSQL):
 
             """ echemical Table"""
             key_str = ', '.join(echemical_columns)
+            print(CV_init_id)
             if not pandas.isnull(CV_init_id):
                 if not CV_init_id in CV_table:
                     print('ID not found cvinit!', CV_init_id)
                 else:
-                    V = CV_table[CV_init_id].values[1:]
+                    V = CV_table[CV_init_id + '.1'].values[1:]
                     idx = [not (pandas.isnull(v) or v == '--') for v in V]
                     V = np.array(V)[idx]
-                    I = np.array(CV_table[CV_init_id + '.1'].values[1:])[idx]
+                    I = np.array(CV_table[CV_init_id + '.2'].values[1:])[idx]
 
                     cv_value_list = [sample_id, 'CV_initial',
                                      row['time_tested(h)'], None, list(V), list(I)]
@@ -340,10 +347,10 @@ class ExpSQL(CathubPostgreSQL):
                 if not CV_end_id in CVend_table:
                     print('Id not found cvend!', CV_end_id)
                 else:
-                    V = CVend_table[CV_end_id].values[1:]
+                    V = CVend_table[CV_end_id + '.1'].values[1:]
                     idx = [not (pandas.isnull(v) or v == '--') for v in V]
                     V = np.array(V)[idx]
-                    I = np.array(CVend_table[CV_end_id + '.1'].values[1:])[idx]
+                    I = np.array(CVend_table[CV_end_id + '.2'].values[1:])[idx]
 
                     cv_value_list = [sample_id, 'CV_end',
                                      row['time_tested(h)'], None, list(V), list(I)]
