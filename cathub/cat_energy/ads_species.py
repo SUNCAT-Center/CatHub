@@ -10,8 +10,8 @@ from tabulate import tabulate
 
 from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, write_columns
-from .conversion import formula_to_chemical_symbols, CM2EV
-from .conversion import get_electric_field_contribution
+from .conversion import formula_to_chemical_symbols, CM2EV, \
+    get_electric_field_contribution
 
 
 def write_adsorbate_energies(
