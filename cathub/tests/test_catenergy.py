@@ -6,8 +6,6 @@ Test script for CatEnergy package
 from pathlib import Path
 import unittest
 
-import yaml
-
 from cathub.cat_energy.conversion import formula_to_chemical_symbols, \
     get_catmap_style_species
 
