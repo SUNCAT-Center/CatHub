@@ -8,7 +8,8 @@ import unittest
 
 import yaml
 
-from cathub.cat_energy.conversion import formula_to_chemical_symbols
+from cathub.cat_energy.conversion import formula_to_chemical_symbols, \
+    get_catmap_style_species
 
 
 DESIRED_SURFACE = 'Cu'
@@ -56,6 +57,23 @@ class CatEnergyTestCase(unittest.TestCase):
 
         for index, result_dict in enumerate(result_check_list):
             assert result_dict == chemical_symbols_dict_list[index]
+
+    def test3_catmap_style_species(self):
+        '''
+        Test function to convert formula to CatMAP style species definition
+        '''
+        species_list = ['H2_g', '2CO*_t', 'CCO_t', 'H_g']
+        result_check_list = [('H2gas', 1),
+                             ('COstar', 2.0),
+                             ('CCOstar', 1),
+                             ('H2gas', 0.5)]
+        catmap_species_list = []
+        for index, species_value in enumerate(species_list):
+            catmap_species_list[index] = get_catmap_style_species(
+                                                                species_value)
+
+        for index, result_tuple in enumerate(result_check_list):
+            assert result_tuple == catmap_species_list[index]
 
 if __name__ == '__main__':
     unittest.main()
