@@ -8,6 +8,7 @@ import pandas as pd
 from ase.thermochemistry import HarmonicThermo
 from tabulate import tabulate
 
+from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, db_to_dataframe, write_columns
 from .conversion import formula_to_chemical_symbols, CM2EV
 from .conversion import get_electric_field_contribution
@@ -22,9 +23,10 @@ def write_adsorbate_energies(
     corrections
     '''
 
-    # identify system ids for adsorbate species
-    table_name = 'reaction'
-    df1 = db_to_dataframe(table_name, str(db_filepath))
+    # Data from local cathub .db file
+    db = CathubSQL(filename=db_filepath)
+    df1 = db.get_dataframe()
+
     desired_surface = adsorbate_parameters['desired_surface']
     desired_facet = adsorbate_parameters['desired_facet']
     df1 = df1[df1['surface_composition'] == desired_surface]
