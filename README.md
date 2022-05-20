@@ -24,7 +24,7 @@ Querying the Surface Reactions database in Python:
     db = CathubSQL()
 
     # Data from local cathub .db file
-    db = CathubSQL('filename.db')
+    db = CathubSQL(filename='filename.db')
 
 Get reactions in pandas dataframe:
 
