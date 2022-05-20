@@ -4,9 +4,6 @@ Module to perform input/output operations
 
 from pathlib import Path
 
-import pandas as pd
-from sqlalchemy import create_engine
-
 
 NUM_DECIMAL_PLACES = 4
 write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy',
@@ -14,22 +11,6 @@ write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy',
                  'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector',
                  'frequencies', 'reference']
 
-
-# NOTE: use cathub function to convert db to dataframe
-def db_to_dataframe(table_name, filename):
-    '''
-    Read cathub .db file into pandas dataframe
-    '''
-
-    # define sql url
-    sql_url = 'sqlite:///' + str(filename)
-
-    # SQLAlchemy connectable
-    cnx = create_engine(sql_url).connect()
-
-    # table will be returned as a dataframe
-    df = pd.read_sql_table(table_name, cnx)
-    return df
 
 def read_qe_log(file_path, wf_dipole_index):
     '''
