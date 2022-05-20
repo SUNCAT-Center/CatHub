@@ -28,20 +28,7 @@ class CatEnergyTestCase(unittest.TestCase):
     '''
     Test case definitions for CatEnergy package
     '''
-    def test1_read_params(self):
-        '''
-        Test function to read parameter file for a desired configuration
-        '''
-        config_file_path = f'cat_energy/{DESIRED_SURFACE}_{DESIRED_FACET}.yaml'
-        with open(config_file_path, 'r', encoding='utf-8') as stream:
-            try:
-                params = yaml.safe_load(stream)
-            except yaml.YAMLError as exc:
-                print(exc)
-        config_params = ReturnValues(params)
-        return config_params
-
-    def test2_chemical_formula_to_symbols(self):
+    def test1_chemical_formula_to_symbols(self):
         '''
         Test function to convert formula to dictionary of chemical symbols
         '''
@@ -58,7 +45,7 @@ class CatEnergyTestCase(unittest.TestCase):
         for index, result_dict in enumerate(result_check_list):
             assert result_dict == chemical_symbols_dict_list[index]
 
-    def test3_catmap_style_species(self):
+    def test2_catmap_style_species(self):
         '''
         Test function to convert formula to CatMAP style species definition
         '''
