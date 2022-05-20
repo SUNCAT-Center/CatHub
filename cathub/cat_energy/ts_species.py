@@ -10,7 +10,8 @@ from ase.neb import fit0
 from ase.thermochemistry import HarmonicThermo
 from tabulate import tabulate
 
-from .io import NUM_DECIMAL_PLACES, db_to_dataframe, write_columns
+from cathub.cathubsql import CathubSQL
+from .io import NUM_DECIMAL_PLACES, write_columns
 from .conversion import read_reaction_expression_data
 from .conversion import formula_to_chemical_symbols, KB, CM2EV
 from .conversion import get_electric_field_contribution
@@ -48,9 +49,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     Function to compute and return energetics of transition state species
     '''
 
-    # identify system ids for transition state species
-    table_name = 'reaction'
-    df1 = db_to_dataframe(table_name, str(db_filepath))
+    # Data from local cathub .db file
+    db = CathubSQL(filename=db_filepath)
+    df1 = db.get_dataframe()
+
     desired_surface = adsorbate_parameters['desired_surface']
     desired_facet = adsorbate_parameters['desired_facet']
     df1 = df1[df1['surface_composition'] == desired_surface]
