@@ -101,9 +101,6 @@ class ExpSQL(CathubPostgreSQL):
 
     def __init__(self, user='experimental', schema='experimental', password=None):
         super().__init__(schema=schema, user=user, password=password)
-        #self.backend = 'postgres'
-        #self.connection = None
-
         #self.create_user('experimental', row_limit = None)
 
     def _initialize(self, con):
@@ -129,9 +126,8 @@ class ExpSQL(CathubPostgreSQL):
             cur.execute(init_command)
         self.initialized = True
 
-
     def get_dataframe(self, table='sample', sample_ids=None, mat_ids=None, pub_id=None,
-        include_replicates=False):
+                      include_replicates=False):
         """
         Get pandas dataframe containing experimental data
 
@@ -143,21 +139,25 @@ class ExpSQL(CathubPostgreSQL):
         query = \
             """SELECT * from experimental.{}""".format(table)
         if sample_ids is not None:
-            query += " \nWHERE sample_id in ({})".format(','.join([str(i) for i in sample_ids]))
+            query += " \nWHERE sample_id in ({})".format(
+                ','.join([str(i) for i in sample_ids]))
         elif mat_ids is not None:
-            query += " \nWHERE mat_id in ({})".format(','.join([str(i) for i in mat_ids]))
+            query += " \nWHERE mat_id in ({})".format(
+                ','.join([str(i) for i in mat_ids]))
         if pub_id is not None:
             if table in ['publication', 'sample', 'material']:
                 query += " \nWHERE pub_id='{}'".format(pub_id)
                 if table == 'sample' and not include_replicates:
-                    query += "and data->>'replicate' = '1'"
+                    query += "and (data->>'replicate' is null or  data->>'replicate' in ('1', '-'))"
             elif table in ['xps', 'xrd']:
-                query += " \nWHERE mat_id in (select mat_id from material where pub_id='{}')".format(pub_id)
+                query += " \nWHERE mat_id in (select mat_id from material where pub_id='{}')".format(
+                    pub_id)
             elif table == 'echemical':
                 if not include_replicates:
-                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}' and data->>'replicate' = '1')".format(pub_id)
+                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}' and (data->>'replicate' is null or  data->>'replicate' in ('1', '-')))".format(pub_id)
                 else:
-                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(pub_id)
+                    query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(
+                        pub_id)
 
         con = self.connection or self._connect()
         print('Querying database\n')
@@ -173,13 +173,11 @@ class ExpSQL(CathubPostgreSQL):
             data_extr = dataframe['data'].values
 
             for key in data_extr[0].keys():
-                dataframe[key] = [row[key] for row in data_extr]
+                dataframe[key] = [row.get(key, None) for row in data_extr]
 
             dataframe = dataframe.drop('data', 1)
 
         return dataframe
-
-
 
     def write(self, dataframes, doi=None):
         con = self.connection or self._connect()
@@ -195,10 +193,14 @@ class ExpSQL(CathubPostgreSQL):
         #Stability_table = dataframes['Stability Test']
 
         pub_info = doi_request(doi)
-        tags = {'experimental': {'inputer_names': list(set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))}} #np.unique(main_table['inputer_name'].values).tolist()}}
+        # np.unique(main_table['inputer_name'].values).tolist()}}
+        tags = {'experimental': {'inputer_names': list(
+            set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))}}
 
-        dataset_names = list(set([n for n in main_table['dataset_name'].values if not pandas.isnull(n)]))
-        inputer_names = list(set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))
+        dataset_names = list(
+            set([n for n in main_table['dataset_name'].values if not pandas.isnull(n)]))
+        inputer_names = list(
+            set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))
         if dataset_names:
             tags['dataset_names'] = dataset_names
 
@@ -225,9 +227,10 @@ class ExpSQL(CathubPostgreSQL):
             print(insert_command)
             cur.execute(insert_command)
 
-
-        main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(lambda x: str(x).split('/'))
-        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(x).split('/') if not (pandas.isnull(i) or i == 'nan' or i =='-')])
+        main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(
+            lambda x: str(x).split('/'))
+        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(
+            x).split('/') if not (pandas.isnull(i) or i == 'nan' or i == '-')])
 
         XPS_ids = []
         for index, row in main_table.iterrows():
@@ -238,22 +241,18 @@ class ExpSQL(CathubPostgreSQL):
             CV_end_id = row['CV_end_ID']
             Stab_id = row['stability_test_ID']
             XPS_post_id = row['XPS_post_test_ID']
-
-            #if not (pandas.isnull(XPS_id) or pandas.isnull(XRD_id)):
-            print(XPS_id)
             if not XPS_id in XPS_ids:
                 if XPS_id is not None:
                     XPS_ids += [XPS_id]
 
                 # Material
                 mat_value_list = [row[c] for c in mat_columns]
-                #mat_value_list[4] =
-                #mat_value_list[4] = [m.replace('-', '') for m in str(
+                # mat_value_list[4] =
+                # mat_value_list[4] = [m.replace('-', '') for m in str(
                 #    mat_value_list[4]).split('/')]
                 key_str = ', '.join(mat_columns)
                 key_str = key_str.replace(
                     '_a(nm)', '').replace('ICSD_ID', 'icsd_ids').replace('ICDD_ID', 'icdd_ids')
-
 
                 value_str = get_value_str(mat_value_list)
 
@@ -299,6 +298,8 @@ class ExpSQL(CathubPostgreSQL):
             sample_dict = row.to_dict()
             clean_dict = {}
             for k, v in sample_dict.items():
+                if isinstance(v, list):
+                    continue
                 if pandas.isnull(v) or v == '' or v == 'nan':
                     v = None
                 if k == 'ICSD ID':
@@ -306,8 +307,8 @@ class ExpSQL(CathubPostgreSQL):
                 if k == 'ICDD ID':
                     v = [m for m in v.split('/')]
 
-                #k = k.replace('(', '\(')#.replace(')', '').replace('=', '-').replace(',', '_')#.replace(
-                #'/', '_o_').replace('%', 'perc').replace('+', 'plus').replace('-', 'minus').replace('.', 'd')
+                # k = k.replace('(', '\(')#.replace(')', '').replace('=', '-').replace(',', '_')#.replace(
+                # '/', '_o_').replace('%', 'perc').replace('+', 'plus').replace('-', 'minus').replace('.', 'd')
                 clean_dict[k] = v
 
             key_str = ', '.join(sample_columns)
@@ -319,11 +320,9 @@ class ExpSQL(CathubPostgreSQL):
 
             cur.execute(query_sample)
             sample_id = cur.fetchone()[0]
-            #print(mat_id, sample_id)
 
-            """ echemical Table"""
+            """ Echemical table"""
             key_str = ', '.join(echemical_columns)
-            print(CV_init_id)
             if not pandas.isnull(CV_init_id):
                 if not CV_init_id in CV_table:
                     print('ID not found cvinit!', CV_init_id)
@@ -340,7 +339,7 @@ class ExpSQL(CathubPostgreSQL):
                     query_cv = \
                         """INSERT INTO echemical ({}) VALUES ({})
                         """.format(key_str, value_str)
-                    # print(query_cv)
+                    print(query_cv)
                     cur.execute(query_cv)
 
             if not pandas.isnull(CV_end_id):
@@ -382,16 +381,7 @@ class ExpSQL(CathubPostgreSQL):
         con.commit()
         con.close()
 
-        #print(mat_id, sample_id)
-        # sys.exit()
-
-        #xps_id = row['XPS_ID']
-
-        # print(xps_id)
-        # print(mat_id)
-        # return
-
-        #
+        return
 
 
 def load_table(filename, tablename):
@@ -465,16 +455,9 @@ def clear_duplicate_rows(dataframe):
 
     data = dataframe.groupby('XPS_ID', as_index=False).first()
     return data
-    # print(data.values)
-    # print('hello')
-    #import sys
-    # sys.exit()
 
     values = np.array(dataframe.values[1:, :])
-    print(values)
     duplicates_dict = {}
-
-    print(dataframe)
 
     for i in range(len(values)):
         duplicate_rows = []
@@ -501,70 +484,96 @@ def clear_duplicate_rows(dataframe):
 
     return dataframe, duplicates_dict
 
-def plot_overpotential(dataframe, currents=[0.01, 0.1, 1]):
+
+def plot_overpotential(dataframe, currents=[0.01, 0.05, 0.1, 1, 10]):
     import pylab as p
-
+    p.figure(figsize=(6, 6))
     pub_id = set(dataframe['pub_id'].values)
-
+    tag = set(dataframe['dataset_name'].values)
+    pub_tag = pub_id or tag
     V = {}
     idx = None
+    NV = []
     for I in currents:
-        V[I] = np.array([v if not v == '-' else None for v in dataframe['onset_potential(+/-{}_mA/cm2)'.format(I)]])
-        print(V[I])
+        V[I] = np.array(
+            [v if not v == '-' else None for v in dataframe['onset_potential(+/-{}_mA/cm2)'.format(I)].values])
+        NV += [len([v for v in V[I] if v is not None])]
+    if len(set(NV)) > 1:
+        I_sort = np.argsort(NV)[::-1]
+    else:
+        I_sort = range(len(currents))
+    for I in [currents[i] for i in I_sort]:
         if np.all([i is None for i in V[I]]):
             continue
         if idx is None:
             sort_nonone = [v if v is not None else 100 for v in V[I]]
             idx = np.argsort(sort_nonone)
-        p.plot(V[I][idx], '.-', markersize=12, linewidth=2, label = '{} mA/cm2'.format(I))
+        p.plot(range(len(idx)), V[I][idx], '.-', markersize=12,
+               linewidth=2, label='{} mA/cm2'.format(I))
     ax = p.gca()
 
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
+    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_tag)), transform=ax.transAxes, fontsize=10,
+            verticalalignment='center', horizontalalignment='center', bbox=props)
 
     ax.set_xticks(range(len(V[I])))
-    ax.set_xticklabels(dataframe['composition'].values[idx])
-    p.xticks(rotation=70)
+    materials_list = [mat if not mat is None else 'Support [{}]'.format(
+        dataframe['conductive_support_ID'].values[0]) for mat in dataframe['composition'].values[idx]]
+    ax.set_xticklabels(materials_list)
+
+    bottom_space = max([len(m) for m in materials_list])
+
+    p.xticks(rotation=85)
     p.ylabel('Onset potential(V)', fontsize=18)
     p.xlabel('Material', fontsize=18)
-    p.title('Catalytic Performance', fontsize=18)
-    p.subplots_adjust(bottom=0.3)
+    p.title('{} performance'.format(
+        '+'.join(set(dataframe['reaction'].values))), fontsize=18)
+    p.subplots_adjust(bottom=0.015 * bottom_space + 0.15, left=0.2)
 
-    p.legend()
+    p.legend(loc='best')
     return p
 
-def plot_cvs(dataframe, dataframe_sample, cv_types=['initial'], cv_ids=None):
+
+def plot_cvs(dataframe, dataframe_sample, cv_type='initial', cv_ids=None):
     import pylab as p
 
     pub_id = set(dataframe_sample['pub_id'].values)
 
-    dataframe = dataframe[dataframe['type']== 'CV_end']
+    dataframe = dataframe[dataframe['type'] == 'CV_{}'.format(cv_type)]
 
+    if len(dataframe) == 0:
+        return None
+
+    p.figure(figsize=(6, 6))
     if cv_ids is None:
         cv_ids = range(len(dataframe))
     for i in cv_ids:
         sample_id = dataframe['sample_id'].values[i]
-        material = dataframe_sample[dataframe_sample['sample_id'] == sample_id]['composition'].values[0]
+        material = dataframe_sample[dataframe_sample['sample_id']
+                                    == sample_id]['composition'].values[0]
 
+        # print(dataframe['potential'].values[i])
         p.plot(dataframe['potential'].values[i], dataframe['current'].values[i],
-            linewidth=2, label=material)
+               linewidth=2, label=material)
 
-    #p.ylim(0,4)
-    p.xlim(1.45,1.6)
+    min = np.min([np.min(dat) for dat in dataframe['current'].values])
+    max = np.max([np.max(dat) for dat in dataframe['current'].values])
+    p.ylim(min, max + 0.1 * (max-min))
+    # p.xlim(1.45,1.6)
     ax = p.gca()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
     ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-
-    p.legend()
+            verticalalignment='center', horizontalalignment='center', bbox=props)
+    ax.axhline(linestyle='--', color='k')
+    p.legend(loc='best')
     p.xlabel('Potential (V)', fontsize=18)
     p.ylabel('Current (mA/cm2)', fontsize=18)
+    p.title('CV ({})'.format(cv_type), fontsize=18)
 
-    p.subplots_adjust(bottom=0.25, left=0.2)
-    p.legend()
+    p.subplots_adjust(bottom=0.15, left=0.2)
+    p.legend(loc='best')
     return p
+
 
 def get_publication_label(dataframe):
     title = dataframe['title'].values[0]
@@ -573,81 +582,17 @@ def get_publication_label(dataframe):
 
 if __name__ == '__main__':
     import sys
+    import pylab as p
+    DB = ExpSQL(user='experimental',
+                password=os.environ.get('DB_PASSWORD_exp'))
 
-    DB = ExpSQL(user='experimental', password='hGaPjHfo')  # 'catroot') #
+    all_publications = DB.get_dataframe(table='publication')[
+        ['pub_id', 'title', 'authors', 'journal', 'year']]
 
-    dataframe_testing = DB.get_dataframe('sample', pub_id='HubertAcidic2020')
-    #idx = (dataframe_testing['replicate'] == '-')
-    #dataframe_testing = dataframe_testing[idx]
-    print(dataframe_testing)
-
-    print(idx)
-
-    dataframe_publication = DB.get_dataframe('publication', pub_id='HubertAcidic2020')
-    pub_info = dataframe_publication.to_dict(orient='records')[0]
-
-    pub_print = '"{}", \n{}. $\mathit{{{}}}$, {},{},{},({}), #{}, \n{}'\
-        .format(pub_info['title'],
-         pub_info['authors'][0] + 'et. al' if True else ";".join(pub_info['authors']),
-         pub_info['journal'],
-         pub_info['volume'],
-         pub_info['number'],
-         pub_info['pages'],
-         pub_info['year'],
-         pub_info['pub_id'],
-         pub_info['doi']
-         )
-
-
-    #print(dataframe)
-    #var_columns = []
-    #columns = dataframe.columns
-    #for c in columns:
-#        print(c)#
-    #    try:
-    #        var_columns += [len(set(dataframe[c].values))]
-    #    except:
-    #        var_columns += [1]
-
-    #i#dx = np.argsort(var_columns)[::-1]
-    #col_new = columns[idx][4:14]
-    #print(dataframe[col_new])
-
-    #sys.exit()
-    #p = plot_overpotential(dataframe)
-    #p.show()
-
-    #p = plot_cvs(dataframe)
-    p = plot_overpotential(dataframe_testing)
-
-    ax = p.gca()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
-    ax.text(0.5, 0.8, pub_print, transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-
-    #p.annotate(pub_print, xy=(0.7,0.5), textcoords='axes fraction')
-
-    p.show()
-    import sys
-    sys.exit()
-
-    dataframes = {}
-    filename = '/Volumes/GoogleDrive/Shared drives/SUNCAT_experimental_data/OxR _HxR Jaramillo Database.xlsx'
-
-    doi='10.1021/acscatal.0c02252'
-
-
-    for table in ['Tabulated data', 'XPS', 'XRD', 'CV', 'CVend', 'Stability Test']:
-        data = load_table(filename=filename, tablename=table)
-        data = clean_column_names(data)
-        dataframes[table] = data
-
-
-    DB.write(dataframes, doi=doi)
-
-    #DB = ExpSQL(user='catroot', password='Kalle kamel har 2 pukler')
-
-    # print(data.columns)
-    # print(len(data_material.to_dict('records')))
-
-    # CREATED USER experimental WITH PASSWORD hGaPjHfo
+    for pub_id in all_publications['pub_id'].values:
+        dataframe_sample = DB.get_dataframe('sample', pub_id=pub_id)
+        plot_overpotential(dataframe_sample)
+        dataframe_cv = DB.get_dataframe('echemical', pub_id=pub_id)
+        plot_cvs(dataframe_cv, dataframe_sample, cv_type='initial')
+        plot_cvs(dataframe_cv, dataframe_sample, cv_type='end')
+        p.show()
