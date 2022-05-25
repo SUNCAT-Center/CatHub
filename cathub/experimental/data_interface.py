@@ -2,8 +2,10 @@ import sys
 import os
 import json
 import pandas
+from pandasgui import show
 from pandas import read_sql
 import numpy as np
+import pylab as p
 from sqlalchemy import create_engine
 from cathub.postgresql import CathubPostgreSQL, get_value_str, get_key_list, get_key_str
 from cathub.tools import get_pub_id, doi_request
@@ -148,7 +150,7 @@ class ExpSQL(CathubPostgreSQL):
             if table in ['publication', 'sample', 'material']:
                 query += " \nWHERE pub_id='{}'".format(pub_id)
                 if table == 'sample' and not include_replicates:
-                    query += "and (data->>'replicate' is null or  data->>'replicate' in ('1', '-'))"
+                    query += "and (data->>'replicate' is null or data->>'replicate' in ('1', '-'))"
             elif table in ['xps', 'xrd']:
                 query += " \nWHERE mat_id in (select mat_id from material where pub_id='{}')".format(
                     pub_id)
@@ -178,6 +180,65 @@ class ExpSQL(CathubPostgreSQL):
             dataframe = dataframe.drop('data', 1)
 
         return dataframe
+
+    def delete(self, pub_id):
+        con = self.connection or self._connect()
+        cur = con.cursor()
+        self._initialize(con)
+
+        cur.execute(
+            """SELECT id from publication where pub_id='{pub_id}'"""
+            .format(pub_id=pub_id))
+        id_p = cur.fetchone()
+
+        if id_p is None:
+            print('Dataset not found')
+            return
+
+        """Delete echemical"""
+        cur.execute(
+            """DELETE from echemical where sample_id in
+        (select sample_id from sample where pub_id='{pub_id}');"""
+            .format(pub_id=pub_id))
+
+        """Delete sample"""
+        cur.execute(
+            """DELETE from sample where pub_id='{pub_id}';"""
+            .format(pub_id=pub_id))
+        """Delete xps"""
+        cur.execute(
+            """DELETE from xps where mat_id in
+            (select mat_id from material where pub_id='{pub_id}');"""
+            .format(pub_id=pub_id))
+        """Delete xrd"""
+        cur.execute(
+            """DELETE from xrd where mat_id in
+            (select mat_id from material where pub_id='{pub_id}');"""
+            .format(pub_id=pub_id))
+        """Delete material"""
+        cur.execute(
+            """DELETE from material where pub_id='{pub_id}';"""
+            .format(pub_id=pub_id))
+        """Delete publication"""
+        cur.execute(
+            """DELETE from publication where pub_id='{pub_id}';"""
+            .format(pub_id=pub_id))
+        print('Delete complete')
+        con.commit()
+        con.close()
+
+    def write_from_datasheet(self, directory):
+        dataframes = get_dataframes_from_sheet(directory)
+
+        server_dois = self.get_dataframe(table='publication')['doi'].values
+        dois = set(dataframes['Tabulated data']['DOI'].values)
+        for doi in dois:
+            if not '10.' in str(doi):
+                continue
+            if doi in server_dois:
+                continue
+            print('Adding publication with doi={} to server'.format(doi))
+            self.write(dataframes, doi=doi)
 
     def write(self, dataframes, doi=None):
         con = self.connection or self._connect()
@@ -216,16 +277,19 @@ class ExpSQL(CathubPostgreSQL):
             .format(pub_id=pub_id))
         id_p = cur.fetchone()
 
-        if id_p is None:  # len(row) > 0:
-            key_list = get_key_list('publication', start_index=1)
-            pub_values = [pub_info[k] for k in key_list]
-            key_str = get_key_str('publication', start_index=1)
-            value_str = get_value_str(pub_values, start_index=0)
+        if id_p is not None:
+            print('Dataset already exists: skipping!')
+            return
 
-            insert_command = """INSERT INTO publication ({0}) VALUES
-            ({1});""".format(key_str, value_str)
-            print(insert_command)
-            cur.execute(insert_command)
+        key_list = get_key_list('publication', start_index=1)
+        pub_values = [pub_info[k] for k in key_list]
+        key_str = get_key_str('publication', start_index=1)
+        value_str = get_value_str(pub_values, start_index=0)
+
+        insert_command = """INSERT INTO publication ({0}) VALUES
+        ({1});""".format(key_str, value_str)
+        print(insert_command)
+        cur.execute(insert_command)
 
         main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(
             lambda x: str(x).split('/'))
@@ -270,7 +334,7 @@ class ExpSQL(CathubPostgreSQL):
                     I = np.array(XPS_table[XPS_id + '.1'].values[1:])[idx]
 
                     key_str = ', '.join(xps_columns)
-                    xps_value_list = [mat_id, None, 'pre', list(E), list(I)]
+                    xps_value_list = [mat_id, None, 'survey', list(E), list(I)]
                     value_str = get_value_str(xps_value_list)
 
                     query_xps = \
@@ -383,6 +447,47 @@ class ExpSQL(CathubPostgreSQL):
 
         return
 
+    def show_publications(self):
+        all_publications = self.get_dataframe(table='publication')[
+            ['pub_id', 'doi', 'title', 'authors', 'journal', 'year']]
+        show(all_publications)
+
+    def show_dataset(self, pub_id):
+        dataframe_sample = DB.get_dataframe('sample', pub_id=pub_id)
+        if len(dataframe_sample) == 0:
+            print('No data')
+            return
+
+        dataframe_material = DB.get_dataframe('material', pub_id=pub_id)
+
+        dataframe_xps = DB.get_dataframe('xps', pub_id=pub_id)
+        dataframe_xps = dataframe_xps.set_index('mat_id').join(
+            dataframe_material.set_index('mat_id'))
+        dataframe_xps = dataframe_xps.sort_values(by=['composition'])
+
+        dataframe_xrd = DB.get_dataframe('xrd', pub_id=pub_id)
+        dataframe_xrd = dataframe_xrd.set_index('mat_id').join(
+            dataframe_material.set_index('mat_id'))
+        dataframe_xrd = dataframe_xrd.sort_values(by=['composition'])
+
+        dataframe_cv = DB.get_dataframe('echemical', pub_id=pub_id)
+        dataframe_cv = dataframe_cv.set_index('sample_id').join(
+            dataframe_sample.set_index('sample_id'))
+        dataframe_cv = dataframe_cv.sort_values(by=['composition'])
+
+        plot_overpotential(dataframe_sample)
+        plot_cvs(dataframe_cv, cv_type='initial')
+        plot_cvs(dataframe_cv, cv_type='end')
+        plot_xps(dataframe_xps)
+        plot_xrd(dataframe_xrd)
+
+        show(dataframe_material, dataframe_sample, dataframe_cv,
+             Overpotential=p.figure(1),
+             CV_initial=p.figure(2),
+             CV_end=p.figure(3),
+             XPS=p.figure(4),
+             XRD=p.figure(5))
+
 
 def load_table(filename, tablename):
     skiprows = {'Tabulated data': [0, 1]}
@@ -393,6 +498,33 @@ def load_table(filename, tablename):
                              mangle_dupe_cols=True)
 
     return data
+
+
+def get_dataframes_from_sheet(directory):
+    #directory = '/Users/winther/Dropbox/SUNCAT/Projects/Data_science_experiment/Electrochemical Database-SUNCAT/'
+
+    # Excel files to read
+    filenames = {
+        '1-OxR _HxR ActivityDatabase - 1.xlsx':
+        ['Tabulated data',
+         'pretest CV (t-i-V)',
+         'posttest CV (t-i-V)',
+         'stability (t-i-V)'],
+        'XPS- OxR _HxR ActivityDatabase_.xlsx': ['XPS'],  # , 'XPSPosttest'],
+        'XRD- OxR _HxR ActivityDatabase_.xlsx': ['Sheet1']
+    }
+    name_map = {'pretest CV (t-i-V)': 'CV',
+                'posttest CV (t-i-V)': 'CVend',
+                'stability (t-i-V)': 'Stability Test',
+                'Sheet1': 'XRD'}
+    dataframes = {}
+    for filename, tables in filenames.items():
+        for table in tables:
+            data = load_table(filename=directory+filename, tablename=table)
+            data = clean_column_names(data)
+            table = name_map.get(table, table)
+            dataframes[table] = data
+    return dataframes
 
 
 def clean_column_names(dataframe):
@@ -462,7 +594,6 @@ def clear_duplicate_rows(dataframe):
     for i in range(len(values)):
         duplicate_rows = []
         for v in duplicates_dict.values():
-            # print(v)
             duplicate_rows += list(v)
         if i in duplicate_rows:
             continue
@@ -479,7 +610,6 @@ def clear_duplicate_rows(dataframe):
     for v in duplicates_dict.values():
         all_duplicates += list(v)
 
-    print(all_duplicates)
     dataframe = dataframe.drop(all_duplicates)
 
     return dataframe, duplicates_dict
@@ -534,10 +664,8 @@ def plot_overpotential(dataframe, currents=[0.01, 0.05, 0.1, 1, 10]):
     return p
 
 
-def plot_cvs(dataframe, dataframe_sample, cv_type='initial', cv_ids=None):
-    import pylab as p
-
-    pub_id = set(dataframe_sample['pub_id'].values)
+def plot_cvs(dataframe, cv_type='initial', cv_ids=None):
+    pub_id = set(dataframe['pub_id'].values)
 
     dataframe = dataframe[dataframe['type'] == 'CV_{}'.format(cv_type)]
 
@@ -547,12 +675,11 @@ def plot_cvs(dataframe, dataframe_sample, cv_type='initial', cv_ids=None):
     p.figure(figsize=(6, 6))
     if cv_ids is None:
         cv_ids = range(len(dataframe))
-    for i in cv_ids:
-        sample_id = dataframe['sample_id'].values[i]
-        material = dataframe_sample[dataframe_sample['sample_id']
-                                    == sample_id]['composition'].values[0]
 
-        # print(dataframe['potential'].values[i])
+    for i in cv_ids:
+        material = '{}({})'.format(
+            dataframe['composition'].values[i], dataframe['id'].values[i])
+
         p.plot(dataframe['potential'].values[i], dataframe['current'].values[i],
                linewidth=2, label=material)
 
@@ -575,6 +702,74 @@ def plot_cvs(dataframe, dataframe_sample, cv_type='initial', cv_ids=None):
     return p
 
 
+def plot_xps(dataframe, type='survey', xps_ids=None):
+
+    pub_id = set(dataframe['pub_id'].values)
+    dataframe = dataframe[dataframe['type'] == '{}'.format(type)]
+
+    if len(dataframe) == 0:
+        return None
+    p.figure()
+    if xps_ids is None:
+        xps_ids = range(len(dataframe))
+    for i in xps_ids:
+        p.plot(dataframe['binding_energy'].values[i], dataframe['intensity'].values[i],
+               linewidth=2, label=dataframe['composition'].values[i])
+
+    min = np.min([np.nanmin(dat) for dat in dataframe['intensity'].values])
+    max = np.max([np.nanmax(dat) for dat in dataframe['intensity'].values])
+
+    p.ylim(min, max + 0.1 * (max-min))
+    # p.xlim(1.45,1.6)
+    ax = p.gca()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
+    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
+            verticalalignment='center', horizontalalignment='center', bbox=props)
+    ax.axhline(linestyle='--', color='k')
+    p.legend(loc='best')
+    p.xlabel('Binding Energy (eV)', fontsize=18)
+    p.ylabel('Intensity', fontsize=18)
+    p.title('XPS', fontsize=18)
+
+    p.subplots_adjust(bottom=0.15, left=0.2)
+    p.legend(loc='best')
+    return p
+
+
+def plot_xrd(dataframe, xrd_ids=None):
+
+    pub_id = set(dataframe['pub_id'].values)
+    #dataframe = dataframe[dataframe['type']== '{}'.format('pre')]
+    if len(dataframe) == 0:
+
+        return None
+    p.figure()
+
+    if xrd_ids is None:
+        xrd_ids = range(len(dataframe))
+    for i in xrd_ids:
+        p.plot(dataframe['degree'].values[i], dataframe['intensity'].values[i],
+               linewidth=2, label=dataframe['composition'].values[i])
+
+    min = np.min([np.nanmin(dat) for dat in dataframe['intensity'].values])
+    max = np.max([np.nanmax(dat) for dat in dataframe['intensity'].values])
+    p.ylim(min, max + 0.1 * (max-min))
+    p.xlim(0, 120)
+    ax = p.gca()
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
+    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
+            verticalalignment='center', horizontalalignment='center', bbox=props)
+    ax.axhline(linestyle='--', color='k')
+    p.legend(loc='best')
+    p.xlabel('2$\\theta$ (degree)', fontsize=18)
+    p.ylabel('Intensity', fontsize=18)
+    p.title('XRD', fontsize=18)
+
+    p.subplots_adjust(bottom=0.15, left=0.2)
+    p.legend(loc='best')
+    return p
+
+
 def get_publication_label(dataframe):
     title = dataframe['title'].values[0]
     authors = dataframe['authors'].values[0]
@@ -582,17 +777,7 @@ def get_publication_label(dataframe):
 
 if __name__ == '__main__':
     import sys
-    import pylab as p
-    DB = ExpSQL(user='experimental',
-                password=os.environ.get('DB_PASSWORD_exp'))
-
-    all_publications = DB.get_dataframe(table='publication')[
-        ['pub_id', 'title', 'authors', 'journal', 'year']]
-
-    for pub_id in all_publications['pub_id'].values:
-        dataframe_sample = DB.get_dataframe('sample', pub_id=pub_id)
-        plot_overpotential(dataframe_sample)
-        dataframe_cv = DB.get_dataframe('echemical', pub_id=pub_id)
-        plot_cvs(dataframe_cv, dataframe_sample, cv_type='initial')
-        plot_cvs(dataframe_cv, dataframe_sample, cv_type='end')
-        p.show()
+    DB = ExpSQL(user='expvisitor',
+                password=os.environ.get('DB_PASSWORD_expvis'))
+    DB.show_publications()
+    DB.show_dataset('HubertAcidic2020')
