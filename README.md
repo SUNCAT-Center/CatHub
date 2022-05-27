@@ -64,12 +64,16 @@ New: organize in interactive manner to update adsorbate name, site and facet on 
 
 As an alternative to cathub organize, create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
 
-    cathub make_folders --create-template <template>
-    cathub make_folders <template>
+    cathub make-folders --create-template <template>
+    cathub make-folders <template>
 
 Reading folders into a local .db file:
 
     cathub folder2db <foldername>
+
+Inspecting local local .db file:
+
+    cathub show-reactions <dbfile>
 
 Sending the data to the Catalysis Hub server:
 
