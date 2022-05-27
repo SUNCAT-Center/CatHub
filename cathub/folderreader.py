@@ -239,7 +239,7 @@ class FolderReader:
 
         try:
             with open(root + '/energy_corrections.txt', 'r') as f:
-                self.energy_corrections = yaml.load(f)
+                self.energy_corrections = yaml.load(f, Loader=yaml.FullLoader)
                 if self.energy_corrections:
                     self.stdout.write('----------------------------\n')
                     self.stdout.write('Applying energy corrections:\n')
