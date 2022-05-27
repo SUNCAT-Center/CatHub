@@ -472,17 +472,30 @@ class CathubSQLite:
         cur.execute("""
         SELECT
         surface_composition, facet, reactants, products, reaction_energy,
-        activation_energy, sites
+        activation_energy, sites, dft_functional, dft_code, coverages
         FROM
         reaction;""")
         rows = cur.fetchall()
         table = []
+
+        include_columns = []
+        for column in range(len(rows[0])):
+            values = [row[column] for row in rows]
+
+            if column > 4 and len(set(values)) > 1:
+                include_columns += [column]
+
         for row in rows:
             equation = get_equation(json.loads(row[2]), json.loads(row[3]))
-            table += [[row[0], row[1], equation, row[4], row[5], row[6]]]
+            table += [[row[0], row[1], equation, row[4]] +[row[i] for i
+                in include_columns]]
 
-        headers = ['Surface Composition', 'Facet', 'Equation', 'Reaction Energy',
-                   'Activation Energy', 'Sites']
+        extra_header_names = ['Activation Energy', 'Sites',
+                              'DFT Functional', 'DFT Code', 'Coverages']
+        headers = ['Surface Composition', 'Facet',
+                   'Equation', 'Reaction Energy'] + \
+                   [extra_header_names[i-5] for i in include_columns]
+
         self.stdout.write(tabulate(table, headers) + '\n')
 
 

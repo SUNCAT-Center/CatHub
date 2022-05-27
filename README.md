@@ -6,33 +6,64 @@ The module includes a command line interface that can be used to access and uplo
 
 ## Using the cathub cli
 
-Run `cathub`, like so
+Run `cathub` from the command line:
 
     cathub --help
 
-or with any of its sub-commands, like so
+or with any of its sub-commands:
 
     cathub reactions --help
 
 ## Examples
 
-Querying the Surface Reactions database:
+Querying the Surface Reactions database in Python:
 
-    cathub reactions -q reactants=CO -q chemicalComposition=~Pt
+    from cathub.cathubsql import CathubSQL
 
-    cathub publications -q title=~Evolution -q year=2017
+    # To get data on catalysis-hub.org
+    db = CathubSQL()
 
-Querying atomic structures on Catalysis Hub with ase db:
+    # Data from local cathub .db file
+    db = CathubSQL(filename='filename.db')
 
-    cathub ase 'AgSr' --gui
+Get reactions in pandas dataframe:
+
+    dataframe = db.get_dataframe(pub_id='PengRole2020',
+                                 include_atoms=False,
+                                 include_atoms=True,  # include atoms in dataframe
+                                 #include_atoms='PengRole2020.db',  # save atoms to local db
+                                 reactants=['COgas'],
+                                 products=['COstar'],
+                                 elements=['Cu', 'Al'],
+                                 #surface_composition='Cu', # match specific composition
+                                 facet = '100'
+                                 )
+
+Get atomic structure separately:
+
+    # Get atoms for one reaction_id taken from dataframe
+    atoms_list = db.get_atoms_for_reaction(reaction_id)
+
+    # Get atoms for entire dataset
+    atoms_list = db.get_atoms_for_publication(pub_id='PengRole2020')
+
+
+Quick view of atomic structures on Catalysis Hub with ase db CLI:
+
+    cathub ase 'CuAg pub_id=PengRole2020'
 
 ## Uploading data
 
 Organizing a general folder into a structured folder:
 
-    cathub organize <folderame> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
+    cathub organize <foldername> -a <ads1,ads2> -c <dft-code> -x <xc-functional> -f <facet> -S <crystal structure>
 
-As an alternative to cathub organize - create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
+New: organize in interactive manner to update adsorbate name, site and facet on the run:
+
+    cathub organize <foldername> -I ...
+
+As an alternative to cathub organize, create an empty organized folderstructure for dropping files yourself. First create a template and edit it, then create the folders.
+
     cathub make_folders --create-template <template>
     cathub make_folders <template>
 

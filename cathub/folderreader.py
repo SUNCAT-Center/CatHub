@@ -1,5 +1,6 @@
 from .cathubsqlite import CathubSQLite
-from .tools import get_bases, clear_prefactor, clear_state, get_pub_id, extract_atoms
+from .tools import get_bases, clear_prefactor, clear_state, get_pub_id,\
+    extract_atoms
 from .ase_tools import collect_structures
 from . import ase_tools
 
@@ -42,7 +43,7 @@ class FolderReader:
     """
 
     def __init__(self, folder_name, debug=False, strict=True, verbose=False,
-                 update=True, energy_limit=5, stdin=sys.stdin,
+                 update=False, energy_limit=5, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.debug = debug
         self.strict = strict
@@ -66,7 +67,7 @@ class FolderReader:
         self.stdout = stdout
 
         self.cathub_db = None
-        self.coverages = None
+        self.coverages = {}
         self.omit_folders = []
         self.doi = None
         self.title = None
@@ -98,8 +99,8 @@ class FolderReader:
             self.user_base_level -= 1
 
         self.stdout.write('---------------------- \n')
-        self.stdout.write('Starting folderreader! \n')
-        self.stdout.write('---------------------- \n')
+        self.stdout.write('Starting folderreader \n')
+        self.stdout.write('---------------------- \n\n')
         found_reaction = False
         for root, dirs, files in os.walk(self.user_base):
             for omit_folder in self.omit_folders:  # user specified omit_folder
@@ -155,22 +156,24 @@ class FolderReader:
                 id = db.check(
                     key_values['chemical_composition'],
                     key_values['reaction_energy'])
+                E_r = round(key_values['reaction_energy'], 3)
                 if id is None:
                     try:
                         id = db.write(key_values)
+
                         self.stdout.write(
-                            '  Written to reaction db row id = {}\n'.format(id))
+                            '    Written to database with E_r = {}\n'.format(E_r))# row id = {}\n'.format(id))
                     except BaseException as e:
                         self.raise_error(
-                            'Writing to db: {}. {}'.format(e, self.root))
+                            '    Writing error: {}. {}'.format(e, self.root))
 
                 elif self.update:
                     db.update(id, key_values)
                     self.stdout.write(
-                        '  Updated reaction db row id = {}\n'.format(id))
+                        '    Updated Reaction\n') # row id = {}\n'.format(id))
                 else:
                     self.stdout.write(
-                        '  Already in reaction db with row id = {}\n'.format(id))
+                        '    Already in database with E_r = {}\n'.format(E_r)) # with row id = {}\n'.format(id))
         assert self.cathub_db is not None, \
             'Wrong folder! No reactions found in {base}'\
             .format(base=self.user_base)
@@ -195,7 +198,7 @@ class FolderReader:
         publication_keys = {}
         try:
             with open(root + '/publication.txt', 'r') as f:
-                pub_data = yaml.load(f)
+                pub_data = yaml.load(f, Loader=yaml.FullLoader)
             if 'url' in pub_data.keys():
                 del pub_data['url']
             self.title = pub_data['title']
@@ -208,7 +211,6 @@ class FolderReader:
                 self.doi = pub_data['doi']
             if 'tags' not in pub_data:
                 pub_data.update({'tags': None})
-                self.stdout.write('ERROR: No tags\n')
 
             for key, value in pub_data.items():
                 if isinstance(value, list):
@@ -255,23 +257,34 @@ class FolderReader:
 
         except BaseException:
             self.energy_corrections = {}
-
+        pub_warnings = []
         if pub_data['title'] is None:
             self.title = os.path.basename(root)
             pub_data.update({'title': self.title})
-        if pub_data['authors'] is None:
+            pub_warnings += ['Title']
+
+        if pub_data['authors'] is None or \
+            pub_data['authors'][0].split(',')[0]=='Lastname':
             self.authors = [self.user]
             pub_data.update({'authors': self.authors})
+            pub_warnings += ['Authors']
+
         if pub_data['year'] is None:
             self.year = date.today().year
             pub_data.update({'year': self.year})
+            pub_warnings += ['Year']
+
         if pub_data['email']:
             self.user = pub_data['email']
+        if pub_warnings:
+            self.raise_warning(
+        'Please update your publications.txt: {}'\
+        .format(root + '/publication.txt'))
 
         self.pub_id = get_pub_id(self.title, self.authors, self.year)
         self.cathub_db = '{}{}.db'.format(self.data_base, self.pub_id)
         self.stdout.write(
-            'Writing to .db file {}:\n \n'.format(self.cathub_db))
+            '\nWriting reactions and structures to {}:\n'.format(self.cathub_db))
         pub_data.update({'pub_id': self.pub_id})
         pid = self.write_publication(pub_data)
 
@@ -312,19 +325,11 @@ class FolderReader:
 
     def read_bulk(self, root):
         basename = os.path.basename(root)
-        assert '_' in basename, \
-            """Wrong folderstructure! Folder should be of format
-            <metal>_<crystalstructure> but found {basename}""".format(
-                basename=basename
-            )
-        self.metal, self.crystal = basename.split('_', 1)
-
-        self.stdout.write(
-            '------------------------------------------------------\n')
-        self.stdout.write(
-            '                    Surface:  {}\n'.format(self.metal))
-        self.stdout.write(
-            '------------------------------------------------------\n')
+        if '_' in basename:
+            self.metal, self.crystal = basename.split('_', 1)
+        else:
+            self.metal = basename
+            self.crystal = None
 
         self.ase_ids = {}
 
@@ -353,11 +358,18 @@ class FolderReader:
         elif self.update:
             ase_tools.update_ase(self.cathub_db, id,
                                  self.stdout, **key_value_pairs)
-
-        self.ase_ids.update({'bulk' + self.crystal: ase_id})
+        self.ase_ids.update({'bulk' + (self.crystal or ''): ase_id})
 
     def read_slab(self, root):
         self.facet = root.split('/')[-1].split('_')[0]
+        self.stdout.write(
+        '\n--------------------------------\n')
+        self.stdout.write(
+            'Surface: {}({})\n'.format(self.metal, self.facet))
+        self.stdout.write(
+        '--------------------------------\n')
+
+
         self.ase_facet = 'x'.join(list(self.facet))
 
         empty_structures = collect_structures(root)
@@ -404,7 +416,7 @@ class FolderReader:
             folder_name)  # reaction dict
 
         self.stdout.write(
-            '----------- REACTION:  {} --> {} --------------\n'
+            '{} --> {}\n'
             .format('+'.join(self.reaction['reactants']),
                     '+'.join(self.reaction['products'])))
 
@@ -440,7 +452,7 @@ class FolderReader:
 
     def read_energies(self, root):
         self.key_value_pairs_reaction = None
-
+        self.coverages = {}
         slab_structures = collect_structures(root)
 
         if len(slab_structures) == 0:
@@ -503,7 +515,7 @@ class FolderReader:
         if not empty:
             if 'star' in reactant_entries and len(neb_indices) == 0:
                 message = 'Empty slab needed for reaction!'
-                self.raise_error(message)
+                self.raise_warning(message)
                 return
             else:
                 empty0 = slab_structures[0]
@@ -536,26 +548,45 @@ class FolderReader:
                                    .format(f))
                 continue
 
-            """Get supercell size relative to empty slab"""
+            """Correct supercell for empty slab"""
             supercell_factor = 1
-            if len(atns) > len(empty_atn) * 2:  # different supercells
-                supercell_factor = len(atns) // len(empty_atn)
+            if len(empty_atn * 3) < len(atns * 2) or \
+                len(empty_atn * 2) > len(atns * 3):
+                reduced_empty_atn, rep_empty = \
+                    ase_tools.get_reduced_numbers(empty_atn)
+                n = 0
+                atns_tmp = atns.copy()
+                while len(n * reduced_empty_atn) < len(atns):
+                    n+=1
+                    try:
+                        for m in reduced_empty_atn:
+                            atns_tmp.remove(m)
+                    except:
+                        n -= 1
+                        break
+                empty_atn = sorted(reduced_empty_atn * n)
+                supercell_factor = n / rep_empty
+
+            if supercell_factor != 1 and 'star' in reactant_entries:
+                self.raise_warning('Empty slab has different size: {}'
+                .format(self.empty.info['filename'].replace(' ', '\ ')) +
+                '. Using slab/empty-slab correction factor of {}'.format(supercell_factor))
 
             """Atomic numbers of adsorbate"""
             ads_atn = []
-            if 'star' in reactant_entries and len(neb_indices) == 0:
+            if len(neb_indices) == 0:
                 ads_atn = copy.copy(atns)
-                for atn in empty_atn * supercell_factor:
+                for atn in empty_atn:
                     try:
                         ads_atn.remove(atn)
                     except ValueError as e:
-                        self.raise_error(
+                        self.raise_warning(
                             'Empty slab: {} contains species not in: {}'
                             .format(empty.info['filename'], f))
                 ads_atn = sorted(ads_atn)
                 if ads_atn == []:
                     self.raise_warning("No adsorbates for structure: {}"
-                                       .format(f))
+                                       .format(f.replace(' ', '\ ')))
                     continue
 
             ase_id = None
@@ -610,6 +641,7 @@ class FolderReader:
                 continue
 
             found = False
+            n_ads = 1
             for key, mollist in self.reaction.items():
                 if found:
                     break
@@ -625,60 +657,44 @@ class FolderReader:
                         continue
                     molecule_atn = sorted(
                         ase_tools.get_numbers_from_formula(molecule))
-                    for n_ads in range(1, 5):
+                    for n_ads in range(1, len(ads_atn)+1):
                         mol_atn = sorted(molecule_atn * n_ads)
-                        if (ads_atn == mol_atn or len(ads_atn) == 0):
+                        if (ads_atn == mol_atn):
                             found = True
                             reaction_side = key
                             mol_index = n
                             break
 
-            if found:
-                self.structures[reaction_side][mol_index] = slab
-                species = clear_prefactor(
-                    self.reaction[reaction_side][mol_index])
-                id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
-                key_value_pairs.update(
-                    {'species': clear_state(species),
-                     'n': n_ads,
-                     'site': str(self.sites.get(species, ''))})
-                if ase_id is None:
-                    ase_id = ase_tools.write_ase(slab,
-                                                 self.cathub_db,
-                                                 self.stdout,
-                                                 self.user,
-                                                 **key_value_pairs)
-                elif self.update:
-                    ase_tools.update_ase(self.cathub_db,
-                                         id,
-                                         self.stdout,
-                                         **key_value_pairs)
-                self.ase_ids.update({species: ase_id})
+            if not found:
+                continue
+            self.structures[reaction_side][mol_index] = slab
+            species = clear_prefactor(
+                self.reaction[reaction_side][mol_index])
+            id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
+            key_value_pairs.update(
+                {'species': clear_state(species),
+                 'n': n_ads,
+                 'site': str(self.sites.get(species, ''))})
+            self.coverages.update({clear_state(species): n_ads})
+            if ase_id is None:
+                ase_id = ase_tools.write_ase(slab,
+                                             self.cathub_db,
+                                             self.stdout,
+                                             self.user,
+                                             **key_value_pairs)
+            elif self.update:
+                ase_tools.update_ase(self.cathub_db,
+                                     id,
+                                     self.stdout,
+                                     **key_value_pairs)
+            self.ase_ids.update({species: ase_id})
 
-            # For high coverage, re-balance chemical equation
-            if n_ads > 1 and not \
-               self.prefactors[reaction_side][mol_index] == n_ads:
-                for key1, states in self.states.items():
-                    indices_gas = [i for i, s in enumerate(states) if
-                                   s == 'gas']
-                    for i in indices_gas:
-                        self.prefactor_scale[key1][i] = n_ads
-
-                    indices_ads = [i for i, s in enumerate(states) if
-                                   s == 'star' and not
-                                   self.reaction_atoms[key1][i] == '']
-                    for i in indices_ads:
-                        if key1 == reaction_side and i == mol_index:
-                            continue
-                        self.prefactor_scale[key1][i] = n_ads
-
-                    if len(indices_ads) > 0:
-                        n = len(indices_ads)
-                        self.add_empty_slabs(key1, - (n_ads - 1) * n)
-            # Assume adsorbate is balanced in equation, and balance empty slabs
-            elif n_ads > 1 and self.prefactors[reaction_side][mol_index] == n_ads:
-                self.prefactor_scale[reaction_side][mol_index] = 1/n_ads
-                self.add_empty_slabs(reaction_side, n_ads - 1)
+            # For high coverage, re-balance chemical equation if prefactor
+            # and number of adsorbates doesn't match
+            if n_ads > 1:
+                self.prefactor_scale[reaction_side][mol_index] /= n_ads
+                self.add_empty_slabs(reaction_side,
+                    self.prefactors[reaction_side][mol_index] * (1-1/n_ads))
 
             if supercell_factor > 1:
                 for key1, states in self.states.items():
@@ -733,13 +749,13 @@ class FolderReader:
                         clear_prefactor(self.reaction[key][index]))
                     if self.states[key][index] == 'star':
                         message = "Adsorbate '{}' not found for any structure files in '{}'."\
-                            .format(molecule, root) + \
+                            .format(molecule, root.replace(' ', '\ ')) + \
                             " Please check your adsorbate structures and the empty slab."
                     if self.states[key][index] == 'gas':
                         message = "Gas phase molecule '{}' not found for any structure files in '{}'."\
-                            .format(molecule, self.gas_folder) + \
+                            .format(molecule, self.gas_folder.replace(' ', '\ ')) + \
                             " Please check your gas phase references."
-                    self.raise_error(message)
+                    self.raise_warning(message)
                     return
 
             for key in self.prefactors:
@@ -755,29 +771,30 @@ class FolderReader:
             except BaseException as e:
                 message = "reaction energy failed for files in '{}'"\
                     .format(root)
-                self.raise_error(message + '\n' + str(e))
+                self.raise_warning(message + '\n' + str(e))
 
         if not -self.energy_limit < reaction_energy < self.energy_limit:
-            self.raise_error('reaction energy is very large ({} eV)'
+            self.raise_warning('reaction energy is very large ({} eV)'
                              .format(reaction_energy) +
-                             'for folder: {}. \n  '.format(root) +
+                             'for folder: {}. \n  '.format(root.replace(' ', '\ ')) +
                              'If the value is correct, you can reset the limit with cathub folder2db --energy-limit <value>. Default is --energy-limit=5 (eV)'
                              )
+
         if activation_energy is not None:
             if activation_energy < reaction_energy:
-                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV \n  Folder: {}'.format(
+                self.raise_warning('activation energy is smaller than reaction energy: {} vs {} eV for folder: {}'.format(
                     activation_energy, reaction_energy, root))
             if not activation_energy < self.energy_limit:
-                self.raise_error(' Very large activation energy: {} eV \n  Folder: {}'
+                self.raise_warning(' Very large activation energy: {} eV for folder: {}'
                                  .format(activation_energy, root))
 
         reaction_info = {'reactants': {},
                          'products': {}}
-
         for key in ['reactants', 'products']:
             for i, r in enumerate(self.reaction[key]):
                 r = clear_prefactor(r)
-                reaction_info[key].update({r: original_prefactors[key][i]})
+                reaction_info[key].update({r: round(original_prefactors[key][i], 9)})
+
         self.key_value_pairs_reaction = {
             'chemical_composition': chemical_composition,
             'surface_composition': surface_composition,
@@ -812,11 +829,11 @@ class FolderReader:
         self.warnings.append('Warning: ' + message)
 
     def print_warnings(self):
-        self.stdout.write('-------------------------------------------\n')
+        self.stdout.write('\n\n -------------------------------------------\n')
         self.stdout.write('All errors and warnings: ' + '\n')
         for warning in self.warnings:
             self.stdout.write('    ' + warning + '\n')
-        self.stdout.write('-------------------------------------------\n')
+        self.stdout.write('-------------------------------------------\n\n')
 
     def get_reaction_atoms(self):
         self.reaction_atoms = {'reactants': [],
@@ -924,6 +941,8 @@ class FolderReader:
         del self.structures[reaction_side][index]
 
     def add_empty_slabs(self, reaction_side, n_slabs):
+        if np.isclose(n_slabs, 0):
+            return
         found_slab = False
         for key, atoms in self.reaction_atoms.items():
             if '' in atoms:
@@ -931,11 +950,13 @@ class FolderReader:
                 i = atoms.index('')
                 if key == reaction_side:
                     self.prefactors[key][i] += n_slabs
+                    break
                 else:  # substract from other side
                     self.prefactors[key][i] -= n_slabs
+                    break
         if not found_slab:
             self.append_reaction_entry(reaction_side,
-                                       n_ads - 1)
+                                       n_slabs)
 
     def clear_extra_empty_slabs(self):
         n_r, n_p = self.get_n_empty_slabs()
@@ -944,8 +965,15 @@ class FolderReader:
             for side, species in self.reaction_atoms.items():
                 i = species.index('')
                 self.prefactors[side][i] -= diff
-                if self.prefactors[side][i] == 0:
+                if np.isclose(self.prefactors[side][i], 0):
                     self.delete_reaction_entry(side, i)
+        elif np.isclose(n_r, 0) or np.isclose(n_p, 0):
+            for side, species in self.reaction_atoms.items():
+                if '' in species:
+                    i = species.index('')
+                    if np.isclose(self.prefactors[side][i], 0):
+                        self.delete_reaction_entry(side, i)
+
 
     def get_reaction_energy(self):
         energies = {}

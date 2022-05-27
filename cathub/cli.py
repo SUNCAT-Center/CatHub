@@ -37,8 +37,8 @@ def show_reactions(dbfile):
 
 @cli.command()
 @click.argument('args',  default='', type=str)
-@click.option('--dbuser', default='catvisitor', type=str)
-@click.option('--dbpassword', default='eFjohbnD57WLYAJX', type=str)
+@click.option('--dbuser', default='apiuser', type=str)
+@click.option('--dbpassword', default='ubDwfqPw', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
 def ase(dbuser, dbpassword, args, gui):
@@ -74,7 +74,7 @@ def ase(dbuser, dbpassword, args, gui):
     or a string with names of more folders seperated by ', '""")
 @click.option(
     '--energy-limit',
-    default=5.0,
+    default=10.0,
     show_default=True,
     help="""Bounds for accepted absolute reaction energies in eV""")
 @click.option('--goto-reaction',
@@ -281,7 +281,7 @@ def make_folders(template, custom_base):
 
     Start by creating a template file by calling:
 
-    $ cathub make_folders  <template_name>
+    $ cathub make-folders  <template_name>
 
     Then open the template and modify it to so that it contains information
     about your data. You will need to enter publication/dataset information,
@@ -320,11 +320,11 @@ def make_folders(template, custom_base):
 
     Then, save the template and call:
 
-    $ cathub make_folders <template_name>
+    $ cathub make-folders <template_name>
 
     And folders will be created automatically.
 
-    You can create several templates and call make_folders again
+    You can create several templates and call make-folders again
     if you, for example, are using different functionals or are
     doing different reactions on different surfaces.
 
@@ -358,7 +358,7 @@ def make_folders(template, custom_base):
                 '\n')
             print("Created template file: {template}\n".format(**locals()) +
                   '  Please edit it and run the script again to create your folderstructure.\n' +
-                  '  Run cathub make_folders --help for instructions')
+                  '  Run cathub make-folders --help for instructions')
             return
 
     with open(template) as infile:
@@ -409,7 +409,7 @@ def make_folders(template, custom_base):
 
 
 @cli.command()
-@click.argument('user', default='catvisitor')
+@click.argument('user', default='apiuser')
 def connect(user):
     """Direct connection to PostreSQL server."""
     psql_server_connect.main(user)
@@ -422,7 +422,7 @@ def connect(user):
 @click.option(
     '-a', '--adsorbates',
     type=str,
-    default='',
+    default='C,O,N,H,S,OH,OOH,CH,CH2,CH3,CO,COH,NH,NH2,NH3,SH,SH2',
     show_default=True,
     help="Specify adsorbates that are to be included. (E.g. -a CO,O,H )")
 @click.option(
@@ -430,9 +430,14 @@ def connect(user):
     default='DFT-CODE',
     type=str,
     show_default=True,
-    help="Specify DFT Code used to calculate"
-    " If not specified it will be generated from"
-    " filetype the processed files.")
+    help="Specify DFT Code used for calculations.")
+@click.option(
+    '-d', '--gas-dir',
+    type=str,
+    default='',
+    show_default=True,
+    help="Specify a folder where gas-phase molecules"
+    " for calculating adsorption energies are located.")
 @click.option(
     '-e', '--exclude-pattern',
     type=str,
@@ -441,19 +446,16 @@ def connect(user):
     help="Regular expression that matches"
     " file (paths) are should be ignored.")
 @click.option(
+    '-E', '--energy-corrections',
+    default='',
+    type=str,
+    help="Energy correction to gas phase molecules.")
+@click.option(
     '-f', '--facet-name',
     type=str,
     default='facet',
     show_default=True,
     help="Manually specify a facet names.")
-@click.option(
-    '-d', '--gas-dir',
-    type=str,
-    default='',
-    show_default=True,
-    help="Specify a folder where gas-phase molecules"
-    " for calculating adsorption energies are located."
-)
 @click.option(
     '-g', '--max-density-gas',
     type=float,
@@ -463,20 +465,36 @@ def connect(user):
     " below which the structures are"
     " considered gas-phase molecules.")
 @click.option(
+    '-hc', '--high-coverage',
+    type=bool,
+    is_flag=True,
+    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
+@click.option(
     '-i', '--include-pattern',
     type=str,
     default='',
     show_default=True,
-    help="Regular expression that matches"
+    help="Expressions that match"
          " only those files that are included.",)
+@click.option(
+    '-I', '--interactive',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Accept and update reactions on the go.")
 @click.option(
     '-k', '--keep-all-energies',
     type=bool,
     is_flag=True,
     help="When multiple energies for the same facet and adsorbate"
     "are found keep all energies"
-    "not only the most stable."
-)
+    "not only the most stable.")
+@click.option(
+    '-ks', '--keep-all-slabs',
+    type=bool,
+    is_flag=True,
+    help="Consider all slabs as the empty surface"
+    "not only the most stable.")
 @click.option(
     '-m', '--max-energy',
     type=float,
@@ -500,7 +518,7 @@ def connect(user):
     " that should not be considered.")
 @click.option(
     '-S', '--structure',
-    default='STRUCTURE',
+    default='',
     type=str,
     show_default=True,
     help='Bulk structure from which slabs where generated.'
@@ -513,6 +531,18 @@ def connect(user):
     show_default=True,
     help="Specify the maximum density (#atoms/A^3) "
     " below which the structure are considered slabs and not bulk")
+@click.option(
+    '-sp', '--skip-parameters',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip calculator parameter check.")
+@click.option(
+    '-sc', '--skip-constraints',
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Skip constraint check.")
 @click.option(
     '-t', '--traj-format',
     type=bool,
@@ -541,13 +571,7 @@ def connect(user):
     type=str,
     default='XC-FUNCTIONAL',
     show_default=True,
-    help="Set the DFT exchange-correlation functional"
-    " used to calculate total energies.")
-@click.option(
-    '--energy-corrections',
-    default={},
-    type=str,
-    help="Energy correction to gas phase molecules.")
+    help="The DFT exchange-correlation functional used for calculations")
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
@@ -556,7 +580,7 @@ def organize(**kwargs):
     if len(kwargs['adsorbates']) == 0:
         print("""Warning: no adsorbates specified,
         can't pick up reaction reaction energies.""")
-        print("         Enter adsorbates like so --adsorbates CO,O,CO2")
+        print("         Enter adsorbates like --adsorbates CO,O,CO2")
         print("         [Comma-separated list without spaces.]")
     kwargs['adsorbates'] = list(map(
         lambda x: (''.join(sorted(string2symbols(x)))),
@@ -568,7 +592,8 @@ def organize(**kwargs):
             key, value = e_c.split('=')
             e_c_dict.update({key: float(value)})
         kwargs['energy_corrections'] = e_c_dict
-
+    else:
+        kwargs['energy_corrections'] = {}
     options = collections.namedtuple(
         'options',
         kwargs.keys()
