@@ -382,7 +382,7 @@ def make_folders(template, custom_base):
             return
 
     with open(template) as infile:
-        template_data = yaml.load(infile)
+        template_data = yaml.load(infile, Loader=yaml.FullLoader)
         title = template_data['title']
         authors = template_data['authors']
         journal = template_data['journal']
