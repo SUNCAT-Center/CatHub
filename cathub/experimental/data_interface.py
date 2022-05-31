@@ -7,8 +7,8 @@ import bokeh
 from bokeh.plotting import figure, show
 from bokeh.layouts import column, layout
 from bokeh.models import Div, ColumnDataSource, DataTable, DateFormatter, TableColumn, HTMLTemplateFormatter
-from bokeh.palettes import Bokeh
-palette = Bokeh[8]*10
+from bokeh.palettes import Bokeh, Spectral, RdYlBu
+palette = Bokeh[8] + Spectral[11][::-1] + RdYlBu[11]
 
 from pandas import read_sql
 import numpy as np
@@ -823,5 +823,5 @@ def get_publication_label(dataframe):
 if __name__ == '__main__':
     import sys
     DB = ExpSQL(user='expvisitor', password=os.environ.get('DB_PASSWORD_expvis'))
-    DB.show_publications()
+    #DB.show_publications()
     DB.show_dataset('HubertAcidic2020')
