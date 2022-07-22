@@ -13,7 +13,7 @@ class CathubSQL:
     Generallized interface to CatHub local and server SQL databases
     """
 
-    def __init__(self, user='apiuser', filename=None):
+    def __init__(self, filename=None, user='apiuser'):
 
         if filename is not None:
             sql_url = 'sqlite:///' + str(filename)
@@ -74,14 +74,14 @@ class CathubSQL:
            List of atomic elements in the surface, for example: ['Cu', 'Zn'].
            Use '-' in front, as in ['Cu', '-Zn'], to exclude elements
         surface_composition: str
-           Match a specific surface composition        
+           Match a specific surface composition
         facet: str
            Match a specific surface facet
         """
 
         # Query SQL table to get reaction, publication, and structure info.
         query = \
-            """SELECT r.*, rs.name, rs.ase_id, p.doi FROM reaction as r 
+            """SELECT r.*, rs.name, rs.ase_id, p.doi FROM reaction as r
 LEFT JOIN
 reaction_system as rs on r.id = rs.id
 LEFT JOIN
@@ -186,7 +186,7 @@ publication as p on r.pub_id=p.pub_id"""
             for i, row in enumerate(ase_db.select('pub_id={}'.format(pub_id))):
                 if (i+1) % 10 == 0:
                     print('  {}/{}'.format(i+1, total))
-                    atoms_list += [row.toatoms()]
+                atoms_list += [row.toatoms()]
 
         return atoms_list
 
@@ -196,6 +196,7 @@ publication as p on r.pub_id=p.pub_id"""
         if not isinstance(atoms_id, list):
             atoms_id = [atoms_id]
 
+        atoms_list = []
         with ase.db.connect(self.sql_url) as ase_db:
             for unique_id in atoms_id:
                 for row in ase_db.select(unique_id=unique_id):
@@ -219,22 +220,31 @@ def get_sql_query(backend='postgres',
     reaction_side = ['reactants', 'products']
     for i, reactant_list in enumerate([reactants, products]):
         if reactant_list is not None:
-            if not isinstance(reactant_list, list):
-                reactant_list = [reactant_list]
+            if isinstance(reactant_list, list):
+                reactant_list = dict([(r, None) for r in reactant_list])
             if not 'WHERE' in query:
                 query += ' \nWHERE '
             else:
                 query += ' \nAND '
             query_list = []
-            for species in reactant_list:
+            for species, count in reactant_list.items():
                 species = species.replace(
                     '*', 'star').replace('(g)', 'gas')
                 if backend == 'postgres':
-                    query_list += ["r.{} ? '{}'".format(
-                        reaction_side[i], species)]
+                    if count is not None:
+                        query_list += ["(r.{} ->>'{}')::float = {}".format(
+                                    reaction_side[i], species, count)]
+                    else:
+                        query_list += ["r.{} ? '{}'".format(
+                                    reaction_side[i], species)]
                 else:
-                    query_list += ["""r.{} like '%%"{}%%'""".format(
-                        reaction_side[i], species)]
+                    if count is not None:
+                        query_list += ["""json_extract(r.{}, '$.{}')={}""".format(
+                            reaction_side[i], species, count)]
+                    else:
+                        query_list += ["""json_extract(r.{}, '$.{}') is not null""".format(
+                            reaction_side[i], species, count)]
+
             query += ' AND '.join(query_list)
     if elements is not None:
         if not 'WHERE' in query:
