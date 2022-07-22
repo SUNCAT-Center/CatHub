@@ -32,7 +32,7 @@ Get reactions in pandas dataframe:
                                  include_atoms=False,
                                  include_atoms=True,  # include atoms in dataframe
                                  #include_atoms='PengRole2020.db',  # save atoms to local db
-                                 reactants={'COgas': 1}
+                                 reactants={'COgas': 1},
                                  products={'COstar': 1},
                                  elements=['Cu', 'Al'],
                                  #surface_composition='Cu', # match specific composition
