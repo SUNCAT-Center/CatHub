@@ -5,7 +5,7 @@ import pandas
 
 import bokeh
 from bokeh.plotting import figure, show
-from bokeh.layouts import column, layout
+from bokeh.layouts import column, row,layout
 from bokeh.models import Div, ColumnDataSource, DataTable, DateFormatter, TableColumn, HTMLTemplateFormatter
 from bokeh.palettes import Bokeh, Spectral, RdYlBu
 palette = Bokeh[8] + Spectral[11][::-1] + RdYlBu[11]
@@ -458,21 +458,36 @@ class ExpSQL(CathubPostgreSQL):
         if c=='doi' else TableColumn(field=c, title=c) for c in columns]
         data_table = DataTable(source=source, columns=Columns, width=1600)
 
+        logo = Div(text="""<img src="https://www.catalysis-hub.org/329d0ae97b6a9b2266d9cc3d41fffcc1.png" alt="div_image" width=500>""")
+
+
         div = Div(
             text="""
-            <p>Catalysis-Hub Experimental Datasets: </p.
+            <p>Experimental Datasets </p.
             """,
-            style={'font-size': '200%'})
+            style={'font-size': '200%','color': 'red'},
+            width=500)
+
+
+        div2 = Div(
+            text="""
+            <p>Please find information about the experimental datasets below,
+            including link to publication and the pub_id needed for queries to the cathub Python API: </p.
+            """,
+            style={'font-size': '120%'},
+            width=500)
 
         l = layout([
+        [logo],
         [div],
+        [div2],
         [data_table],
         ]
         )
         show(l)
 
     def show_dataset(self, pub_id):
-        dataframe_sample =self.get_dataframe('sample', pub_id=pub_id)
+        dataframe_sample = self.get_dataframe('sample', pub_id=pub_id)
         if len(dataframe_sample) == 0:
             print('No data')
             return
@@ -510,10 +525,13 @@ class ExpSQL(CathubPostgreSQL):
         p1 = plot_overpotential(dataframe_sample)
         p2 = plot_cvs(dataframe_cv, cv_type='initial')
         p3 = plot_cvs(dataframe_cv, cv_type='end')
+        p4 = plot_xps(dataframe_xps)
+        p5 = plot_xrd(dataframe_xrd)
         l = layout([
         [div],
         [p1],
-        [p2, p3]
+        [p2, p3],
+        [p4, p5]
         ])
         show(l)
 
@@ -713,7 +731,7 @@ def plot_overpotential(dataframe, currents=[0.01, 0.05, 0.1, 1, 10]):
 
 def plot_cvs(dataframe, cv_type='initial', cv_ids=None):
     dataframe = dataframe[dataframe['type']== 'CV_{}'.format(cv_type)]
-    source = ColumnDataSource(dataframe)
+    #source = ColumnDataSource(dataframe)
     p = figure(title = 'CV ({})'.format(cv_type),
                 x_axis_label='Potential (V)',
                 y_axis_label='Current (mA/cm2)')
@@ -731,88 +749,53 @@ def plot_cvs(dataframe, cv_type='initial', cv_ids=None):
         #    linewidth=2, label=material)
     p.legend.location = 'top_left'
     return p
-    min = np.min([np.min(dat) for dat in dataframe['current'].values])
-    max = np.max([np.max(dat) for dat in dataframe['current'].values])
-    p.ylim(min, max + 0.1 * (max-min))
-    #p.xlim(1.45,1.6)
-    ax = p.gca()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
-    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-    ax.axhline(linestyle='--', color='k')
-    p.legend(loc='upper left')
-    p.xlabel('Potential (V)', fontsize=18)
-    p.ylabel('Current (mA/cm2)', fontsize=18)
-    p.title('CV ({})'.format(cv_type), fontsize=18)
-
-    p.subplots_adjust(bottom=0.15, left=0.2)
-    return p
 
 def plot_xps(dataframe, type='survey', xps_ids=None):
 
     pub_id = set(dataframe['pub_id'].values)
     dataframe = dataframe[dataframe['type']== '{}'.format(type)]
 
+    p = figure(title = 'XPS ({})'.format(type),
+                x_axis_label='Binding Energy (eV)',
+                y_axis_label='Intensity')
+
+
+
     if len(dataframe) == 0:
         return None
-    p.figure(figsize=(8,8))
+
     if xps_ids is None:
         xps_ids = range(len(dataframe))
-    for i in xps_ids:
-        p.plot(dataframe['binding_energy'].values[i], dataframe['intensity'].values[i],
-            linestyle='None',marker='.', label=dataframe['composition'].values[i])
+    for ii, i in enumerate(xps_ids):
+        p.circle(dataframe['binding_energy'].values[i], dataframe['intensity'].values[i],
+                color=palette[ii], legend_label=dataframe['composition'].values[i])
 
-    min = np.min([np.nanmin(dat) for dat in dataframe['intensity'].values])
-    max = np.max([np.nanmax(dat) for dat in dataframe['intensity'].values])
+    p.legend.location = 'top_left'
 
-    p.ylim(min, max + 0.1 * (max-min))
-    #p.xlim(1.45,1.6)
-    ax = p.gca()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
-    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-    ax.axhline(linestyle='--', color='k')
-    p.legend(loc='upper left')
-    p.xlabel('Binding Energy (eV)', fontsize=18)
-    p.ylabel('Intensity', fontsize=18)
-    p.title('XPS', fontsize=18)
-
-    p.subplots_adjust(bottom=0.15, left=0.2)
-    p.legend(loc='upper left')
     return p
 
 def plot_xrd(dataframe, xrd_ids=None):
 
     pub_id = set(dataframe['pub_id'].values)
     #dataframe = dataframe[dataframe['type']== '{}'.format('pre')]
-    if len(dataframe) == 0:
 
+    p = figure(title = 'XRD',
+                x_axis_label='2 theta (degree)',
+                y_axis_label='Intensity')
+
+
+    if len(dataframe) == 0:
         return None
-    p.figure(figsize=(8,8))
 
     if xrd_ids is None:
         xrd_ids = range(len(dataframe))
-    for i in xrd_ids:
-        p.plot(dataframe['degree'].values[i], dataframe['intensity'].values[i],
-            linewidth=2, label=dataframe['composition'].values[i])
+    for ii, i in enumerate(xrd_ids):
+        p.circle(dataframe['degree'].values[i], dataframe['intensity'].values[i],
+                color=palette[ii], legend_label=dataframe['composition'].values[i])
+    p.legend.location = 'top_left'
 
-    min = np.min([np.nanmin(dat) for dat in dataframe['intensity'].values])
-    max = np.max([np.nanmax(dat) for dat in dataframe['intensity'].values])
-    p.ylim(min, max + 0.1 * (max-min))
-    p.xlim(0, 120)
-    ax = p.gca()
-    props = dict(boxstyle='round', facecolor='wheat', alpha=0.9)
-    ax.text(0.75, 0.95, 'pub_id={}'.format(','.join(pub_id)), transform=ax.transAxes, fontsize=10,
-        verticalalignment='center', horizontalalignment='center', bbox=props)
-    ax.axhline(linestyle='--', color='k')
-    p.legend(loc='upper left')
-    p.xlabel('2$\\theta$ (degree)', fontsize=18)
-    p.ylabel('Intensity', fontsize=18)
-    p.title('XRD', fontsize=18)
-
-    p.subplots_adjust(bottom=0.15, left=0.2)
-    #p.legend(loc='b')
     return p
+
 
 
 def get_publication_label(dataframe):
