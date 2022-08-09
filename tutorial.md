@@ -1,9 +1,7 @@
 layout: page
-title: "CATHUB TUTORIAL"
+title: "CatHub Tutorial"
 permalink: /tutorial/
 
-
-Cathub Tutorial
 
 Welcome to the cathub tutorial
 
