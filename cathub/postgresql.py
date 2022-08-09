@@ -137,7 +137,6 @@ class CathubPostgreSQL:
 
     def __init__(self, user='apiuser', schema='public', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
-        print(password)
         self.initialized = False
         self.connection = None
         self.id = None
