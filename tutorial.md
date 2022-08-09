@@ -1,7 +1,4 @@
-layout: page
-title: "CatHub Tutorial"
-permalink: /tutorial/
+CatHub Tutorial
 
-
-Welcome to the cathub tutorial
+Welcome to the cathub tutorial. 
 
