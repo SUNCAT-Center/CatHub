@@ -1,6 +1,6 @@
 layout: page
 title: "CATHUB TUTORIAL"
-permalink: /Tutorial/
+permalink: /tutorial/
 
 
 Cathub Tutorial
