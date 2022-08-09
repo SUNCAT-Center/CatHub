@@ -62,23 +62,21 @@ def ase(dbuser, dbpassword, args, gui):
 
 
 @cli.command()
-@click.argument('args',  default='', type=str)
+@click.argument('pubid', default='', type=str)
 @click.option('--dbuser', default='expvisitor', type=str)
-@click.option('--dbpassword', type=str)
-@click.option('--pub-id', default=None, type=str)
-def exp(dbuser, dbpassword, pub_id, args):
+@click.option('--dbpassword', default='99Ny81eG', type=str)
+@click.argument('args',  default='', type=str)
+def exp(pubid, dbuser, dbpassword, args):
     """Connection to atomic structures on the Catalysis-Hub
        server with ase db cli.
        Arguments to the the ase db cli client must be enclosed in one string.
        For example: <cathub ase 'formula=Ag6In6H -s energy -L 200'>.
        To see possible ase db arguments run <ase db --help>"""
-    if dbuser == 'upload':
-        dbpassword = 'cHyuuQH0'
     db = ExpSQL(user=dbuser, password=dbpassword)
-    if pub_id is None:
+    if pubid=='':
         db.show_publications()
     else:
-        db.show_dataset(pub_id)
+        db.show_dataset(pubid)
 
 @cli.command()
 @click.argument('folder_name')
