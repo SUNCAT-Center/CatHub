@@ -16,7 +16,8 @@ import pylab as p
 from sqlalchemy import create_engine
 from cathub.postgresql import CathubPostgreSQL, get_value_str, get_key_list, get_key_str
 from cathub.tools import get_pub_id, doi_request
-
+import warnings
+warnings.filterwarnings('ignore', '.*SQL.*', )
 
 init_commands = [
 
@@ -166,7 +167,7 @@ class ExpSQL(CathubPostgreSQL):
                     query += " \nWHERE sample_id in (select sample_id from sample where pub_id='{}')".format(pub_id)
 
         con = self.connection or self._connect()
-        print('Querying database\n')
+        #print('Querying database\n')
         dataframe = read_sql(query, con)
         if self.connection is None:
             con.close()
@@ -181,7 +182,7 @@ class ExpSQL(CathubPostgreSQL):
             for key in data_extr[0].keys():
                 dataframe[key] = [row.get(key, None) for row in data_extr]
 
-            dataframe = dataframe.drop('data', 1)
+            dataframe = dataframe.drop(axis=1, labels='data')
 
         return dataframe
 
@@ -452,47 +453,53 @@ class ExpSQL(CathubPostgreSQL):
         all_publications = self.get_dataframe(table='publication')[['pub_id','doi', 'title','authors', 'journal', 'year']]
 
         columns = all_publications.columns.values
+        prettycolumns=[''.join([s.capitalize() for s in c.split('_')]) for c in columns]
         source = ColumnDataSource(all_publications)
         Columns = [
-        TableColumn(field=c, title=c, formatter=HTMLTemplateFormatter(template='<a href=" https://doi.org/<%= doi %>" target="_blank"><%= value %></a>'))
-        if c=='doi' else TableColumn(field=c, title=c) for c in columns]
-        data_table = DataTable(source=source, columns=Columns, width=1600)
+        TableColumn(field=c, title='DOI', formatter=HTMLTemplateFormatter(template='<a href=" https://doi.org/<%= doi %>" target="_blank"><%= value %></a>'))
+        if c=='doi' else TableColumn(field=c, title=prettycolumns[i], formatter=HTMLTemplateFormatter(template='<%= value %>')) for i,c in enumerate(columns)]
 
-        logo = Div(text="""<img src="https://www.catalysis-hub.org/329d0ae97b6a9b2266d9cc3d41fffcc1.png" alt="div_image" width=500>""")
+        data_table = DataTable(source=source, columns=Columns, width=1600, selectable=True, editable=True)
 
+        logo = Div(text="""<img src="https://www.catalysis-hub.org/329d0ae97b6a9b2266d9cc3d41fffcc1.png" alt="div_image" width=500>""",
+        height=180, width=500)
 
         div = Div(
             text="""
-            <p>Experimental Datasets </p.
+            Welcome to the Catalysis-Hub Experimental Database!
             """,
-            style={'font-size': '200%','color': 'red'},
+            style={'font-size': '200%','color': '#8C1515', 'padding':'0px'},
             width=500)
-
 
         div2 = Div(
             text="""
-            <p>Please find information about the experimental datasets below,
-            including link to publication and the pub_id needed for queries to the cathub Python API: </p.
+            Available datasets are listed in the table below. Query a dataset from the command line interface with <br> <code>$ cathub exp PubId </code>
             """,
-            style={'font-size': '120%'},
-            width=500)
+            style={'font-size': '120%',
+            'padding':'0px'},
+            width=400)
 
         l = layout([
-        [logo],
-        [div],
-        [div2],
+        row(column(div,div2),logo), #[div],logo],
+        #[div2],
         [data_table],
         ]
         )
         show(l)
 
     def show_dataset(self, pub_id):
+
+        dataframe_publication = self.get_dataframe('publication', pub_id=pub_id)
+
         dataframe_sample = self.get_dataframe('sample', pub_id=pub_id)
         if len(dataframe_sample) == 0:
             print('No data')
             return
 
-        dataframe_material = self.get_dataframe('material', pub_id=pub_id)
+        dataframe_material = self.get_dataframe('material', pub_id=pub_id).replace([None], [np.nan])
+        dataframe_material = dataframe_material.dropna(axis=1, thresh=len(dataframe_material))
+
+        print(dataframe_material)
 
         dataframe_xps = self.get_dataframe('xps', pub_id=pub_id)
         dataframe_xps = dataframe_xps.set_index('mat_id').join(dataframe_material.set_index('mat_id'))
@@ -507,31 +514,52 @@ class ExpSQL(CathubPostgreSQL):
         dataframe_cv = dataframe_cv.sort_values(by=['composition'])
 
         all_plots = {}
-        """
-        columns = all_publications.columns.values
-        source = ColumnDataSource(all_publications)
+
+        columns = list(dataframe_material.columns.values)
+        columns.remove('mat_id')
+        columns.remove('pub_id')
+        prettycolumns=[' '.join([s for s in c.split('_')]) for c in columns]
+        source = ColumnDataSource(dataframe_material)
         Columns = [
-        TableColumn(field=c, title=c, formatter=HTMLTemplateFormatter(template='<a href=" https://doi.org/<%= doi %>" target="_blank"><%= value %></a>'))
-        if c=='doi' else TableColumn(field=c, title=c) for c in columns]
-        data_table = DataTable(source=source, columns=Columns, width=1600)
-        """
+        TableColumn(field=c, title=prettycolumns[i], formatter=HTMLTemplateFormatter(template='<%= value %>')) for i,c in enumerate(columns)]
+
+        data_table_mat = DataTable(source=source, columns=Columns, selectable=True, editable=True)
+
+
+        doi = dataframe_sample['DOI'].values[0]
+        title = dataframe_publication['title'].values[0]
+        year = dataframe_publication['year'].values[0]
+        journal = dataframe_publication['journal'].values[0]
+        authors = ','.join([' '.join(d.split(',')[::-1]) for d in dataframe_publication['authors'].values[0]])
+
         div = Div(
         text="""
-        <p>{} </p
-        <a href="https://doi.org/{}" target="_blank"> DOI </a>
-        """.format(pub_id, dataframe_sample['DOI'].values[0]),
-        style={'font-size': '200%','width':'500'})
+        <p><b>Viewing dataset: {} </b></p>
+        <i>"{}"</i>. {}. {} ({}). <a href=" https://doi.org/{}" target="_blank">{}</a>
+        """.format(pub_id,title, authors, journal, year, doi, doi),
+        style={'font-size': '120%'}, width=600)
 
+        logo = Div(text="""<img src="https://www.catalysis-hub.org/329d0ae97b6a9b2266d9cc3d41fffcc1.png" alt="div_image" width=500>""",
+        height=180, width=500)
+
+        material_header=Div(
+        text=""" Materials """, style={'font-size': '200%'})
+        char_header=Div(
+        text="""Characterization """, style={'font-size': '200%'})
+        echem_header=Div(
+        text="""Electrochemical testing """, style={'font-size': '200%'})
+        #< a href=" https://doi.org/<%= doi %>" target="_blank"><%= value %></a>
         p1 = plot_overpotential(dataframe_sample)
         p2 = plot_cvs(dataframe_cv, cv_type='initial')
         p3 = plot_cvs(dataframe_cv, cv_type='end')
         p4 = plot_xps(dataframe_xps)
         p5 = plot_xrd(dataframe_xrd)
         l = layout([
-        [div],
-        [p1],
-        [p2, p3],
-        [p4, p5]
+        [div, logo],
+        [column(echem_header, p1), column(material_header, data_table_mat)],
+        [char_header],
+        [p4, p5],
+        [p2, p3]
         ])
         show(l)
 
@@ -556,7 +584,7 @@ class ExpSQL(CathubPostgreSQL):
             all_plots['XRD'] = p.figure(i)
             i += 1
 
-        print(dataframe_material)
+
         show(MaterialsTable=dataframe_material, SamplesTable=dataframe_sample, CVsTable=dataframe_cv,
             **all_plots)
 
