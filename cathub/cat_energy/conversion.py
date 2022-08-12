@@ -199,19 +199,11 @@ def field_to_voltage(field, pH, u_m_pzc, d, temp):
     u_rhe = u_she + KB * temp * np.log(10) * pH
     return (u_she, u_rhe)
 
-def get_electric_field_contribution(
-        field_effects, species_value, reference_gases, reactants=None,
-        beta=None):
+def get_rhe_contribution(u_rhe, species_value, reference_gases,
+                         reactants=None, beta=None):
     '''
-    Compute the contribution of electric field towards the free energies of
-    adsorption energies
+    Compute the RHE-scale contribution towards free energy
     '''
-    epsilon = field_effects['epsilon']
-    u_rhe = field_effects['U_RHE']
-    mu = field_effects['mu']
-    alpha = field_effects['alpha']
-
-    # u_rhe-scale dependency
     # x CO + y (H++e-) = CxH(y-2x+2z)Oz + (x-z) H2O
     # x CO + y/2 H2 = CxH(y-2x+2z)Oz + (x-z) H2O
     # Based on computational hydrogen electrode, n should be twice the number
@@ -261,6 +253,24 @@ def get_electric_field_contribution(
         rhe_energy_contribution = - (1 - beta) * u_rhe
     else:
         rhe_energy_contribution = n * u_rhe
+
+    return rhe_energy_contribution
+
+def get_electric_field_contribution(
+        field_effects, species_value, reference_gases, reactants=None,
+        beta=None):
+    '''
+    Compute the contribution of electric field towards the free energies of
+    adsorption energies
+    '''
+    epsilon = field_effects['epsilon']
+    u_rhe = field_effects['U_RHE']
+    mu = field_effects['mu']
+    alpha = field_effects['alpha']
+
+    # u_rhe-scale dependency
+    rhe_energy_contribution = get_rhe_contribution(
+                        u_rhe, species_value, reference_gases, reactants, beta)
 
     # u_she-scale dependency
     if reactants is None:
