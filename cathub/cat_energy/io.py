@@ -33,17 +33,17 @@ def read_qe_log(file_path, wf_dipole_index):
                 final_energy = float(line.split()[0])
     return (final_energy, workfunction)
 
-def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
+def make_mkm_input_files(db_filepath, system_parameters, external_effects,
                          df_out):
     '''
     Function to write input files for mkm simulations using CatMAP
     '''
     system_dir_path = (db_filepath.parent
-                       / f'{adsorbate_parameters["desired_surface"]}'
-                       f'_{adsorbate_parameters["desired_facet"]}')
+                       / f'{system_parameters["desired_surface"]}'
+                       f'_{system_parameters["desired_facet"]}')
     Path.mkdir(system_dir_path, parents=True, exist_ok=True)
     energies_filepath = (system_dir_path
-                         / f'energies_she_{field_effects["she_voltage"]:.2f}V.txt')
+                         / f'energies_she_{external_effects["she_voltage"]:.2f}V.txt')
 
     header = '\t'.join(['surface_name', 'site_name', 'species_name',
                         'formation_energy', 'frequencies', 'reference'])
