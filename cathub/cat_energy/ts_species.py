@@ -42,8 +42,8 @@ def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
     return energy_extrapolation
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                      rxn_expressions, ts_data, adsorbate_parameters,
-                      field_effects, temp, pH, verbose, latex):
+                      rxn_expressions, ts_data, system_parameters,
+                      external_effects, verbose, latex):
     '''
     Function to compute and return energetics of transition state species
     '''
@@ -52,10 +52,13 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     db = CathubSQL(filename=db_filepath)
     df1 = db.get_dataframe()
 
-    desired_surface = adsorbate_parameters['desired_surface']
-    desired_facet = adsorbate_parameters['desired_facet']
+    desired_surface = system_parameters['desired_surface']
+    desired_facet = system_parameters['desired_facet']
     df1 = df1[df1['surface_composition'] == desired_surface]
     df1 = df1[df1['facet'].str.contains(desired_facet)]
+
+    temp = system_parameters['temp']
+    pH = system_parameters['pH']
 
     # Load vibrational data
     with open(ts_jsondata_filepath, encoding='utf8') as f:
@@ -179,7 +182,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         (site_wise_energy_contributions, facet_list) = get_ts_energies(
                         df_activation_rxns, db_filepath, species_list,
                         species_name, snapshot_range,
-                        adsorbate_parameters, field_effects, beta)
+                        system_parameters, external_effects, beta)
 
         site_wise_energy_contributions = np.asarray(
                                                 site_wise_energy_contributions)
@@ -219,7 +222,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         rhe_corr.append(site_wise_energy_contributions[min_index][2])
         solv_corr.append(site_wise_energy_contributions[min_index][4])
         efield_corr.append(site_wise_energy_contributions[min_index][3]
-                           if field_effects else 0.0)
+                           if external_effects else 0.0)
 
         # Apply alkaline correction
         alk_corr.append(ts_data['alk_corr'] if beta else 0.0)

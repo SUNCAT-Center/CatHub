@@ -14,9 +14,9 @@ from .conversion import formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 
 
 def write_gas_energies(
-        db_filepath, df_out, gas_jsondata_filepath, reference_gases,
-        dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset,
-        external_effects, u_rhe, temp, verbose, latex):
+        db_filepath, df_out, gas_jsondata_filepath, system_parameters,
+        reference_gases, dummy_gases, dft_corrections_gases,
+        beef_dft_helmholtz_offset, external_effects, verbose, latex):
     '''
     Function to compute and return energetics of gaseous species
     '''
@@ -27,6 +27,9 @@ def write_gas_energies(
     dft_corr, helm_offset, zpe, enthalpy, entropy = [], [], [], [], []
     rhe_corr, formation_energy, energy_vector, xyz = [], [], [], []
     frequencies, references = [], []
+
+    temp = system_parameters['temp']
+    u_rhe = system_parameters['u_rhe']
 
     # Load vibrational data
     with open(gas_jsondata_filepath, encoding='utf8') as f:
@@ -150,7 +153,7 @@ def write_gas_energies(
             term3 = rhe_corr[-1]
             species_key = species_name + '_g'
             if species_key in external_effects:
-                term4 = np.poly1d(external_effects[species_key])(external_effects['she_voltage'])
+                term4 = np.poly1d(external_effects[species_key])(system_parameters['u_she'])
             else:
                 term4 = 0.0
             mu = term1 + term2 + term3 + term4

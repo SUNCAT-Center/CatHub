@@ -16,7 +16,7 @@ from .conversion import formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 def write_adsorbate_energies(
         db_filepath, df_out, ads_jsondata_filepath, system_parameters,
         facet_conditional, reference_gases, dft_corrections_gases,
-        external_effects, u_rhe, temp, verbose, latex):
+        external_effects, verbose, latex):
     '''
     Write formation energies to energies.txt after applying free energy
     corrections
@@ -30,6 +30,10 @@ def write_adsorbate_energies(
     desired_facet = system_parameters['desired_facet']
     df1 = df1[df1['surface_composition'] == desired_surface]
     df1 = df1[df1['facet'].str.contains(desired_facet)]
+
+    temp = system_parameters['temp']
+    u_rhe = system_parameters['u_rhe']
+    u_she = system_parameters['u_she']
 
     # Load vibrational data
     with open(ads_jsondata_filepath, encoding='utf8') as f:
@@ -79,7 +83,7 @@ def write_adsorbate_energies(
         (site_wise_energy_contributions, facet_list) = get_adsorption_energies(
             df2, df_out, species_list, species_name, products_list,
             reference_gases, dft_corrections_gases, facet_conditional,
-            external_effects, u_rhe)
+            external_effects, u_rhe, u_she)
         site_wise_energy_contributions = np.asarray(
                                                 site_wise_energy_contributions)
 
@@ -214,7 +218,7 @@ def write_adsorbate_energies(
 
 def get_adsorption_energies(
         df, df_out, species_list, species_value, products_list, reference_gases,
-        dft_corrections_gases, facet_conditional, external_effects, u_rhe):
+        dft_corrections_gases, facet_conditional, external_effects, u_rhe, u_she):
     '''
     Compute electronic adsorption energies for a given species at all suitable
     adsorption sites at a given u_she/RHE
@@ -237,7 +241,7 @@ def get_adsorption_energies(
             rhe_energy_contribution = get_rhe_contribution(u_rhe, species_value,
                                                             reference_gases)
             if species_value in external_effects:
-                external_effect_contribution = np.poly1d(external_effects[species_value])(external_effects['she_voltage'])
+                external_effect_contribution = np.poly1d(external_effects[species_value])(u_she)
             else:
                 external_effect_contribution = 0.0
 

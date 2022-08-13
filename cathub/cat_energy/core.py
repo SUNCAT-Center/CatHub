@@ -6,25 +6,31 @@ from .io import make_mkm_input_files, write_columns
 from .ts_species import write_ts_energies
 from .ads_species import write_adsorbate_energies
 from .gas_species import write_gas_energies
-
+from .conversion import u_she_to_field
 
 def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
         beef_dft_helmholtz_offset, external_effects, system_parameters,
         facet_conditional, write_gases, write_adsorbates,
         write_transition_states, gas_jsondata_filepath, ads_jsondata_filepath,
-        ts_jsondata_filepath, ts_data, u_rhe, temp, pH, write_mkm_input_files,
-        verbose=True, latex=True):
+        ts_jsondata_filepath, ts_data, write_mkm_input_files, verbose=True,
+        latex=True):
     '''
     Function to delegate computation and returning energetics of requested
     species
     '''
     df_out = pd.DataFrame(columns=write_columns)
+    u_she = system_parameters['u_she']
+    temp = system_parameters['temp']
+    u_rhe = u_she_to_field(u_she, system_parameters['pH'],
+                           system_parameters['u_m_pzc'], system_parameters['d'],
+                           temp)[0]
+    system_parameters['u_rhe'] = u_rhe
+
     if verbose:
         system_header = (f'###### {system_parameters["desired_surface"]}'
                          f'_{system_parameters["desired_facet"]}: '
-                         f'SHE Potential = '
-                         f'{external_effects["she_voltage"]:.2f} V/A ######')
+                         f'SHE Potential = {u_she:.2f} V/A ######')
         print('-' * len(system_header))
         print(system_header)
         print('-' * len(system_header))
@@ -42,18 +48,17 @@ def write_energies(
 
     if write_gases:
         df_out = write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
-                                    reference_gases, dummy_gases,
-                                    dft_corrections_gases,
+                                    system_parameters, reference_gases,
+                                    dummy_gases, dft_corrections_gases,
                                     beef_dft_helmholtz_offset, external_effects,
-                                    u_rhe, temp, verbose, latex)
+                                    verbose, latex)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
                                           system_parameters, facet_conditional,
                                           reference_gases, dft_corrections_gases,
-                                          external_effects, u_rhe, temp,
-                                          verbose, latex)
+                                          external_effects, verbose, latex)
 
     if write_transition_states:
         if verbose:
@@ -81,10 +86,9 @@ def write_energies(
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                    locals()['rxn_expressions'], ts_data,
                                    system_parameters, external_effects,
-                                   temp, pH, verbose, latex)
+                                   verbose, latex)
 
     # write corrected energy data to mkm input file
     if write_mkm_input_files:
-        make_mkm_input_files(db_filepath, system_parameters, external_effects,
-                             df_out)
+        make_mkm_input_files(db_filepath, system_parameters, df_out)
     return df_out
