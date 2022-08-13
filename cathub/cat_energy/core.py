@@ -11,10 +11,9 @@ from .conversion import u_she_to_field
 def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
         beef_dft_helmholtz_offset, external_effects, system_parameters,
-        facet_conditional, write_gases, write_adsorbates,
-        write_transition_states, gas_jsondata_filepath, ads_jsondata_filepath,
-        ts_jsondata_filepath, ts_data, write_mkm_input_files, verbose=True,
-        latex=True):
+        facet_conditional, write_species, gas_jsondata_filepath,
+        ads_jsondata_filepath, ts_jsondata_filepath, ts_data,
+        write_mkm_input_files, verbose=True, latex=True):
     '''
     Function to delegate computation and returning energetics of requested
     species
@@ -46,21 +45,21 @@ def write_energies(
         print('∆G at U_RHE=0.0 V = ∆G - Term3')
         print()
 
-    if write_gases:
+    if write_species['gases']:
         df_out = write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                                     system_parameters, reference_gases,
                                     dummy_gases, dft_corrections_gases,
                                     beef_dft_helmholtz_offset, external_effects,
                                     verbose, latex)
 
-    if write_adsorbates:
+    if write_species['adsorbates']:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
                                           system_parameters, facet_conditional,
                                           reference_gases, dft_corrections_gases,
                                           external_effects, verbose, latex)
 
-    if write_transition_states:
+    if write_species['transition_states']:
         if verbose:
             ts_phase_header = 'Transition State Free Energy Correction:'
             print(ts_phase_header)
