@@ -33,7 +33,7 @@ def write_energies(
         print('Term1 = Calculated Electronic Energy + DFT Correction')
         print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
-        print('Term4 = Solvation Correction + Electric Field Correction')
+        print('Term4 = External Effect Corrections')
         print('Chemical Potential, µ = Term1 + Term2 + Term3 + Term4')
         print('Free Energy Change, ∆G = µ_species - µ_ref. For example, '
               '∆G_CH4 = µ_CH4 - (µ_CO + 3 * µ_H2(ref) - µ_H2O)')
@@ -50,10 +50,10 @@ def write_energies(
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
-                                          adsorbate_parameters,
-                                          facet_conditional, reference_gases,
-                                          dft_corrections_gases, field_effects,
-                                          temp, verbose, latex)
+                                          system_parameters, facet_conditional,
+                                          reference_gases, dft_corrections_gases,
+                                          external_effects, u_rhe, temp,
+                                          verbose, latex)
 
     if write_transition_states:
         if verbose:
@@ -80,11 +80,11 @@ def write_energies(
         #              'exec'))
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                    locals()['rxn_expressions'], ts_data,
-                                   adsorbate_parameters, field_effects,
+                                   system_parameters, external_effects,
                                    temp, pH, verbose, latex)
 
     # write corrected energy data to mkm input file
     if write_mkm_input_files:
-        make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
+        make_mkm_input_files(db_filepath, system_parameters, external_effects,
                              df_out)
     return df_out

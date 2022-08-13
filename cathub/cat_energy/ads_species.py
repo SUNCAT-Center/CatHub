@@ -10,14 +10,13 @@ from tabulate import tabulate
 
 from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, write_columns
-from .conversion import formula_to_chemical_symbols, CM2EV, \
-    get_electric_field_contribution
+from .conversion import formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 
 
 def write_adsorbate_energies(
-        db_filepath, df_out, ads_jsondata_filepath, adsorbate_parameters,
+        db_filepath, df_out, ads_jsondata_filepath, system_parameters,
         facet_conditional, reference_gases, dft_corrections_gases,
-        field_effects, temp, verbose, latex):
+        external_effects, u_rhe, temp, verbose, latex):
     '''
     Write formation energies to energies.txt after applying free energy
     corrections
@@ -27,8 +26,8 @@ def write_adsorbate_energies(
     db = CathubSQL(filename=db_filepath)
     df1 = db.get_dataframe()
 
-    desired_surface = adsorbate_parameters['desired_surface']
-    desired_facet = adsorbate_parameters['desired_facet']
+    desired_surface = system_parameters['desired_surface']
+    desired_facet = system_parameters['desired_facet']
     df1 = df1[df1['surface_composition'] == desired_surface]
     df1 = df1[df1['facet'].str.contains(desired_facet)]
 
@@ -48,8 +47,8 @@ def write_adsorbate_energies(
     # build dataframe data for adsorbate species
     surface, site, species, raw_energy, facet = [], [], [], [], []
     elec_energy_calc, dft_corr, zpe, enthalpy, entropy = [], [], [], [], []
-    rhe_corr, solv_corr, formation_energy, efield_corr = [], [], [], []
-    energy_vector, frequencies, references = [], [], []
+    rhe_corr, formation_energy, energy_vector, frequencies = [], [], [], []
+    references = []
 
     # simple reaction species: only one active product and filter out reactions
     # without any adsorbed species
@@ -79,8 +78,8 @@ def write_adsorbate_energies(
         # she_energy_contribution, solvation_correction]
         (site_wise_energy_contributions, facet_list) = get_adsorption_energies(
             df2, df_out, species_list, species_name, products_list,
-            reference_gases, dft_corrections_gases, adsorbate_parameters,
-            facet_conditional, field_effects)
+            reference_gases, dft_corrections_gases, facet_conditional,
+            external_effects, u_rhe)
         site_wise_energy_contributions = np.asarray(
                                                 site_wise_energy_contributions)
 
@@ -94,6 +93,7 @@ def write_adsorbate_energies(
         elec_energy_calc.append(site_wise_energy_contributions[min_index][0])
         # Zero DFT Correction for Adsorbates
         dft_corr.append(0.0)
+        rhe_corr.append(site_wise_energy_contributions[min_index][1])
 
         if species_name in json_species_list:
             species_index = json_species_list.index(species_name)
@@ -114,16 +114,11 @@ def write_adsorbate_energies(
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        rhe_corr.append(site_wise_energy_contributions[min_index][1])
-        solv_corr.append(site_wise_energy_contributions[min_index][3])
-        efield_corr.append(site_wise_energy_contributions[min_index][2]
-                           if field_effects else 0.0)
-
         # compute energy vector
         term1 = elec_energy_calc[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
-        term4 = solv_corr[-1] + efield_corr[-1]
+        term4 = site_wise_energy_contributions[min_index][2]
         mu = term1 + term2 + term3 + term4
         energy_vector.append([term1, term2, term3, term4, mu])
         formation_energy.append(term1 + term4)
@@ -175,7 +170,7 @@ def write_adsorbate_energies(
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
                                 elec_energy_calc, dft_corr, zpe, enthalpy,
-                                entropy, rhe_corr, solv_corr, formation_energy,
+                                entropy, rhe_corr, formation_energy,
                                 energy_vector, frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df3, ignore_index=True, sort=False)
@@ -219,8 +214,7 @@ def write_adsorbate_energies(
 
 def get_adsorption_energies(
         df, df_out, species_list, species_value, products_list, reference_gases,
-        dft_corrections_gases, adsorbate_parameters, facet_conditional,
-        field_effects):
+        dft_corrections_gases, facet_conditional, external_effects, u_rhe):
     '''
     Compute electronic adsorption energies for a given species at all suitable
     adsorption sites at a given u_she/RHE
@@ -237,23 +231,24 @@ def get_adsorption_energies(
             reactants = json.loads(df.reactants.iloc[reaction_index])
             products = products_list[reaction_index]
             reaction_energy = df.reaction_energy.iloc[reaction_index]
-            (adsorption_energy_rhe0,
-             rhe_energy_contribution,
-             she_energy_contribution,
-             solvation_correction) = get_adsorption_energy(
-                 df_out, species_value, reactants, products, reaction_energy,
-                 reference_gases, dft_corrections_gases, adsorbate_parameters,
-                 field_effects)
+            adsorption_energy_rhe0 = get_adsorption_energy(
+                                df_out, reactants, products, reaction_energy,
+                                reference_gases, dft_corrections_gases)
+            rhe_energy_contribution = get_rhe_contribution(u_rhe, species_value,
+                                                            reference_gases)
+            if species_value in external_effects:
+                external_effect_contribution = np.poly1d(external_effects[species_value])(external_effects['she_voltage'])
+            else:
+                external_effect_contribution = 0.0
+
             site_wise_energy_contributions.append(
                             [adsorption_energy_rhe0, rhe_energy_contribution,
-                            she_energy_contribution, solvation_correction])
+                             external_effect_contribution])
     return (site_wise_energy_contributions, facet_list)
 
 
-def get_adsorption_energy(
-        df_out, species_value, reactants, products, reaction_energy,
-        reference_gases, dft_corrections_gases, adsorbate_parameters,
-        field_effects):
+def get_adsorption_energy(df_out, reactants, products, reaction_energy,
+        reference_gases, dft_corrections_gases):
     '''
     Compute adsorption energy for an adsorbate species in a given reaction
     '''
@@ -292,17 +287,4 @@ def get_adsorption_energy(
 
     # Compute Adsorption Energy at u_rhe = 0 V
     adsorption_energy_rhe0 = reaction_energy + product_energy - reactant_energy
-
-    # Apply solvation energy corrections
-    if species_value in adsorbate_parameters['solvation_corrections']:
-        solvation_correction = adsorbate_parameters['solvation_corrections'][
-                                                                species_value]
-    else:
-        solvation_correction = 0.0
-
-    # Apply field effects
-    (rhe_energy_contribution,
-    she_energy_contribution) = get_electric_field_contribution(
-                field_effects, species_value, reference_gases, reactants)
-    return (adsorption_energy_rhe0, rhe_energy_contribution,
-            she_energy_contribution, solvation_correction)
+    return adsorption_energy_rhe0
