@@ -8,7 +8,7 @@ from pathlib import Path
 NUM_DECIMAL_PLACES = 4
 write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy',
                  'elec_energy', 'dft_corr', 'zpe', 'enthalpy', 'entropy',
-                 'rhe_corr', 'solv_corr', 'formation_energy', 'energy_vector',
+                 'rhe_corr', 'formation_energy', 'energy_vector',
                  'frequencies', 'reference']
 
 
@@ -43,7 +43,7 @@ def make_mkm_input_files(db_filepath, adsorbate_parameters, field_effects,
                        f'_{adsorbate_parameters["desired_facet"]}')
     Path.mkdir(system_dir_path, parents=True, exist_ok=True)
     energies_filepath = (system_dir_path
-                         / f'energies_f{field_effects["epsilon"]:.2e}.txt')
+                         / f'energies_she_{field_effects["she_voltage"]:.2f}V.txt')
 
     header = '\t'.join(['surface_name', 'site_name', 'species_name',
                         'formation_energy', 'frequencies', 'reference'])

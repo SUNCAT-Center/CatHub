@@ -3,20 +3,20 @@ Module with function definitions relating to gaseous state species
 '''
 import json
 
+import numpy as np
 import pandas as pd
 from ase.db import connect
 from ase.thermochemistry import IdealGasThermo
 from tabulate import tabulate
 
 from .io import NUM_DECIMAL_PLACES, write_columns
-from .conversion import formula_to_chemical_symbols, CM2EV, \
-    get_electric_field_contribution
+from .conversion import formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 
 
 def write_gas_energies(
         db_filepath, df_out, gas_jsondata_filepath, reference_gases,
         dummy_gases, dft_corrections_gases, beef_dft_helmholtz_offset,
-        field_effects, temp, verbose, latex):
+        external_effects, u_rhe, temp, verbose, latex):
     '''
     Function to compute and return energetics of gaseous species
     '''
@@ -25,8 +25,8 @@ def write_gas_energies(
 
     surface, site, species, raw_energy, elec_energy_calc = [], [], [], [], []
     dft_corr, helm_offset, zpe, enthalpy, entropy = [], [], [], [], []
-    rhe_corr, solv_corr, efield_corr, formation_energy = [], [], [], []
-    energy_vector, xyz, frequencies, references = [], [], [], []
+    rhe_corr, formation_energy, energy_vector, xyz = [], [], [], []
+    frequencies, references = [], []
 
     # Load vibrational data
     with open(gas_jsondata_filepath, encoding='utf8') as f:
@@ -64,7 +64,6 @@ def write_gas_energies(
         enthalpy.append(0.0)
         entropy.append(0.0)
         rhe_corr.append(0.0)
-        solv_corr.append(0.0)
         formation_energy.append(0.0)
         energy_vector.append([0.0, 0.0, 0.0, 0.0, 0.0])
         frequencies.append([])
@@ -100,10 +99,6 @@ def write_gas_energies(
                 z = 0
             xyz.append([x, y, z])
             raw_energy.append(row.energy)
-            if species_name == 'H':
-                print(field_effects['epsilon'])
-                print(raw_energy)
-                print()
 
             # CO2 Reduction Reaction
             if set(reference_gases) == set(['CO2', 'H2_ref', 'H2O']):
@@ -144,25 +139,20 @@ def write_gas_energies(
                 zpe.append(0.0)
                 enthalpy.append(0.0)
                 entropy.append(0.0)
-            # Solvation correction. Zero for gaseous species.
-            solv_corr.append(0.0)
 
-            # Apply field effects
-            if field_effects:
-                (rhe_energy_contribution, she_energy_contribution) = (
-                    get_electric_field_contribution(field_effects, species_name,
-                                                    reference_gases))
-                rhe_corr.append(rhe_energy_contribution)
-                efield_corr.append(she_energy_contribution)
-            else:
-                rhe_corr.append(0.0)
-                efield_corr.append(0.0)
+            rhe_energy_contribution = get_rhe_contribution(u_rhe, species_name,
+                                                           reference_gases)
+            rhe_corr.append(rhe_energy_contribution)
 
             # compute energy vector
             term1 = elec_energy_calc[-1] + dft_corr[-1]
             term2 = enthalpy[-1] + entropy[-1]
             term3 = rhe_corr[-1]
-            term4 = solv_corr[-1] + efield_corr[-1]
+            species_key = species_name + '_g'
+            if species_key in external_effects:
+                term4 = np.poly1d(external_effects[species_key])(external_effects['she_voltage'])
+            else:
+                term4 = 0.0
             mu = term1 + term2 + term3 + term4
             energy_vector.append([term1, term2, term3, term4, mu])
 
@@ -204,7 +194,7 @@ def write_gas_energies(
 
     df = pd.DataFrame(list(zip(surface, site, species, raw_energy,
                                elec_energy_calc, dft_corr, zpe, enthalpy,
-                               entropy, rhe_corr, solv_corr, formation_energy,
+                               entropy, rhe_corr, formation_energy,
                                energy_vector, frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df, ignore_index=True, sort=False)

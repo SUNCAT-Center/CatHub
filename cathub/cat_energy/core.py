@@ -10,10 +10,10 @@ from .gas_species import write_gas_energies
 
 def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
-        beef_dft_helmholtz_offset, field_effects, adsorbate_parameters,
+        beef_dft_helmholtz_offset, external_effects, system_parameters,
         facet_conditional, write_gases, write_adsorbates,
         write_transition_states, gas_jsondata_filepath, ads_jsondata_filepath,
-        ts_jsondata_filepath, ts_data, temp, pH, write_mkm_input_files,
+        ts_jsondata_filepath, ts_data, u_rhe, temp, pH, write_mkm_input_files,
         verbose=True, latex=True):
     '''
     Function to delegate computation and returning energetics of requested
@@ -21,10 +21,10 @@ def write_energies(
     '''
     df_out = pd.DataFrame(columns=write_columns)
     if verbose:
-        system_header = (f'###### {adsorbate_parameters["desired_surface"]}'
-                         f'_{adsorbate_parameters["desired_facet"]}: '
-                         f'Electric Field Strength = '
-                         f'{field_effects["epsilon"]:.2f} V/A ######')
+        system_header = (f'###### {system_parameters["desired_surface"]}'
+                         f'_{system_parameters["desired_facet"]}: '
+                         f'SHE Potential = '
+                         f'{external_effects["she_voltage"]:.2f} V/A ######')
         print('-' * len(system_header))
         print(system_header)
         print('-' * len(system_header))
@@ -44,8 +44,8 @@ def write_energies(
         df_out = write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
                                     reference_gases, dummy_gases,
                                     dft_corrections_gases,
-                                    beef_dft_helmholtz_offset, field_effects,
-                                    temp, verbose, latex)
+                                    beef_dft_helmholtz_offset, external_effects,
+                                    u_rhe, temp, verbose, latex)
 
     if write_adsorbates:
         df_out = write_adsorbate_energies(db_filepath, df_out,

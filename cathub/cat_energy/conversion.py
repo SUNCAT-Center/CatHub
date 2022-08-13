@@ -263,7 +263,9 @@ def get_electric_field_contribution(
     Compute the contribution of electric field towards the free energies of
     adsorption energies
     '''
-    epsilon = field_effects['epsilon']
+    she_voltage = field_effects['she_voltage']
+    pzc_voltage = field_effects['pzc_voltage']
+    d = field_effects['d']
     u_rhe = field_effects['U_RHE']
     mu = field_effects['mu']
     alpha = field_effects['alpha']
@@ -277,6 +279,7 @@ def get_electric_field_contribution(
         if species_value + '_g' in mu:
             species_value = species_value + '_g'
     if species_value in mu:
+        epsilon = (she_voltage - pzc_voltage) / d
         she_energy_contribution = (mu[species_value] * epsilon
                                      - 0.5 * alpha[species_value] * epsilon**2)
     else:
