@@ -175,6 +175,20 @@ def formula_to_chemical_symbols(formula):
                                       * chemical_symbols_dict[key])
     return chemical_symbols_dict
 
+def u_she_to_u_rhe(u_she, temp, pH):
+    '''
+    Convert SHE potential to RHE potential
+    '''
+    u_rhe = u_she + KB * temp * np.log(10) * pH
+    return u_rhe
+
+def u_she_to_field(u_she, u_m_pzc, d):
+    '''
+    Convert SHE potential to electric field
+    '''
+    field = (u_she - u_m_pzc) / d
+    return field
+
 def u_rhe_to_field(u_rhe, pH, u_m_pzc, d, temp):
     '''
     Convert RHE potential to electric field
@@ -182,14 +196,6 @@ def u_rhe_to_field(u_rhe, pH, u_m_pzc, d, temp):
     u_she = u_rhe - KB * temp * np.log(10) * pH
     field = (u_she - u_m_pzc) / d
     return (u_she, field)
-
-def u_she_to_field(u_she, pH, u_m_pzc, d, temp):
-    '''
-    Convert SHE potential to electric field
-    '''
-    u_rhe = u_she + KB * temp * np.log(10) * pH
-    field = (u_she - u_m_pzc) / d
-    return (u_rhe, field)
 
 def field_to_voltage(field, pH, u_m_pzc, d, temp):
     '''
