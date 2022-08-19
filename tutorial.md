@@ -136,4 +136,16 @@ on the "reaction_id":
 tip: The reaction_id's can be found in the pandas dataframe.
 
 
-# Exercise 3: Experimental data:
+# Exercise 3: Experimental data
+
+In this exercise we will access experimental datasets on the catalysis-hub server
+(only available through Python API so far)
+
+For this exercise you will only need the cathub cli. Go to your terminal and type:
+
+    $ cathub exp
+
+And you should get a pop-up opening in your browser. The table lists the
+experimental datasets, where you can select the pub_id see more details:
+
+    $ cathub exp <pub_id>

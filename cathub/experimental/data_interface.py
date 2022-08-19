@@ -507,19 +507,17 @@ class ExpSQL(CathubPostgreSQL):
         if len(dataframe_sample) == 0:
             print('No data')
             return
-        print(dataframe_sample)
+
         dataframe_material = self.get_dataframe(
             'material', pub_id=pub_id).replace([None], [np.nan])
         dataframe_material = dataframe_material.dropna(
             axis=1, thresh=len(dataframe_material))
 
-        print(dataframe_material)
-
         dataframe_xps = self.get_dataframe('xps', pub_id=pub_id)
         dataframe_xps = dataframe_xps.set_index('mat_id').join(
             dataframe_material.set_index('mat_id'))
         dataframe_xps = dataframe_xps.sort_values(by=['composition'])
-        # print(dataframe_xps)
+
         dataframe_xrd = self.get_dataframe('xrd', pub_id=pub_id)
         dataframe_xrd = dataframe_xrd.set_index('mat_id').join(
             dataframe_material.set_index('mat_id'))
@@ -529,7 +527,7 @@ class ExpSQL(CathubPostgreSQL):
         dataframe_cv = dataframe_cv.set_index('sample_id').join(
             dataframe_sample.set_index('sample_id'))
         dataframe_cv = dataframe_cv.sort_values(by=['composition'])
-        # print(dataframe_cv)
+
         all_plots = {}
 
         columns = list(dataframe_material.columns.values)
@@ -569,7 +567,7 @@ class ExpSQL(CathubPostgreSQL):
             text="""Electrochemical testing """, style={'font-size': '200%'})
         cv_header = Div(
             text="""CV curves """, style={'font-size': '200%'})
-        # < a href=" https://doi.org/<%= doi %>" target="_blank"><%= value %></a>
+
         p1 = plot_overpotential(dataframe_sample)
         p2 = plot_cvs(dataframe_cv, cv_type='initial')
         p3 = plot_cvs(dataframe_cv, cv_type='end')
