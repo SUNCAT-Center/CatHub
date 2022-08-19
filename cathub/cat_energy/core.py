@@ -6,7 +6,7 @@ from .io import make_mkm_input_files, write_columns
 from .ts_species import write_ts_energies
 from .ads_species import write_adsorbate_energies
 from .gas_species import write_gas_energies
-from .conversion import u_she_to_field
+from .conversion import u_she_to_u_rhe
 
 def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
@@ -21,9 +21,7 @@ def write_energies(
     df_out = pd.DataFrame(columns=write_columns)
     u_she = system_parameters['u_she']
     temp = system_parameters['temp']
-    u_rhe = u_she_to_field(u_she, system_parameters['pH'],
-                           system_parameters['u_m_pzc'], system_parameters['d'],
-                           temp)[0]
+    u_rhe = u_she_to_u_rhe(u_she, temp, system_parameters['pH'])
     system_parameters['u_rhe'] = u_rhe
 
     if verbose:
