@@ -21,7 +21,8 @@ setuptools.setup(
 
     packages=[
         'cathub',
-        'cathub.ase_tools'
+        'cathub.ase_tools',
+        'cathub.experimental',
     ],
     package_dir={'cathub': 'cathub'},
     entry_points={'console_scripts': ['cathub=cathub.cli:cli']},

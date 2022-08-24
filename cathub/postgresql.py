@@ -3,6 +3,8 @@ import sys
 import time
 import json
 import random
+import numpy as np
+import pandas as pd
 import psycopg2
 from psycopg2.extras import execute_values
 import ase.db
@@ -133,26 +135,24 @@ class CathubPostgreSQL:
     on postgreSQL server.
     """
 
-    def __init__(self, user='apiuser', password=None, stdin=sys.stdin,
+    def __init__(self, user='apiuser', schema='public', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.initialized = False
         self.connection = None
         self.id = None
         self.server = server_name
         self.database = 'catalysishub'
+        self.schema = schema or user
+
         if user == 'apiuser':
-            self.schema = 'public'
             password = public_access[user]
-        elif user == 'catroot':
-            self.schema = 'public'
         elif user == 'postgres':  # For testing on travis
-            self.schema = 'public'
             self.server = 'localhost'
             self.database = 'travis_ci_test'
             self.password = ''
-        else:
-            self.schema = user
 
+        if not user in ['catroot', 'apiuser', 'postgres']:
+            self.schema = user
         if password is None:
             password = os.environ.get('DB_PASSWORD')
 
@@ -239,9 +239,9 @@ class CathubPostgreSQL:
         cur.execute('CREATE SCHEMA {0};'.format(user))
         # self._initialize(schema=schema_name)
         password = pwgen(8)
-        cur.execute(
-            "CREATE USER {user} with PASSWORD '{password}';"
-            .format(user=user, password=password))
+        #cur.execute(
+        #    "CREATE USER {user} with PASSWORD '{password}';"
+        #    .format(user=user, password=password))
 
         """ Grant SELECT on public schema """
         cur.execute('GRANT USAGE ON SCHEMA public TO {user};'
@@ -1106,7 +1106,13 @@ def get_value_str(values, start_index=0):
     values = get_value_list(values, start_index)
     value_str = "'{0}'".format(values[0])
     for v in values[1:]:
-        if v is None or v == '':
+        if isinstance(v, list):
+            if len(v) == 0:
+                value_str += ", {0}".format('NULL')
+            else:
+                value_str += ", '{0}'".format(
+                    str(v).replace('[', '{').replace(']', '}').replace("'", '"'))
+        elif v is None or v == '' or v == '-' or v == 'nan' or pd.isnull(v):
             value_str += ", {0}".format('NULL')
         elif isinstance(v, str):
             value_str += ", '{0}'".format(v)

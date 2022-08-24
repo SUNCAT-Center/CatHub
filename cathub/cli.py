@@ -19,6 +19,7 @@ from . import ase_tools
 from . import tools
 from .cathubsqlite import CathubSQLite
 from .postgresql import CathubPostgreSQL
+from .experimental.data_interface import ExpSQL
 
 
 @click.group()
@@ -59,6 +60,23 @@ def ase(dbuser, dbpassword, args, gui):
         subprocess.call(
             ('ase gui {}@{}'.format(server_name, args)).split())
 
+
+@cli.command()
+@click.argument('pubid', default='', type=str)
+@click.option('--dbuser', default='expvisitor', type=str)
+@click.option('--dbpassword', default='99Ny81eG', type=str)
+@click.argument('args',  default='', type=str)
+def exp(pubid, dbuser, dbpassword, args):
+    """Connection to atomic structures on the Catalysis-Hub
+       server with ase db cli.
+       Arguments to the the ase db cli client must be enclosed in one string.
+       For example: <cathub ase 'formula=Ag6In6H -s energy -L 200'>.
+       To see possible ase db arguments run <ase db --help>"""
+    db = ExpSQL(user=dbuser, password=dbpassword)
+    if pubid=='':
+        db.show_publications()
+    else:
+        db.show_dataset(pubid)
 
 @cli.command()
 @click.argument('folder_name')

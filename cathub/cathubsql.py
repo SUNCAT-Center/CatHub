@@ -122,8 +122,12 @@ publication as p on r.pub_id=p.pub_id"""
                                 pass
                 else:
                     for id in set(dataframe['ase_id'].values):
-                        id_to_atoms[id] = \
-                            ase_db.get(unique_id=id).toatoms()
+                        row = ase_db.get(unique_id=id)
+                        atoms = row.toatoms()
+                        atoms.calc.parameters.update(row.calculator_parameters)
+                        atoms.info.update(row.key_value_pairs)
+                        atoms.data = row.data
+                        id_to_atoms[id] = atoms
 
                     for id in dataframe['ase_id'].values:
                         atoms_list += [id_to_atoms[id]]
@@ -186,7 +190,11 @@ publication as p on r.pub_id=p.pub_id"""
             for i, row in enumerate(ase_db.select('pub_id={}'.format(pub_id))):
                 if (i+1) % 10 == 0:
                     print('  {}/{}'.format(i+1, total))
-                atoms_list += [row.toatoms()]
+                atoms = row.toatoms()
+                atoms.calc.parameters.update(row.calculator_parameters)
+                atoms.info.update(row.key_value_pairs)
+                atoms.data = row.data
+                atoms_list += [atoms]
 
         return atoms_list
 
@@ -200,7 +208,11 @@ publication as p on r.pub_id=p.pub_id"""
         with ase.db.connect(self.sql_url) as ase_db:
             for unique_id in atoms_id:
                 for row in ase_db.select(unique_id=unique_id):
-                    atoms_list += [row.toatoms()]
+                    atoms = row.toatoms()
+                    atoms.calc.parameters.update(row.calculator_parameters)
+                    atoms.info.update(row.key_value_pairs)
+                    atoms.data = row.data
+                    atoms_list += [atoms]
 
         return atoms_list
 
@@ -288,16 +300,18 @@ def get_equation(reactants, products):
             pf = side[name]
             name = name.replace('gas', '(g)').replace('star', '*')
             if i > 0 and not pf < 0:
-                r_str += ' + '
+                r_str += ' +'
             if pf == 1:
-                r_str += '{}'.format(name)
+                r_str += ' {}'.format(name)
             elif pf == -1:
-                r_str += ' -{}'.format(name)
+                r_str += ' - {}'.format(name)
+            elif pf < 0:
+                r_str += ' - {}{}'.format(abs(pf), name)
             else:
-                r_str += '{}{}'.format(pf, name)
+                r_str += ' {}{}'.format(pf, name)
 
             i += 1
         if j == 0:
-            r_str += ' -> '
+            r_str += ' ->'
 
-    return r_str
+    return r_str.lstrip(' ')
