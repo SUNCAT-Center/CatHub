@@ -77,8 +77,17 @@ Using matplotlib/pylab you can plot the scaling relation like this:
 
 Now try to repeat the plot choosing another facet from the dataset.
 
-### Exercise 1 challenge: Plot the a scaling relationship for another dataset of your choice.
-tip: remember to update chemical equation in the script if you choose other adsorbates.
+### Exercise 1 challenge: Refine query based on chemical composition, adsorbates and facet:
+
+Example is shown below:
+
+    dataframe = db.get_dataframe(reactants={'COgas': 1},
+                                 products={'COstar': 1},
+                                 elements=['Cu', 'Al'], #contains Cu and Al
+                                 #surface_composition='Cu', # match specific composition
+                                 facet = '100'
+                                 )
+
 
 # Exercise 2: Atomic structures
 
@@ -149,3 +158,21 @@ And you should get a pop-up opening in your browser. The table lists the
 experimental datasets, where you can select the pub_id see more details:
 
     $ cathub exp <pub_id>
+
+
+### Exercise 3 challenge:
+
+Query the experimental database in Python, using public access password:
+    from cathub.experimental.data_interface import *
+    DB = ExpSQL(user='expvisitor', password='99Ny81eG') # read only access
+    dataframe = DB.get_dataframe(table=?, pub_id=?)
+
+where experimental tables include: material, sample, xps, xrd and echemical
+
+
+# Exercise 4: Data upload.
+
+Follow the guidelines on the main github page and see if you can you only local db file for data upload.
+
+This is particularly for those who has DFT calculated adsorption energies.
+A test dataset can also be found here: https://github.com/SUNCAT-Center/CatHub/tree/master/cathub/tests/aayush/montoya_the_2015 (you can clone or download the entire github repo to get the files locally.)

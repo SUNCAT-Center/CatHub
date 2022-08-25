@@ -30,8 +30,6 @@ Get reactions in pandas dataframe:
 
     dataframe = db.get_dataframe(pub_id='PengRole2020',
                                  include_atoms=False,
-                                 include_atoms=True,  # include atoms in dataframe
-                                 #include_atoms='PengRole2020.db',  # save atoms to local db
                                  reactants={'COgas': 1},
                                  products={'COstar': 1},
                                  elements=['Cu', 'Al'],
