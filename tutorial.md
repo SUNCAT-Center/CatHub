@@ -172,6 +172,6 @@ where experimental tables include: material, sample, xps, xrd and echemical
 
 # Exercise 4: Data upload.
 
-Follow the guidelines on data upload the main github page: https://github.com/SUNCAT-Center/CatHub/blob/master/README.md, and all the full documentation: http://docs.catalysis-hub.org/en/latest/tutorials/upload.html.
+Follow the guidelines for data upload on the main github page: https://github.com/SUNCAT-Center/CatHub/blob/master/README.md, and the full documentation: http://docs.catalysis-hub.org/en/latest/tutorials/upload.html.
 
 This is particularly for those who has their own DFT calculated adsorption energies. A test dataset can also be found here: https://github.com/SUNCAT-Center/CatHub/tree/master/cathub/tests/aayush/montoya_the_2015 (you can clone or download the entire github repo to get the files locally.)
