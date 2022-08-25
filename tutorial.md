@@ -47,6 +47,7 @@ Now you can examine the your local file without pulling from the server:
     # dataframe = db.get_dataframe(pub_id='ComerUnraveling2022')
     # dataframe.to_pickle('ComerUnraveling2022.pickle')
 
+    import pandas
     dataframe = pandas.read_pickle('ComerUnraveling2022.pickle')
 
 Use your favorite python plotting module to plot the OH vs. O scaling (i.e. plotting OH vs O adsorption energies) Start by examining the unique chemical reactions and facets for the dataset, for example:
@@ -122,7 +123,8 @@ You can view atoms for a specific reaction row by choosing a reaction row in the
 
     dataframe = pandas.read_pickle(pub_id + '_with_atoms.pickle')
     print(dataframe[['chemical_composition', 'equation', 'atoms_name']])
-    view(dataframe['atoms']["row_id"])
+    row_id = 4
+    view(dataframe['atoms'][row_id])
 
 Notice that the "atoms_name" column contain names of geometries, so that specific types of structures can be fetch systematically. For example, to query only OH adsorption geometries, try this:
 
@@ -163,6 +165,7 @@ experimental datasets, where you can select the pub_id see more details:
 ### Exercise 3 challenge:
 
 Query the experimental database in Python, using public access password:
+
     from cathub.experimental.data_interface import *
     DB = ExpSQL(user='expvisitor', password='99Ny81eG') # read only access
     dataframe = DB.get_dataframe(table=?, pub_id=?)
