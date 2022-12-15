@@ -8,6 +8,7 @@ import collections
 from tabulate import tabulate
 from ase.symbols import string2symbols
 from ase.cli import main
+from ase.db import connect as ase_connect
 from . import query
 from . import make_folders_template
 from . import psql_server_connect
@@ -590,6 +591,14 @@ def connect(user):
     default='XC-FUNCTIONAL',
     show_default=True,
     help="The DFT exchange-correlation functional used for calculations")
+
+@click.option(
+    '-o', '--out-folder',
+    type=str,
+    default=None,
+    show_default=True,
+    help="output folder for oganized data. Default is <foldername>.organized")
+
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
@@ -617,3 +626,78 @@ def organize(**kwargs):
         kwargs.keys()
     )(**kwargs)
     _organize.main(options=options)
+
+@cli.command()
+@click.argument('folder_name')
+
+@click.option(
+    '-v', '--verbose',
+    is_flag=True,
+    default=True,
+    show_default=True,
+    help="Show more debugging messages.")
+
+def collect(folder_name, **kwargs):
+
+    #structures = ase_tools.collect_structures(folder_name,
+    #                                level='**/*vasprun.xml',
+    #                                **kwargs)
+
+    dbname = folder_name.replace('.', '').replace('/', '_') + '_cathub.db'
+    with CathubSQLite(dbname) as db:
+        for s in ase_tools.collect_structures(folder_name,
+                                        level='**/*vasprun.xml',
+                                        **kwargs): #structures:
+            print('Write')
+            db.write_structure(s[-1])
+
+@cli.command()
+@click.argument('dbfile')
+
+@click.option(
+    '-id', '--id', default=None, help='Ase db structure id. If None all structures will be written')
+@click.option(
+    '-o', '--out-file', default=None, help='Output file for log files')
+
+def log(dbfile, id, out_file):
+    "Write log file for selected structure"
+    if not id:
+        with ase_connect(dbfile) as db:
+            #ur = db.connection.cursor()
+            #cur.execute('Select id from systems;')
+            #rows = cur.fetchall()
+            formulas = []
+            ids = []
+            if id:
+                selection = 'id={}'.format(id)
+            else:
+                selection = None
+            for row in db.select(selection=selection):
+                formulas += [row.formula]
+                ids += [row.id]
+    else:
+        ids = [id]
+    basedir = out_file or 'cathub_structures'
+    try:
+        os.mkdir(basedir)
+    except FileExistsError:
+        pass
+
+    with CathubSQLite(dbfile) as db:
+        for formula, id in zip(formulas, ids):
+            path = basedir +'/{}_{}/'.format(id, formula)
+            rows = db.read_log(id=id)
+            try:
+                os.mkdir(path)
+            except FileExistsError:
+                pass
+            for row in rows:
+                ase_id, logtype, logfile = row
+                #print(bytes(self.logfile).decode('utf-8'))
+                if logtype == 'vasp-xml':
+                    logtype = 'vasprun.xml'
+                with open(path + logtype, 'wb') as file:
+                    file.write(logfile)
+
+        #print(logfile)
+        #sys.exit()

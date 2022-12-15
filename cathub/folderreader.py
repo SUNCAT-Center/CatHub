@@ -289,12 +289,13 @@ class FolderReader:
         pid = self.write_publication(pub_data)
 
     def read_gas(self):
-        gas_structures = collect_structures(self.gas_folder)
+        gas_structures = list(collect_structures(self.gas_folder))
         self.ase_ids_gas = {}
         self.gas = {}
 
         for gas in gas_structures:
             gas = gas[-1]
+            print(gas.info)
             ase_id = None
             found = False
 
@@ -308,17 +309,8 @@ class FolderReader:
                                'state': 'gas',
                                'epot': energy}
 
-            id, ase_id = ase_tools.check_in_ase(
-                gas, self.cathub_db)
-
-            if ase_id is None:
-                ase_id = ase_tools.write_ase(gas, self.cathub_db,
-                                             self.stdout,
-                                             self.user,
-                                             **key_value_pairs)
-            elif self.update:
-                ase_tools.update_ase(self.cathub_db, id,
-                                     self.stdout, **key_value_pairs)
+            with CathubSQLite(self.cathub_db) as db:
+                ase_id = db.write_structure(gas, update=self.update, **key_value_pairs)
 
             self.ase_ids_gas.update({chemical_composition: ase_id})
             self.gas.update({chemical_composition: gas})
@@ -333,7 +325,7 @@ class FolderReader:
 
         self.ase_ids = {}
 
-        bulk_structures = collect_structures(root)
+        bulk_structures = list(collect_structures(root))
         n_bulk = len(bulk_structures)
         if n_bulk == 0:
             return
@@ -350,14 +342,10 @@ class FolderReader:
                            'state': 'bulk',
                            'epot': energy}
 
-        id, ase_id = ase_tools.check_in_ase(
-            bulk, self.cathub_db)
-        if ase_id is None:
-            ase_id = ase_tools.write_ase(bulk, self.cathub_db, self.stdout,
-                                         self.user, **key_value_pairs)
-        elif self.update:
-            ase_tools.update_ase(self.cathub_db, id,
-                                 self.stdout, **key_value_pairs)
+
+        with CathubSQLite(self.cathub_db) as db:
+            ase_id = db.write_structure(bulk, update=self.update, **key_value_pairs)
+
         self.ase_ids.update({'bulk' + (self.crystal or ''): ase_id})
 
     def read_slab(self, root):
@@ -372,7 +360,7 @@ class FolderReader:
 
         self.ase_facet = 'x'.join(list(self.facet))
 
-        empty_structures = collect_structures(root)
+        empty_structures = list(collect_structures(root))
         n_empty = len(empty_structures)
 
         if n_empty == 0:
@@ -398,15 +386,9 @@ class FolderReader:
 
         key_value_pairs.update({'species': ''})
 
-        id, ase_id = ase_tools.check_in_ase(
-            self.empty, self.cathub_db)
+        with CathubSQLite(self.cathub_db) as db:
+            ase_id = db.write_structure(self.empty, update=self.update, **key_value_pairs)
 
-        if ase_id is None:
-            ase_id = ase_tools.write_ase(self.empty, self.cathub_db, self.stdout,
-                                         self.user, **key_value_pairs)
-        elif self.update:
-            ase_tools.update_ase(self.cathub_db, id,
-                                 self.stdout, **key_value_pairs)
         self.ase_ids.update({'star': ase_id})
 
     def read_reaction(self, root):
@@ -453,7 +435,7 @@ class FolderReader:
     def read_energies(self, root):
         self.key_value_pairs_reaction = None
         self.coverages = {}
-        slab_structures = collect_structures(root)
+        slab_structures = list(collect_structures(root))
 
         if len(slab_structures) == 0:
             self.raise_warning('No structure files in {root}: Skipping this folder'
@@ -589,8 +571,7 @@ class FolderReader:
                                        .format(f.replace(' ', '\ ')))
                     continue
 
-            ase_id = None
-            id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
+
             key_value_pairs.update({'epot': ase_tools.get_energies([slab])})
 
             if 'empty' in f and 'TS' in f:  # empty slab for transition state
@@ -598,14 +579,11 @@ class FolderReader:
                 self.prefactors.update({'TSempty': [1]})
                 self.prefactor_scale.update({'TSempty': [1]})
                 key_value_pairs.update({'species': ''})
-                if ase_id is None:
-                    ase_id = ase_tools.write_ase(slab, self.cathub_db,
-                                                 self.stdout,
-                                                 self.user,
-                                                 **key_value_pairs)
-                elif self.update:
-                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
-                                         **key_value_pairs)
+
+                with CathubSQLite(self.cathub_db) as db:
+                    ase_id = db.write_structure(slab, update=self.update, **key_value_pairs)
+
+
                 self.ase_ids.update({'TSemptystar': ase_id})
                 continue
 
@@ -614,29 +592,20 @@ class FolderReader:
                 self.prefactors.update({'TS': [1]})
                 self.prefactor_scale.update({'TS': [1]})
                 key_value_pairs.update({'species': 'TS'})
-                if ase_id is None:
-                    ase_id = ase_tools.write_ase(slab, self.cathub_db,
-                                                 self.stdout,
-                                                 self.user,
-                                                 **key_value_pairs)
-                elif self.update:
-                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
-                                         **key_value_pairs)
+
+                with CathubSQLite(self.cathub_db) as db:
+                    ase_id = db.write_structure(slab, update=self.update, **key_value_pairs)
+
                 self.ase_ids.update({'TSstar': ase_id})
                 continue
 
             if i in neb_indices:
                 self.structures.update({neb_names[str(i)]: [slab]})
                 key_value_pairs.update({'species': 'neb'})
-                if ase_id is None:
-                    ase_id = ase_tools.write_ase(slab,
-                                                 self.cathub_db,
-                                                 self.stdout,
-                                                 self.user,
-                                                 **key_value_pairs)
-                elif self.update:
-                    ase_tools.update_ase(self.cathub_db, id, self.stdout,
-                                         **key_value_pairs)
+
+                with CathubSQLite(self.cathub_db) as db:
+                    ase_id = db.write_structure(slab, update=self.update, **key_value_pairs)
+
                 self.ase_ids.update({neb_names[str(i)]: ase_id})
                 continue
 
@@ -670,23 +639,16 @@ class FolderReader:
             self.structures[reaction_side][mol_index] = slab
             species = clear_prefactor(
                 self.reaction[reaction_side][mol_index])
-            id, ase_id = ase_tools.check_in_ase(slab, self.cathub_db)
+
             key_value_pairs.update(
                 {'species': clear_state(species),
                  'n': n_ads,
                  'site': str(self.sites.get(species, ''))})
             self.coverages.update({clear_state(species): n_ads})
-            if ase_id is None:
-                ase_id = ase_tools.write_ase(slab,
-                                             self.cathub_db,
-                                             self.stdout,
-                                             self.user,
-                                             **key_value_pairs)
-            elif self.update:
-                ase_tools.update_ase(self.cathub_db,
-                                     id,
-                                     self.stdout,
-                                     **key_value_pairs)
+
+            with CathubSQLite(self.cathub_db) as db:
+                ase_id = db.write_structure(slab, update=self.update, **key_value_pairs)
+
             self.ase_ids.update({species: ase_id})
 
             # For high coverage, re-balance chemical equation if prefactor

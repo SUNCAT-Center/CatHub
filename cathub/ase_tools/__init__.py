@@ -10,14 +10,15 @@ import ase
 from ase.utils import formula_metal
 import copy
 from cathub.tools import clear_state, get_state, clear_prefactor, get_prefactor
+from cathub.cathubsqlite import CathubSQLite
 
 from pathlib import Path
 Path().expanduser()
 
 
-accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'vasp-out', 'castep', 'crystal',
-                    'ulm', 'cube', 'elk', 'espresso-out', 'gaussian', 'aims',
-                    'dacapo', 'turbomole', 'db']
+accepted_formats = ['vasp-xml', 'gpaw_out', 'espresso-out', 'castep', 'crystal',
+                    'ulm', 'cube', 'elk', 'gaussian', 'aims',
+                    'dacapo', 'turbomole','db', 'json', 'traj']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': None,
@@ -101,6 +102,7 @@ def collect_structures(foldername,
 
     if verbose:
         print(foldername)
+
     for i, filename in enumerate(Path(foldername).glob(level)):
         posix_filename = str(filename.as_posix())
         if verbose:
@@ -136,7 +138,7 @@ def collect_structures(foldername,
                             structure[-1].info['filename'] = row.formula + \
                                 '@' + posix_filename
                             structure[-1].info['filetype'] = filetype
-                            structures += [structure]
+                            yield structure  # structures += [structure]
                 else:
                     try:
                         structure = ase.io.read(posix_filename, ':')
@@ -152,7 +154,7 @@ def collect_structures(foldername,
                         try:
                             structure[-1].get_potential_energy()
                             # ensure that the structure has an energy
-                            structures.append(structure)
+                            yield structure  # structures.append(structure)
                         except RuntimeError:
                             if verbose:
                                 print("Did not add {posix_filename} since it has no energy"
@@ -206,8 +208,7 @@ def collect_structures(foldername,
                             posix_filename=posix_filename,
                             e=e,
                         ))
-
-    return structures
+    #return structures
 
 
 def get_energies(atoms_list):
@@ -234,49 +235,6 @@ def get_numbers_from_formula(formula):
     atoms = Atoms(formula)
     return get_atomic_numbers(atoms)
 
-
-def check_in_ase(atoms, ase_db, energy=None):
-    """Check if entry is allready in ASE db"""
-
-    db_ase = ase.db.connect(ase_db)
-    if energy is None:
-        energy = atoms.get_potential_energy()
-    formula = get_chemical_formula(atoms)
-    rows = db_ase.select(energy=energy)
-    n = 0
-    ids = []
-    for row in rows:
-        if formula == row.formula:
-            return row.id, row.unique_id
-    return None, None
-
-
-def _normalize_key_value_pairs_inplace(data):
-    for key in data:
-        if isinstance(data[key], np.int64):
-            data[key] = int(data[key])
-
-
-def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None,
-              **key_value_pairs):
-    """Connect to ASE db"""
-    db_ase = ase.db.connect(db_file)
-    _normalize_key_value_pairs_inplace(key_value_pairs)
-    id = db_ase.write(atoms, data=data, **key_value_pairs)
-    #stdout.write('  writing atoms to ASE db row id = {}\n'.format(id))
-    unique_id = db_ase.get(id)['unique_id']
-    return unique_id
-
-
-def update_ase(db_file, identity, stdout, **key_value_pairs):
-    """Connect to ASE db"""
-    db_ase = ase.db.connect(db_file)
-
-    _normalize_key_value_pairs_inplace(key_value_pairs)
-    count = db_ase.update(identity, **key_value_pairs)
-    stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
-                 .format(count, identity))
-    return
 
 
 def get_reaction_from_folder(folder_name):

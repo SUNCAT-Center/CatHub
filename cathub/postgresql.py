@@ -65,6 +65,7 @@ init_commands = [
 
     """CREATE TABLE log (
     ase_id text PRIMARY KEY REFERENCES systems(unique_id) ON DELETE CASCADE,
+    logtype text,
     logfile BYTEA
     )""",
 ]
@@ -780,7 +781,7 @@ class CathubPostgreSQL:
     def transfer(self, filename_sqlite, block_size=1000,
                  start_block=0, write_ase=True,
                  write_publication=True, write_reaction=True,
-                 write_reaction_system=True, check=False):
+                 write_reaction_system=True, write_log=True, check=False):
         """ Transfer data from local sqlite3 .db file to the
         catalysis-hub postgreSQL server
 
@@ -800,6 +801,8 @@ class CathubPostgreSQL:
             whether or not to transfer reaction table
         write_reaction_system: bool
             whether or not to write reaction_system table
+        write_log: bool
+            whether or not to write log table
         """
 
         self.stdout.write('Starting transfer\n')
@@ -896,6 +899,27 @@ class CathubPostgreSQL:
 
             con.commit()
             self.stdout.write('  Completed transfer of publications\n')
+
+
+        Nlogs = 0
+        if write_log:
+            cur_lite.execute("""SELECT * from log;""")
+            log_values = []
+            rows = cur_lite.fetchall()
+            log_values = []
+            for row in rows:
+                Nlogs += 1
+                values = list(row)
+                log_values += [tuble(values)]
+
+            key_str = get_key_str(table='log')
+            insert_command = """INSERT INTO log ({0})
+            VALUES %s;"""\
+                .format(key_str)
+
+            execute_values(cur=cur, sql=insert_command,
+                           argslist=log_values)
+
 
         Ncat = 0
         Ncatstruc = 0
@@ -1081,7 +1105,9 @@ def get_key_list(table='reaction', start_index=0):
                             'calculator_parameters', 'energy', 'free_energy',
                             'forces', 'stress', 'dipole', 'magmoms', 'magmom',
                             'charges', 'key_value_pairs', 'data', 'natoms',
-                            'fmax', 'smax', 'volume', 'mass', 'charge']}
+                            'fmax', 'smax', 'volume', 'mass', 'charge'],
+                'log': ['ase_id', 'logtype', 'logfile']
+                            }
 
     return key_list[table][start_index:]
 
