@@ -158,7 +158,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies:
+            if options.keep_all_energies or options.keep_all_slabs:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -332,7 +332,7 @@ def fuzzy_match(structures, options):
                     #key += '_{}'.format(surf_empty.get_potential_energy())
 
                 if options.keep_all_slabs:
-                    key = surf_empty.get_chemical_formula()
+                    key = surf_empty.get_chemical_formula() + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -345,8 +345,8 @@ def fuzzy_match(structures, options):
 
                 if options.interactive:
                     print(' ')
-                    include = input('Include reaction: {}({}) | {} | dE={} ?\n  return(yes) / n(no) / u(update) '.
-                                    format(key.split('_')[0], facet, equation.replace('__', '->'), round(dE, 3)))
+                    include = input('Include reaction: {}({}) | {} | dE={} ?\n File: {}\n return(yes) / n(no) / u(update) '.
+                                    format(key.split('_')[0], facet, equation.replace('__', '->'), round(dE, 3), surf_ads.info['filename']))
                     if include == 'n':
                         continue
                     if include == ('u' or 'update'):
