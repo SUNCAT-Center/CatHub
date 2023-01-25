@@ -919,7 +919,7 @@ class CathubPostgreSQL:
 
             execute_values(cur=cur, sql=insert_command,
                            argslist=log_values)
-
+            con.commit()
 
         Ncat = 0
         Ncatstruc = 0

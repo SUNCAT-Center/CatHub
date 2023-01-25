@@ -559,49 +559,44 @@ class CathubSQLite:
         base_dir = os.path.dirname(filename)
         filename = os.environ.get('PWD') + '/' + filename
 
-        rows = db_ase.select(filename=filename)#, formula=formula)
-
+        rows = db_ase.select(energy=energy) #filename=filename)#, formula=formula)
+        id = None
+        former_keys = {}
         for row in rows:
-            print('allready written')
-            #print(len(list(rows)))
-            if update:
-                count = db_ase.update(row.id, **key_value_pairs)
-                self.stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
-                                .format(count, row.id))
-
-            return row.unique_id
-
-        id = db_ase.write(atoms, data=data, **key_value_pairs)
+            if np.all(row.forces == atoms.get_forces()):
+                if update:
+                    count = db_ase.update(row.id, **key_value_pairs)
+                    self.stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
+                                    .format(count, row.id))
+                id = row.id
+                former_keys = row.key_value_pairs
+                break
+        if not id:
+            id = db_ase.write(atoms, data=data, **key_value_pairs)
 
         ase_id = db_ase.get(id)['unique_id']
 
-
         filetype = ase.io.formats.filetype(filename)
 
-        with open(filename, 'rb') as file:
-            blobData = file.read()
+        written_outputs = {}
 
-        self.write_log(ase_id, filetype, blobData)
-
-
-
-        written_outputs = {filetype.replace('-', '') : 1,
-                           'filename': filename}
-        for out in ['DOSCAR', 'PROCAR', 'lobsterin',
+        for out in ['OUTCAR', 'vasprun.xml', 'DOSCAR', 'PROCAR', 'lobsterin', 'lobsterout',
                     'COHPCAR.lobster', 'ICOHPLIST.lobster']:
             output_file = '{}/{}'.format(base_dir, out)
+            out_name = out.replace('.', '')
+            if former_keys.get(out_name):
+                print(out_name, ' already written.')
+                continue
             if os.path.isfile(output_file):
                 with open(output_file, 'rb') as file:
                     blobData = file.read()
                 self.write_log(ase_id, out, blobData)
-                written_outputs[out.replace('.', '')] = 1
+                print('Wrote: ', out)
+                written_outputs[out_name] = 1
             else:
-                written_outputs[out.replace('.', '')] = 0
-
+                written_outputs[out_name] = 0
         count = db_ase.update(id, **written_outputs)
         db_ase.connection.commit()
-        #self.stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
-        #                .format(count, id))
 
         return ase_id
 

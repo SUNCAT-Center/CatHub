@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# builtin imports
+
+import os
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     get_reduced_chemical_formula, symbols, collect_structures, \
     compare_parameters
@@ -21,7 +22,6 @@ from pathlib import Path
 import shutil
 Path().expanduser()
 
-# local imports
 
 
 def fuzzy_match(structures, options):
@@ -29,6 +29,7 @@ def fuzzy_match(structures, options):
     structures = [structure[-1] for structure in structures
                   if structure[-1].number_of_lattice_vectors == 3
                   ]
+    print(structures)
     # sort by density
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
@@ -154,12 +155,12 @@ def fuzzy_match(structures, options):
             idx = [i for i, s in enumerate(surface_size) if s == ss]
             subset = [surfaces[i] for i in idx]
             energies = [s.get_potential_energy() for s in subset]
-            formulas = [s.get_chemical_formula() for s in subset]
+            formulas = [get_chemical_formula(s) for s in subset]
             idx = np.argsort(energies)
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies or options.keep_all_slabs:
+            if options.keep_all_energies:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -177,8 +178,8 @@ def fuzzy_match(structures, options):
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
                 if options.verbose:
-                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
-                                                  get_chemical_formula(surf_ads)))
+                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty, mode='metal'),
+                                                  get_chemical_formula(surf_ads, mode='metal')))
                     print('    -------------------')
 
                 # Check for calculator parameter consistency
@@ -197,6 +198,12 @@ def fuzzy_match(structures, options):
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
                         continue
+
+                #slab_positions = surf_empty.positions
+                #ads_positions = surf_ads.positions
+
+                #for sp in slab_positions:
+                #
                 if not options.skip_constraints:
                     constraints_empty = [c.todict()['kwargs']['indices']
                                          for c in surf_empty.constraints
@@ -319,7 +326,10 @@ def fuzzy_match(structures, options):
 
                 energy = dE
                 key = equal_formula
-
+                if options.keep_all_slabs and options.keep_all_energies:
+                    key = get_chemical_formula(surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
+                elif options.keep_all_slabs:
+                    key = get_chemical_formula(surf_empty)
                 if not options.keep_all_energies:
                     if energy > np.min(list(collected_energies.get(
                             key, {}).get(facet, {}).get(adsorbate, {}).values()) + [np.inf]):
@@ -332,8 +342,7 @@ def fuzzy_match(structures, options):
                         site = 'site{}'.format(n_energies + 1)
                     #key += '_{}'.format(surf_empty.get_potential_energy())
 
-                if options.keep_all_slabs:
-                    key = surf_empty.get_chemical_formula() + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
+
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -470,16 +479,10 @@ def create_folders(options, structures, publication_template, root=''):
             create_folders(options, structures[key], publication_template={},
                            root=d)
         else:
-
-            shutil.copy(structures[key].info['filename'],
-                str(Path(root).joinpath(key + '.' + 'vasprun.xml')))
-
-            #ase.io.write(
-            #    str(Path(root).joinpath(key + '.' + out_format)),
-            #    structures[key],
-            #    format=out_format,
-            #)
-
+            filename = str(Path(root).joinpath(key + '.json')) # + out_format))
+            atoms = structures[key]
+            with ase.db.connect(filename, serial=True, append=False) as db:
+                db.write(atoms, data=atoms.info)
 
 def main(options):
     print("Running Organize script")
@@ -493,11 +496,12 @@ def main(options):
         with open(pickle_file, 'rb') as infile:
             structures = pickle.load(infile)
     else:
+        level = '**/*' + options.file_extension
         structures = list(collect_structures(options.foldername,
                                             options.verbose,
                                             options.include_pattern,
                                             options.exclude_pattern,
-                                            level='**/*vasprun.xml'))
+                                            level=level))
 
 
         if options.gas_dir:
@@ -505,7 +509,7 @@ def main(options):
                 list(collect_structures(
                         options.gas_dir,
                         options.verbose,
-                        level='**/*vasprun.xml'))
+                        level=level))
             )
         if options.use_cache:
             with open(pickle_file, 'wb') as outfile:

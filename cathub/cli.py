@@ -505,15 +505,12 @@ def connect(user):
     '-k', '--keep-all-energies',
     type=bool,
     is_flag=True,
-    help="When multiple energies for the same facet and adsorbate"
-    "are found keep all energies"
-    "not only the most stable.")
+    help="Consider all structures with different energies")
 @click.option(
     '-ks', '--keep-all-slabs',
     type=bool,
     is_flag=True,
-    help="Consider all slabs as the empty surface"
-    "not only the most stable.")
+    help="Consider all slabs with different chemical formula as the empty surface, choosing the most stable configuration for each chemical formula.")
 @click.option(
     '-m', '--max-energy',
     type=float,
@@ -599,6 +596,14 @@ def connect(user):
     show_default=True,
     help="output folder for oganized data. Default is <foldername>.organized")
 
+@click.option(
+    '-fe', '--file-extension',
+    type=str,
+    default='OUTCAR',#'vasprun.xml',
+    show_default=True,
+    help="Extension of main output file")
+
+
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
@@ -631,11 +636,19 @@ def organize(**kwargs):
 @click.argument('folder_name')
 
 @click.option(
-    '-v', '--verbose',
-    is_flag=True,
-    default=True,
+    '-fe', '--file-extension',
+    type=str,
+    default='vasprun.xml',
     show_default=True,
-    help="Show more debugging messages.")
+    help="Extension of main output file")
+
+@click.option(
+    '-o', '--out-db',
+    type=str,
+    default=None,
+    show_default=True,
+    help="Name of output db")
+
 
 def collect(folder_name, **kwargs):
 
@@ -643,12 +656,14 @@ def collect(folder_name, **kwargs):
     #                                level='**/*vasprun.xml',
     #                                **kwargs)
 
-    dbname = folder_name.replace('.', '').replace('/', '_') + '_cathub.db'
+    level = '**/*' + kwargs['file_extension']
+
+    dbname = kwargs['out_db'] or \
+        folder_name.replace('.', '').replace('/', '_').rstrip('_') + '_cathub.db'
     with CathubSQLite(dbname) as db:
         for s in ase_tools.collect_structures(folder_name,
-                                        level='**/*vasprun.xml',
-                                        **kwargs): #structures:
-            print('Write')
+                                              level=level,
+                                              verbose=True): #structures:
             db.write_structure(s[-1])
 
 @cli.command()
@@ -660,12 +675,9 @@ def collect(folder_name, **kwargs):
     '-o', '--out-file', default=None, help='Output file for log files')
 
 def log(dbfile, id, out_file):
-    "Write log file for selected structure"
+    "Extract log file for selected structure"
     if not id:
         with ase_connect(dbfile) as db:
-            #ur = db.connection.cursor()
-            #cur.execute('Select id from systems;')
-            #rows = cur.fetchall()
             formulas = []
             ids = []
             if id:
@@ -698,6 +710,3 @@ def log(dbfile, id, out_file):
                     logtype = 'vasprun.xml'
                 with open(path + logtype, 'wb') as file:
                     file.write(logfile)
-
-        #print(logfile)
-        #sys.exit()
