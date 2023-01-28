@@ -163,17 +163,8 @@ def collect_structures(foldername,
                         structure = ase.io.read(posix_filename, '-1:')
                         structure[-1].info['filename'] = posix_filename
                         structure[-1].info['filetype'] = filetype
-                        assert getattr(structure[-1], 'calc', None) is not None, "No calculator"
-                        if structure[-1].calc.parameters == {} and filetype == 'vasp-out':  # read from vasprun.xml
-                            parameters = read_params_xml(filename=posix_filename.replace('OUTCAR', 'vasprun.xml'))
-                            structure[-1].calc.parameters = parameters
 
-                        if structure[-1].calc.parameters == {} and filetype == 'json':  # ASE doesn't read parameters from json :(
-                            parameters = json.load(open(posix_filename, 'r'))['1']\
-                                .get('calculator_parameters', {})
-                            structure[-1].calc.parameters = parameters
 
-                        assert getattr(structure[-1].calc.parameters, {}) is not {}, "No calculator parameters"
                         try:
                             structure[-1].get_potential_energy()
                             # ensure that the structure has an energy
@@ -184,6 +175,19 @@ def collect_structures(foldername,
                                       .format(
                                           posix_filename=posix_filename,
                                       ))
+                        assert getattr(structure[-1], 'calc', None) is not None, "No calculator"
+                        if structure[-1].calc.parameters == {}:
+                            vasprun_file = '/'.join(posix_filename.split('/')[:-1]) + '/vasprun.xml'
+                            if os.path.exists(vasprun_file):
+                                parameters = read_params_xml(filename=vasprun_file)
+                                structure[-1].calc.parameters = parameters
+
+                            elif filetype == 'json':  # ASE doesn't read parameters from json :(
+                                parameters = json.load(open(posix_filename, 'r'))['1']\
+                                    .get('calculator_parameters', {})
+                                structure[-1].calc.parameters = parameters
+
+                        assert getattr(structure[-1].calc, 'parameters', {}) is not {}, "No calculator parameters"
 
                     except ET.ParseError:
                         print("Couldn't read XML file {posix_filename}"
@@ -351,43 +355,60 @@ def read_params_xml(filename='vasprun.xml', index=-1):
     Reads parameters from vasprun.xml file
     simplified version of ase.io.vasp functionality
     """
-
-
     tree = ET.iterparse(filename, events=['start', 'end'])
     atoms_init = None
     calculation = []
     ibz_kpts = None
     kpt_weights = None
-    parameters = OrderedDict()
-    print('start read')
+    parameters = {'kpoints':{}}#OrderedDict()
     try:
         for event, elem in tree:
             if event == 'end':
                 if elem.tag == 'kpoints':
-                    print('kpoints')
+                    kpts = elem.findall("varray[@name='kpointlist']/v")
+                    weights = elem.findall("varray[@name='weights']/v")
+                    ibz_kpts = np.zeros((len(kpts), 3))
+                    weights_array = []
+                    for i, kpt in enumerate(kpts):
+                        ibz_kpts[i] = [float(val) for val in kpt.text.split()]
+                        weights_array += [weights[i].text.strip()]
+                    parameters['kpoints']['kpointlist'] = ibz_kpts.tolist()
+                    parameters['kpoints']['weights'] = weights_array
                     for subelem in elem.iter(tag='generation'):
-                        kpts_params = OrderedDict()
-                        parameters['kpoints_generation'] = kpts_params
-                elif elem.tag == 'parameters':
-                    print('parameters')
+                        kpts_params = {}
+                        parameters['kpoints']['generation'] = kpts_params
+                        for par in subelem.iter():
+                            if par.tag in ['v', 'i']:
+                                parname = par.attrib['name']
+                                kpts_params[parname] = __get_xml_parameter(par)
+
+                elif elem.tag in ['generator', 'incar']:
                     for par in elem.iter():
                         if par.tag in ['v', 'i']:
-                            parname = par.attrib['name'].lower()
-                            parameters[parname] = __get_xml_parameter(par)
-                    print('done')
+                            parname = par.attrib['name']
+                elif elem.tag in ['atominfo']:
+                    psp_info = []
+                    for subelem in elem.iter():
+                        if subelem.attrib.get('name') == 'atomtypes':
+                            fieldnames = []
+                            for ss in subelem.iter(tag='field'):
+                                fieldnames += [ss.text]
+                            for ss in subelem.iter():
+                                for sss in ss.iter('set'):
+                                    for ssss in sss.iter():
+                                        if ssss.tag == 'rc':
+                                            psp_info += [{}]
+                                            i = 0
+                                        elif ssss.tag == 'c':
+                                            psp_info[-1][fieldnames[i]] = ssss.text.strip()
+                                            i += 1
+
+                    parameters['psp_info'] = psp_info
                     break
-
-
     except ET.ParseError as parse_error:
 
         if atoms_init is None:
             raise parse_error
         return {}
-        #if calculation and calculation[-1].find("energy") is None:
-        #    print('what')
-        #    calculation = calculation[:-1]
-        #if not calculation:
-        #    print('yield')
-        #    yield atoms_init
 
     return parameters

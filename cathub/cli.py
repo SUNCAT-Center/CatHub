@@ -674,8 +674,8 @@ def collect(folder_name, **kwargs):
 @click.option(
     '-o', '--out-file', default=None, help='Output file for log files')
 
-def log(dbfile, id, out_file):
-    "Extract log file for selected structure"
+def get_log(dbfile, id, out_file):
+    "Extract log file from db for selected structure"
     if not id:
         with ase_connect(dbfile) as db:
             formulas = []

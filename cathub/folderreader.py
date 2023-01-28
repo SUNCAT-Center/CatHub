@@ -295,7 +295,6 @@ class FolderReader:
 
         for gas in gas_structures:
             gas = gas[-1]
-            print(gas.info)
             ase_id = None
             found = False
 
