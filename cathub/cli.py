@@ -599,7 +599,7 @@ def connect(user):
 @click.option(
     '-fe', '--file-extension',
     type=str,
-    default='OUTCAR',#'vasprun.xml',
+    default='OUTCAR',
     show_default=True,
     help="Extension of main output file")
 
@@ -638,7 +638,7 @@ def organize(**kwargs):
 @click.option(
     '-fe', '--file-extension',
     type=str,
-    default='vasprun.xml',
+    default='OUTCAR',
     show_default=True,
     help="Extension of main output file")
 
