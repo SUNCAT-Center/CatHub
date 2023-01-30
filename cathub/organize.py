@@ -29,7 +29,7 @@ def fuzzy_match(structures, options):
     structures = [structure[-1] for structure in structures
                   if structure[-1].number_of_lattice_vectors == 3
                   ]
-    print(structures)
+
     # sort by density
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
