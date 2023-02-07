@@ -164,6 +164,18 @@ def collect_structures(foldername,
                         structure[-1].info['filename'] = posix_filename
                         structure[-1].info['filetype'] = filetype
 
+                        assert getattr(structure[-1], 'calc', None) is not None, "No calculator"
+                        if structure[-1].calc.parameters == {}:
+                            vasprun_file = '/'.join(posix_filename.split('/')[:-1]) + '/vasprun.xml'
+                            if os.path.exists(vasprun_file):
+                                parameters = read_params_xml(filename=vasprun_file)
+                                structure[-1].calc.parameters = parameters
+                            elif filetype == 'json':  # ASE doesn't read parameters from json :(
+                                parameters = json.load(open(posix_filename, 'r'))['1']\
+                                    .get('calculator_parameters', {})
+                                structure[-1].calc.parameters = parameters
+
+                        assert getattr(structure[-1].calc, 'parameters', {}) is not {}, "No calculator parameters"
 
                         try:
                             structure[-1].get_potential_energy()
@@ -172,23 +184,8 @@ def collect_structures(foldername,
                         except RuntimeError:
                             if verbose:
                                 print("Did not add {posix_filename} since it has no energy"
-                                      .format(
-                                          posix_filename=posix_filename,
-                                      ))
-                        assert getattr(structure[-1], 'calc', None) is not None, "No calculator"
-                        if structure[-1].calc.parameters == {}:
-                            vasprun_file = '/'.join(posix_filename.split('/')[:-1]) + '/vasprun.xml'
-                            if os.path.exists(vasprun_file):
-                                parameters = read_params_xml(filename=vasprun_file)
-                                structure[-1].calc.parameters = parameters
-
-                            elif filetype == 'json':  # ASE doesn't read parameters from json :(
-                                parameters = json.load(open(posix_filename, 'r'))['1']\
-                                    .get('calculator_parameters', {})
-                                structure[-1].calc.parameters = parameters
-
-                        assert getattr(structure[-1].calc, 'parameters', {}) is not {}, "No calculator parameters"
-
+                                    .format(
+                                        posix_filename=posix_filename,))
                     except ET.ParseError:
                         print("Couldn't read XML file {posix_filename}"
                               .format(
@@ -360,7 +357,7 @@ def read_params_xml(filename='vasprun.xml', index=-1):
     calculation = []
     ibz_kpts = None
     kpt_weights = None
-    parameters = {'kpoints':{}}#OrderedDict()
+    parameters = {'kpoints':{}, 'generator':{}, 'incar':{}}#OrderedDict()
     try:
         for event, elem in tree:
             if event == 'end':
@@ -386,6 +383,7 @@ def read_params_xml(filename='vasprun.xml', index=-1):
                     for par in elem.iter():
                         if par.tag in ['v', 'i']:
                             parname = par.attrib['name']
+                            parameters[elem.tag][parname] = __get_xml_parameter(par)
                 elif elem.tag in ['atominfo']:
                     psp_info = []
                     for subelem in elem.iter():
@@ -394,14 +392,12 @@ def read_params_xml(filename='vasprun.xml', index=-1):
                             for ss in subelem.iter(tag='field'):
                                 fieldnames += [ss.text]
                             for ss in subelem.iter():
-                                for sss in ss.iter('set'):
-                                    for ssss in sss.iter():
-                                        if ssss.tag == 'rc':
-                                            psp_info += [{}]
-                                            i = 0
-                                        elif ssss.tag == 'c':
-                                            psp_info[-1][fieldnames[i]] = ssss.text.strip()
-                                            i += 1
+                                if ss.tag == 'rc':
+                                    psp_info += [{}]
+                                    i = 0
+                                elif ss.tag == 'c':
+                                    psp_info[-1][fieldnames[i]] = ss.text.strip()
+                                    i += 1
 
                     parameters['psp_info'] = psp_info
                     break
@@ -410,5 +406,5 @@ def read_params_xml(filename='vasprun.xml', index=-1):
         if atoms_init is None:
             raise parse_error
         return {}
-
+    print(parameters)
     return parameters
