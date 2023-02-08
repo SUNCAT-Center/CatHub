@@ -258,6 +258,8 @@ def fuzzy_match(structures, options):
                 min_dist = np.min(distances_abs, axis=1)
                 ads_pos_idx = np.where(min_dist > 1)[0]
                 ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
+                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
+                surf_ads.set_tags(tags)
 
                 if not ads_pos_numbers == diff_numbers:
                     if options.verbose:
