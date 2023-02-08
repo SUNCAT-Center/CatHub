@@ -4,7 +4,7 @@
 import os
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     get_reduced_chemical_formula, symbols, collect_structures, \
-    compare_parameters
+    compare_parameters, copy_atoms
 import cathub.ase_tools
 import ase.atoms
 import ase.utils
@@ -172,7 +172,11 @@ def fuzzy_match(structures, options):
         else:
             n_empty = 1  # Only consider lowest energy empty slab for now
         for i, surf_empty in enumerate(surfaces[:n_empty]):
+            surf_empty = copy_atoms(surf_empty)
+            surf_empty.set_tags(None)
             for j, surf_ads in enumerate(surfaces[i+1:]):
+                surf_ads = copy_atoms(surf_ads)
+
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
                 if options.verbose:
@@ -197,11 +201,6 @@ def fuzzy_match(structures, options):
                                                      surf_ads.info['filename']))
                         continue
 
-                #slab_positions = surf_empty.positions
-                #ads_positions = surf_ads.positions
-
-                #for sp in slab_positions:
-                #
                 if not options.skip_constraints:
                     constraints_empty = [c.todict()['kwargs']['indices']
                                          for c in surf_empty.constraints
@@ -262,8 +261,6 @@ def fuzzy_match(structures, options):
                 min_dist = np.min(distances_abs, axis=1)
                 ads_pos_idx = np.where(min_dist > 1)[0]
                 ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
-                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
-                surf_ads.set_tags(tags)
 
                 if not ads_pos_numbers == diff_numbers:
                     if options.verbose:
@@ -292,10 +289,11 @@ def fuzzy_match(structures, options):
                               "Include with 'cathub organize -a {}'".format(adsorbate))
                     continue
 
+                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
+                surf_ads.set_tags(tags)
+
                 dE = surf_ads.get_potential_energy() \
                     - surf_empty.get_potential_energy()
-
-                #dE /= rep
 
                 references, prefactors = \
                     gas_phase_references \
@@ -494,7 +492,7 @@ def create_folders(options, structures, publication_template, root=''):
             create_folders(options, structures[key], publication_template={},
                            root=d)
         else:
-            filename = str(Path(root).joinpath(key + '.json')) # + out_format))
+            filename = str(Path(root).joinpath(key + '.' + out_format))
             atoms = structures[key]
             with ase.db.connect(filename, serial=True, append=False) as db:
                 db.write(atoms, data=atoms.info)
@@ -534,7 +532,7 @@ def main(options):
     structures = fuzzy_match(structures, options)
     if not structures:
         return
-    root = options.out_folder or options.foldername.split('/')[-1] + '.organized/'
+    root = options.out_folder or options.foldername.rstrip('/').split('/')[-1] + '.organized/'
     create_folders(options, structures,
                    root=root,
                    publication_template=publication_template,

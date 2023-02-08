@@ -238,7 +238,10 @@ def collect_structures(foldername,
                             e=e,
                         ))
     #return structures
-
+def copy_atoms(atoms):
+    atoms2 = atoms.copy()
+    atoms2.calc = atoms.calc
+    return atoms2
 
 def get_energies(atoms_list):
     """ Potential energy for a list of atoms objects"""
@@ -406,5 +409,4 @@ def read_params_xml(filename='vasprun.xml', index=-1):
         if atoms_init is None:
             raise parse_error
         return {}
-    print(parameters)
     return parameters
