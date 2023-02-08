@@ -9,6 +9,7 @@ import cathub.ase_tools
 import ase.atoms
 import ase.utils
 import ase.io
+from ase.geometry import get_distances
 import numpy as np
 import pickle
 import json
@@ -19,10 +20,7 @@ import pprint
 import collections
 from random import randint
 from pathlib import Path
-import shutil
 Path().expanduser()
-
-
 
 def fuzzy_match(structures, options):
     # filter out cell with ill-defined unit cells
@@ -160,7 +158,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies:
+            if options.keep_all_energies or options.keep_all_slabs:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -253,6 +251,25 @@ def fuzzy_match(structures, options):
                 if not sorted(equal_numbers) ==\
                    sorted(atomic_num_surf):
                     continue
+
+                distances, distances_abs = \
+                        get_distances(
+                                surf_ads.get_positions(),
+                                surf_empty.get_positions(),
+                                cell=surf_ads.cell, pbc=True)
+
+
+                min_dist = np.min(distances_abs, axis=1)
+                ads_pos_idx = np.where(min_dist > 1)[0]
+                ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
+                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
+                surf_ads.set_tags(tags)
+
+                if not ads_pos_numbers == diff_numbers:
+                    if options.verbose:
+                        print("        -Skipping due to structural mismatch")
+                    continue
+
                 equal_formula = get_reduced_chemical_formula(
                     ase.atoms.Atoms(equal_numbers))
 
@@ -268,11 +285,8 @@ def fuzzy_match(structures, options):
 
                 if rep_ads > 1 and rep_ads == rep:
                     red_diff_numbers *= rep
-                elif rep > 1 and not options.high_coverage:
-                    continue
 
-                if not red_diff_numbers in adsorbate_numbers:
-                    #index = adsorbate_numbers.index(red_diff_numbers)
+                if not diff_numbers in adsorbate_numbers:
                     if options.verbose:
                         print("        -Adsorbate {} detected.".format(adsorbate),
                               "Include with 'cathub organize -a {}'".format(adsorbate))
@@ -342,7 +356,8 @@ def fuzzy_match(structures, options):
                         site = 'site{}'.format(n_energies + 1)
                     #key += '_{}'.format(surf_empty.get_potential_energy())
 
-
+                if options.keep_all_slabs:
+                    key = surf_empty.get_chemical_formula() + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
