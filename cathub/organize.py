@@ -368,8 +368,18 @@ def fuzzy_match(structures, options):
 
                 if options.interactive:
                     print(' ')
-                    include = input('Include reaction: {}({}) | {} | dE={} ?\n File: {}\n return(yes) / n(no) / u(update) '.
-                                    format(key.split('_')[0], facet, equation.replace('__', '->'), round(dE, 3), surf_ads.info['filename']))
+                    include = input(
+"""
+    Include reaction: {}({}) | {} | dE={} ?
+        Ads+slab: {}
+        Empty slab: {}
+
+    return(yes) / n(no) / u(update)
+""".format(key.split('_')[0],
+           facet, equation.replace('__', '->'), round(dE, 3),
+           surf_ads.info['filename'],
+            surf_empty.info['filename'])
+                                    )
                     if include == 'n':
                         continue
                     if include == ('u' or 'update'):
