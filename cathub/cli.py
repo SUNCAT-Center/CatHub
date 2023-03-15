@@ -484,6 +484,14 @@ def connect(user):
     " below which the structures are"
     " considered gas-phase molecules.")
 @click.option(
+    '-rtol', '--reorganization-tol',
+    type=float,
+    default=1,
+    show_default=True,
+    help="Specify the tolerance (A) for"
+    " structural reorganization between"
+    " empty and adsorbate slabs.")
+@click.option(
     '-hc', '--high-coverage',
     type=bool,
     is_flag=True,

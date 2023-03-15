@@ -259,12 +259,12 @@ def fuzzy_match(structures, options):
 
 
                 min_dist = np.min(distances_abs, axis=1)
-                ads_pos_idx = np.where(min_dist > 1)[0]
+                ads_pos_idx = np.where(min_dist > options.reorganization_tol)[0]
                 ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
 
                 if not ads_pos_numbers == diff_numbers:
                     if options.verbose:
-                        print("        -Skipping due to structural mismatch")
+                        print("        -Skipping due to structural mismatch. \n include by increasing 'cathub -rtol ' ")
                     continue
 
                 equal_formula = get_reduced_chemical_formula(
@@ -378,8 +378,8 @@ def fuzzy_match(structures, options):
 """.format(key.split('_')[0],
            facet, equation.replace('__', '->'), round(dE, 3),
            surf_ads.info['filename'],
-            surf_empty.info['filename'])
-                                    )
+            surf_empty.info['filename']))
+
                     if include == 'n':
                         continue
                     if include == ('u' or 'update'):
@@ -528,11 +528,12 @@ def main(options):
 
 
         if options.gas_dir:
-            structures.extend(
-                list(collect_structures(
-                        options.gas_dir,
-                        options.verbose,
-                        level=level))
+            for extra_dir in options.gas_dir.split(','):
+                structures.extend(
+                    list(collect_structures(
+                            extra_dir,
+                            options.verbose,
+                            level=level))
             )
         if options.use_cache:
             with open(pickle_file, 'wb') as outfile:
