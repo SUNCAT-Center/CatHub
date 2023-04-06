@@ -39,6 +39,39 @@ def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
     return energy_extrapolation
 
 
+def get_constant_charge_barriers(db_filepath, snapshot_range):
+    '''
+    Compute energy barrier for an transition state species
+    '''
+
+    db = connect(str(db_filepath))
+    snapshot_positions = []
+    snapshot_energies = []
+    snapshot_forces = []
+    for index, snapshot_id in enumerate(range(snapshot_range[0],
+                                              snapshot_range[1] + 1)):
+        snapshot_positions.append(db.get(id=snapshot_id).toatoms().positions)
+        snapshot_energies.append(db.get(
+            id=snapshot_id).toatoms().get_potential_energy())
+        snapshot_forces.append(db.get(id=snapshot_id).toatoms().get_forces())
+        if index == 0:
+            lattice_vectors = db.get(id=snapshot_id).toatoms().cell
+            pbc = db.get(id=snapshot_id).toatoms().pbc
+
+    _, snapshot_energies, _, snapshot_energies_fit, _ = fit_raw(snapshot_energies,
+                                                                snapshot_forces,
+                                                                snapshot_positions,
+                                                                lattice_vectors,
+                                                                pbc)
+    initial_energy = snapshot_energies[0]
+    final_energy = snapshot_energies[-1]
+    ts_energy = max(snapshot_energies_fit)
+
+    constant_charge_forward_barrier = ts_energy - initial_energy
+    constant_charge_backward_barrier = ts_energy - final_energy
+    return (constant_charge_forward_barrier, constant_charge_backward_barrier)
+
+
 def get_charge_extrapolated_constant_potential_barriers(db_filepath,
                                                         snapshot_range):
     '''Compute charge extrapolated constant potential energy barrier for a
@@ -333,37 +366,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print('\n')
     return df_out
 
-def get_constant_charge_barriers(db_filepath, snapshot_range):
-    '''
-    Compute energy barrier for an transition state species
-    '''
-
-    db = connect(str(db_filepath))
-    snapshot_positions = []
-    snapshot_energies = []
-    snapshot_forces = []
-    for index, snapshot_id in enumerate(range(snapshot_range[0],
-                                              snapshot_range[1] + 1)):
-        snapshot_positions.append(db.get(id=snapshot_id).toatoms().positions)
-        snapshot_energies.append(db.get(
-            id=snapshot_id).toatoms().get_potential_energy())
-        snapshot_forces.append(db.get(id=snapshot_id).toatoms().get_forces())
-        if index == 0:
-            lattice_vectors = db.get(id=snapshot_id).toatoms().cell
-            pbc = db.get(id=snapshot_id).toatoms().pbc
-
-    _, snapshot_energies, _, snapshot_energies_fit, _ = fit_raw(snapshot_energies,
-                                                                snapshot_forces,
-                                                                snapshot_positions,
-                                                                lattice_vectors,
-                                                                pbc)
-    initial_energy = snapshot_energies[0]
-    final_energy = snapshot_energies[-1]
-    ts_energy = max(snapshot_energies_fit)
-
-    constant_charge_forward_barrier = ts_energy - initial_energy
-    constant_charge_backward_barrier = ts_energy - final_energy
-    return (constant_charge_forward_barrier, constant_charge_backward_barrier)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
