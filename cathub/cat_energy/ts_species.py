@@ -13,11 +13,11 @@ from tabulate import tabulate
 from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, write_columns
 from .conversion import read_reaction_expression_data, \
-    formula_to_chemical_symbols, KB, CM2EV, get_electric_field_contribution
+    formula_to_chemical_symbols, CM2EV, get_electric_field_contribution
 
 
 def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
-                                  beta, temp, pH):
+                                  beta, u_rhe):
     '''
     Compute charge extrapolated transition state barrier
     '''
@@ -33,9 +33,6 @@ def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
     size_extrapolation = 0.5 * beta * del_phi
 
     # extrapolation to vacuum
-    u_she = phi_fs_corr - phi_ref
-    # converting from SHE to RHE scale
-    u_rhe = u_she + np.log(10) * KB * temp * pH
     vacuum_extrapolation = beta * u_rhe
 
     energy_extrapolation = size_extrapolation + vacuum_extrapolation
@@ -58,7 +55,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df1 = df1[df1['facet'].str.contains(desired_facet)]
 
     temp = system_parameters['temp']
-    pH = system_parameters['pH']
+    u_rhe = system_parameters['u_rhe']
 
     # Load vibrational data
     with open(ts_jsondata_filepath, encoding='utf8') as f:
@@ -250,7 +247,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             extrapolation_corr.append(compute_barrier_extrapolation(
                                             workfunction_data[species_index],
                                             phi_correction, phi_ref,
-                                            beta_list[species_index], temp, pH))
+                                            beta_list[species_index], u_rhe))
 
         # compute energy vector
         # term1_forward = forward_barrier[-1] + dft_corr[-1]
