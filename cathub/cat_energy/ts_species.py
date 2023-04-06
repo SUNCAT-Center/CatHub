@@ -38,6 +38,21 @@ def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
     energy_extrapolation = size_extrapolation + vacuum_extrapolation
     return energy_extrapolation
 
+
+def get_charge_extrapolated_constant_potential_barriers(db_filepath,
+                                                        snapshot_range):
+    '''Compute charge extrapolated constant potential energy barrier for a
+    transition state species '''
+
+    (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
+        get_constant_charge_barriers(db_filepath, snapshot_range)
+
+    charge_extrapolated_constant_potential_forward_barrier = constant_charge_forward_barrier
+    charge_extrapolated_constant_potential_backward_barrier = constant_charge_backward_barrier
+    return (charge_extrapolated_constant_potential_forward_barrier,
+            charge_extrapolated_constant_potential_backward_barrier)
+
+
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions, ts_data, system_parameters,
                       reference_gases, external_effects, verbose, latex):
@@ -94,7 +109,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     # build dataframe data for transition state species
     surface, site, species, raw_energy = [], [], [], []
-    forward_barrier, backward_barrier = [], []
+    charge_extrapolated_constant_potential_barriers = []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     formation_energy, alk_corr = [], [], [], []
     if ts_data['extrapolation']:
@@ -174,15 +189,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         snapshot_range = snapshot_range_list[species_index]
 
         reaction_index = species_list.index(species_name)
-        reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
-        (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
-            get_constant_charge_barriers(db_filepath, snapshot_range)
+        charge_extrapolated_constant_potential_barriers.append(
+            get_charge_extrapolated_constant_potential_barriers(db_filepath,
+                                                                snapshot_range))
 
         raw_energy.append(float("nan"))
-        # forward barrier
-        forward_barrier.append(constant_charge_forward_barrier)
-        # backward barrier
-        backward_barrier.append(constant_charge_backward_barrier)
         # Zero DFT Correction for transition states
         dft_corr.append(0.0)
 
@@ -237,13 +248,13 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         # Apply charge extrapolation scheme
         if ts_data['extrapolation']:
             extrapolation_corr.append(compute_barrier_extrapolation(
-                                            workfunction_data[species_index],
-                                            phi_correction, phi_ref,
-                                            beta_list[species_index], u_rhe))
+                workfunction_data[species_index],
+                phi_correction, phi_ref,
+                beta_list[species_index], u_rhe))
 
         # compute energy vector
         # term1_forward = forward_barrier[-1] + dft_corr[-1]
-        term1_backward = backward_barrier[-1] + dft_corr[-1]
+        term1_backward = charge_extrapolated_constant_potential_barriers[species_index][-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
         if species_name in external_effects:
@@ -270,9 +281,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             references.append('')
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
-                                backward_barrier, dft_corr, zpe, enthalpy,
-                                entropy, rhe_corr, formation_energy,
-                                energy_vector, frequencies, references)),
+                                charge_extrapolated_constant_potential_barriers,
+                                dft_corr, zpe, enthalpy, entropy, rhe_corr,
+                                formation_energy, energy_vector, frequencies,
+                                references)),
                        columns=write_columns)
     df_out = df_out.append(df3, ignore_index=True, sort=False)
 
