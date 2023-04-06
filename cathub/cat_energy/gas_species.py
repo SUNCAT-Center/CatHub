@@ -156,11 +156,12 @@ def write_gas_energies(
                 term4 = np.poly1d(external_effects[species_key])(system_parameters['u_she'])
             else:
                 term4 = 0.0
+            term4 += helm_offset[-1]
             mu = term1 + term2 + term3 + term4
             energy_vector.append([term1, term2, term3, term4, mu])
 
             # formation energy
-            formation_energy.append(term1 + term4 + helm_offset[-1])
+            formation_energy.append(term1 + term4)
 
             if species_name in species_list:
                 frequencies.append(gas_vibration_data[species_list.index(
