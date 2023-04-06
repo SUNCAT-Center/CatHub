@@ -90,7 +90,7 @@ def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
 
 def get_charge_extrapolated_constant_potential_barriers(
         db_filepath, snapshot_range, species_workfunction_data, beta, u_she,
-        extrapolate):
+        extrapolate, alk_corr):
     '''Compute charge extrapolated constant potential energy barrier for a
     transition state species '''
 
@@ -141,6 +141,10 @@ def get_charge_extrapolated_constant_potential_barriers(
             constant_potential_forward_barrier
         charge_extrapolated_constant_potential_backward_barrier = \
             constant_potential_backward_barrier
+
+    # Apply alkaline correction
+    charge_extrapolated_constant_potential_forward_barrier += alk_corr
+    charge_extrapolated_constant_potential_backward_barrier += alk_corr
 
     return (charge_extrapolated_constant_potential_forward_barrier,
             charge_extrapolated_constant_potential_backward_barrier)
@@ -289,10 +293,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                 corrected_species_workfunction_data.append(workfunction_value - phi_correction)
             else:
                 corrected_species_workfunction_data.append(float('nan'))
+        alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
         charge_extrapolated_constant_potential_barriers.append(
             get_charge_extrapolated_constant_potential_barriers(
                 db_filepath, snapshot_range, corrected_species_workfunction_data,
-                beta, u_she, ts_data['extrapolation']))
+                beta, u_she, ts_data['extrapolation'], alk_corr[-1]))
 
         raw_energy.append(float("nan"))
         # Zero DFT Correction for transition states
@@ -321,9 +326,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
                                              reference_gases, reactants,
                                              beta_list[species_index]))
-
-        # Apply alkaline correction
-        alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
 
         # Compute final state energy
         fin_ads_energy = 0
