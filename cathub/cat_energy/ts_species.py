@@ -175,7 +175,6 @@ def write_ts_energies(
     valid_ts_states_reaction_indices = [reaction_index for reaction_index, ts_state in enumerate(ts_states_rxn_expressions) if ts_state]
 
     df_activation = df1[df1['activation_energy'].notna()]
-    ts_states_user_input = ts_data['ts_states']
 
     # build dataframe data for transition state species
     surface, site, species, raw_energy = [], [], [], []
@@ -242,9 +241,8 @@ def write_ts_energies(
                 df_activation.reactants.loc[df_index]))
             products_list.append(json.loads(
                 df_activation.products.loc[df_index]))
-            input_ts_index = ts_states_user_input.index(species_list[-1])
-            snapshot_range = ts_data['rxn_pathway_image_ids'][input_ts_index]
-            species_workfunction_data = ts_data['workfunction_data'][input_ts_index]
+            snapshot_range = ts_data['ts_states'][species_list[-1]]['neb_image_id_range']
+            species_workfunction_data = ts_data['ts_states'][species_list[-1]]['wf_data']
             corrected_species_workfunction_data = []
             for workfunction_value in species_workfunction_data:
                 if workfunction_value != 'nan':
