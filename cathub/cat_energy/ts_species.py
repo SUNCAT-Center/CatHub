@@ -231,7 +231,8 @@ def write_ts_energies(
     species_list, beta_list, reactants_list, products_list = [], [], [], []
     phi_correction = ts_data['phi_correction']
     for reaction_index in valid_ts_states_reaction_indices:
-        species_list.append(ts_states_rxn_expressions[reaction_index])
+        ts_state = ts_states_rxn_expressions[reaction_index]
+        species_list.append(ts_state)
         beta_list.append(beta_list_rxn_expressions[reaction_index])
         df_index = df_index_rxn_expressions[reaction_index]
         if df_index:
@@ -239,8 +240,8 @@ def write_ts_energies(
                 df_activation.reactants.loc[df_index]))
             products_list.append(json.loads(
                 df_activation.products.loc[df_index]))
-            neb_image_id_range = ts_data['ts_states'][species_list[-1]]['neb_image_id_range']
-            species_workfunction_data = ts_data['ts_states'][species_list[-1]]['wf_data']
+            neb_image_id_range = ts_data['ts_states'][ts_state]['neb_image_id_range']
+            species_workfunction_data = ts_data['ts_states'][ts_state]['wf_data']
             corrected_species_workfunction_data = []
             for workfunction_value in species_workfunction_data:
                 if workfunction_value != 'nan':
@@ -257,7 +258,7 @@ def write_ts_energies(
             reactants_list.append(reactants_rxn_expressions[reaction_index])
             products_list.append(products_rxn_expressions[reaction_index])
             barrier_data = [float('nan'), float('nan')]
-            species_barrier_fit = ts_data['barrier_fits'][species_list[-1]]
+            species_barrier_fit = ts_data['barrier_fits'][ts_state]
             if 'forward' in species_barrier_fit:
                 barrier_data[0] = np.poly1d(species_barrier_fit['forward'])(u_she)
             if 'backward' in species_barrier_fit:
