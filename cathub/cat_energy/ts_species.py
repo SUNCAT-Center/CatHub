@@ -92,7 +92,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             beta_list_map.append(beta_list_rxn_expressions[reaction_index])
 
     # build dataframe data for transition state species
-    surface, site, species, raw_energy, facet = [], [], [], [], []
+    surface, site, species, raw_energy = [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     solv_corr, formation_energy, efield_corr, alk_corr = [], [], [], []
@@ -171,7 +171,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         # she_energy_contribution, solvation_correction]
         beta = beta_list[species_index]
         snapshot_range = snapshot_range_list[species_index]
-        (site_wise_energy_contributions, facet_list) = get_ts_energies(
+        site_wise_energy_contributions = get_ts_energies(
                         df_activation_rxns, db_filepath, species_list,
                         species_name, snapshot_range,
                         system_parameters, external_effects, beta)
@@ -184,7 +184,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         min_adsorption_energy = min(site_wise_adsorption_energies)
         min_index = np.where(
                 site_wise_adsorption_energies == min_adsorption_energy)[0][0]
-        facet.append(facet_list[min_index])
         raw_energy.append(float("nan"))
         # forward barrier
         forward_barrier.append(site_wise_energy_contributions[min_index][0])
@@ -335,7 +334,6 @@ def get_ts_energies(
 
     indices = [index for index, value in enumerate(species_list)
                if value == species_value]
-    facet_list = df.facet.iloc[indices].tolist()
 
     site_wise_energy_contributions = []
     for reaction_index in indices:
@@ -353,7 +351,7 @@ def get_ts_energies(
         site_wise_energy_contributions.append(
             [forward_barrier, backward_barrier, rhe_energy_contribution,
             she_energy_contribution, solvation_correction])
-    return (site_wise_energy_contributions, facet_list)
+    return site_wise_energy_contributions
 
 def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
                   adsorbate_parameters, field_effects, beta):
