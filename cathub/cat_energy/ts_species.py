@@ -172,10 +172,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         beta = beta_list[species_index]
         snapshot_range = snapshot_range_list[species_index]
 
-        site_wise_energy_contributions = get_ts_energies(
-                        df_activation_rxns, db_filepath, species_list,
-                        species_name, snapshot_range,
-                        system_parameters, external_effects, beta)
+        reaction_index = species_list.index(species_name)
+        reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
+        site_wise_energy_contributions = get_ts_energy(
+            db_filepath, species_name, reactants, snapshot_range,
+            system_parameters, external_effects, beta)
 
         raw_energy.append(float("nan"))
         # forward barrier
@@ -316,29 +317,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                            disable_numparse=True))
         print('\n')
     return df_out
-
-def get_ts_energies(
-        df, db_filepath, species_list, species_value,
-        snapshot_range, adsorbate_parameters, field_effects, beta):
-    '''
-    Compute electronic transition state energies for a given species at all
-    suitable adsorption sites at a given u_she/RHE
-    '''
-
-    reaction_index = species_list.index(species_value)
-    reactants = json.loads(df.reactants.iloc[reaction_index])
-    (forward_barrier,
-        backward_barrier,
-        rhe_energy_contribution,
-        she_energy_contribution,
-        solvation_correction) = get_ts_energy(
-            db_filepath, species_value, reactants, snapshot_range,
-            adsorbate_parameters, field_effects, beta)
-    site_wise_energy_contributions = (forward_barrier, backward_barrier,
-                                      rhe_energy_contribution,
-                                      she_energy_contribution,
-                                      solvation_correction)
-    return site_wise_energy_contributions
 
 def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
                   adsorbate_parameters, field_effects, beta):
