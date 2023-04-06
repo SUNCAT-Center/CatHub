@@ -181,6 +181,7 @@ def write_ts_energies(
     surface, site, species, raw_energy = [], [], [], []
     charge_extrapolated_constant_potential_barriers = []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
+    term1_forward_list, term4_forward_list = [], []
     formation_energy, alk_corr, energy_vector, frequencies = [], [], [], []
     references = []
 
@@ -308,6 +309,34 @@ def write_ts_energies(
                                              reference_gases, reactants,
                                              beta_list[species_index]))
 
+        # Compute initial state energy
+        ini_ads_energy_term1 = 0
+        ini_ads_energy_term4 = 0
+        for reactant, num_reactants in reactants_list[species_index].items():
+            if 'gas' in reactant:
+                noncatmap_style_species = reactant.replace('gas', '')
+                idx1 = df_out.index[df_out['site_name'] == 'gas']
+                idx2 = (df_out.index[df_out['species_name']
+                        == noncatmap_style_species])
+                idx = idx1.intersection(idx2)
+                if len(idx) == 1:
+                    ini_ads_energy_term1 += (
+                        num_reactants * df_out.energy_vector[idx[0]][0])
+                    ini_ads_energy_term4 += (
+                        num_reactants * df_out.energy_vector[idx[0]][3])
+            elif 'star' in reactant:
+                noncatmap_style_species = reactant.replace('star', '')
+                if noncatmap_style_species:
+                    idx1 = df_out.index[df_out['site_name'] != 'gas']
+                    idx2 = (df_out.index[df_out['species_name']
+                            == noncatmap_style_species])
+                    idx = idx1.intersection(idx2)
+                    if len(idx) == 1:
+                        ini_ads_energy_term1 += (
+                            num_reactants * df_out.energy_vector[idx[0]][0])
+                        ini_ads_energy_term4 += (
+                            num_reactants * df_out.energy_vector[idx[0]][3])
+
         # Compute final state energy
         fin_ads_energy_term1 = 0
         fin_ads_energy_term4 = 0
@@ -337,18 +366,24 @@ def write_ts_energies(
                             num_products * df_out.energy_vector[idx[0]][3])
 
         # compute energy vector
-        # term1_forward = forward_barrier[-1] + dft_corr[-1]
-        term1_backward = charge_extrapolated_constant_potential_barriers[species_index][-1] + dft_corr[-1]
+        term1_forward_list.append(
+            charge_extrapolated_constant_potential_barriers[species_index][0]
+            + dft_corr[-1] + ini_ads_energy_term1)
+        term1_backward = (charge_extrapolated_constant_potential_barriers[species_index][1]
+                          + dft_corr[-1] + fin_ads_energy_term1)
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
         if species_name in external_effects:
             external_effect_contribution = np.poly1d(external_effects[species_name])(u_she)
         else:
             external_effect_contribution = 0.0
-        term4 = external_effect_contribution + fin_ads_energy_term4
-        G = mu = term1_backward + term2 + term3 + term4
-        energy_vector.append([term1_backward, term2, term3, term4, mu, G])
-        formation_energy.append(term1_backward + term4)
+        term4_forward_list.append(external_effect_contribution + ini_ads_energy_term4)
+        term4_backward = external_effect_contribution + fin_ads_energy_term4
+        
+
+        G = mu = term1_backward + term2 + term3 + term4_backward
+        formation_energy.append(term1_backward + term4_backward)
+        energy_vector.append([term1_backward, term2, term3, term4_backward, mu, G])
 
         if species_name in json_species_list:
             frequencies.append(ts_vibration_data[json_species_list.index(
