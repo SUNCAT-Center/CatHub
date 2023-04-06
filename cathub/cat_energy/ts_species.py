@@ -256,6 +256,16 @@ def write_ts_energies(
                     db_filepath, snapshot_range,
                     corrected_species_workfunction_data, beta_list[-1], u_she,
                     ts_data['extrapolation'], alk_corr[-1]))
+        else:
+            reactants_list.append(reactants_rxn_expressions[reaction_index])
+            products_list.append(products_rxn_expressions[reaction_index])
+            barrier_data = [float('nan'), float('nan')]
+            species_barrier_fit = ts_data['barrier_fits'][species_list[-1]]
+            if 'forward' in species_barrier_fit:
+                barrier_data[0] = np.poly1d(species_barrier_fit['forward'])(u_she)
+            if 'backward' in species_barrier_fit:
+                barrier_data[1] = np.poly1d(species_barrier_fit['backward'])(u_she)
+            charge_extrapolated_constant_potential_barriers.append(tuple(barrier_data))
 
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
