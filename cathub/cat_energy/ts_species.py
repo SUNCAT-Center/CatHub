@@ -303,7 +303,8 @@ def write_ts_energies(
                                              beta_list[species_index]))
 
         # Compute final state energy
-        fin_ads_energy = 0
+        fin_ads_energy_term1 = 0
+        fin_ads_energy_term4 = 0
         for product, num_products in products_list[species_index].items():
             if 'gas' in product:
                 noncatmap_style_species = product.replace('gas', '')
@@ -312,8 +313,10 @@ def write_ts_energies(
                         == noncatmap_style_species])
                 idx = idx1.intersection(idx2)
                 if len(idx) == 1:
-                    fin_ads_energy += (
-                        num_products * df_out.formation_energy[idx[0]])
+                    fin_ads_energy_term1 += (
+                        num_products * df_out.energy_vector[idx[0]][0])
+                    fin_ads_energy_term4 += (
+                        num_products * df_out.energy_vector[idx[0]][3])
             elif 'star' in product:
                 noncatmap_style_species = product.replace('star', '')
                 if noncatmap_style_species:
@@ -322,8 +325,10 @@ def write_ts_energies(
                             == noncatmap_style_species])
                     idx = idx1.intersection(idx2)
                     if len(idx) == 1:
-                        fin_ads_energy += (
-                            num_products * df_out.formation_energy[idx[0]])
+                        fin_ads_energy_term1 += (
+                            num_products * df_out.energy_vector[idx[0]][0])
+                        fin_ads_energy_term4 += (
+                            num_products * df_out.energy_vector[idx[0]][3])
 
         # compute energy vector
         # term1_forward = forward_barrier[-1] + dft_corr[-1]
@@ -334,7 +339,7 @@ def write_ts_energies(
             external_effect_contribution = np.poly1d(external_effects[species_name])(u_she)
         else:
             external_effect_contribution = 0.0
-        term4 = external_effect_contribution + fin_ads_energy
+        term4 = external_effect_contribution + fin_ads_energy_term4
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
