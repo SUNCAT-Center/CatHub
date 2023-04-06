@@ -172,6 +172,7 @@ def write_ts_energies(
         products_rxn_expressions.append(product_dict)
         ts_states_rxn_expressions.append(ts_states)
         beta_list_rxn_expressions.append(beta)
+    valid_ts_states_reaction_indices = [reaction_index for reaction_index, ts_state in enumerate(ts_states_rxn_expressions) if ts_state]
 
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
@@ -290,8 +291,13 @@ def write_ts_energies(
             enthalpy.append(0.0)
             entropy.append(0.0)
 
+        # RHE correction
         reaction_index = species_list.index(species_name)
-        reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
+        df_index = df_index_rxn_expressions[reaction_index]
+        if df_index:
+            reactants = json.loads(df_activation_rxns.reactants.loc[df_index])
+        else:
+            reactants = reactants_rxn_expressions[reaction_index]
         rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
                                              reference_gases, reactants,
                                              beta_list[species_index]))
