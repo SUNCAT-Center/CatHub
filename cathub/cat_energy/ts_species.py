@@ -16,29 +16,6 @@ from .conversion import read_reaction_expression_data, \
     formula_to_chemical_symbols, CM2EV, PHI_REF, get_rhe_contribution
 
 
-def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
-                                  beta, u_rhe):
-    '''
-    Compute charge extrapolated transition state barrier
-    '''
-
-    # workfunction_data = [phi_TS, phi_FS]
-
-    phi_ts_corr = workfunction_data[0] - phi_correction
-    phi_fs_corr = workfunction_data[1] - phi_correction
-
-    del_phi = phi_ts_corr - phi_fs_corr
-
-    # size extrapolation
-    size_extrapolation = 0.5 * beta * del_phi
-
-    # extrapolation to vacuum
-    vacuum_extrapolation = beta * u_rhe
-
-    energy_extrapolation = size_extrapolation + vacuum_extrapolation
-    return energy_extrapolation
-
-
 def get_constant_charge_barriers(db_filepath, snapshot_range):
     '''
     Compute energy barrier for an transition state species
@@ -209,8 +186,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     charge_extrapolated_constant_potential_barriers = []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
     formation_energy, alk_corr = [], [], [], []
-    if ts_data['extrapolation']:
-        extrapolation_corr = []
     energy_vector, frequencies, references = [], [], []
 
     # simple reaction species: only one active product and filter out
@@ -350,13 +325,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                         fin_ads_energy += (
                             num_products * df_out.formation_energy[idx[0]])
 
-        # Apply charge extrapolation scheme
-        if ts_data['extrapolation']:
-            extrapolation_corr.append(compute_barrier_extrapolation(
-                workfunction_data[species_index],
-                phi_correction, phi_ref,
-                beta_list[species_index], u_rhe))
-
         # compute energy vector
         # term1_forward = forward_barrier[-1] + dft_corr[-1]
         term1_backward = charge_extrapolated_constant_potential_barriers[species_index][-1] + dft_corr[-1]
@@ -366,12 +334,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             external_effect_contribution = np.poly1d(external_effects[species_name])(u_she)
         else:
             external_effect_contribution = 0.0
-        if ts_data['extrapolation']:
-            term4 = (external_effect_contribution + alk_corr[-1]
-                     + extrapolation_corr[-1] + fin_ads_energy)
-        else:
-            term4 = (external_effect_contribution + alk_corr[-1]
-                     + fin_ads_energy)
+        term4 = external_effect_contribution + fin_ads_energy
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
