@@ -175,14 +175,14 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         reaction_index = species_list.index(species_name)
         reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
-        site_wise_energy_contributions = get_ts_energy(db_filepath,
-                                                       snapshot_range)
+        (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
+            get_constant_charge_barriers(db_filepath, snapshot_range)
 
         raw_energy.append(float("nan"))
         # forward barrier
-        forward_barrier.append(site_wise_energy_contributions[0])
+        forward_barrier.append(constant_charge_forward_barrier)
         # backward barrier
-        backward_barrier.append(site_wise_energy_contributions[1])
+        backward_barrier.append(constant_charge_backward_barrier)
         # Zero DFT Correction for transition states
         dft_corr.append(0.0)
 
@@ -321,7 +321,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print('\n')
     return df_out
 
-def get_ts_energy(db_filepath, snapshot_range):
+def get_constant_charge_barriers(db_filepath, snapshot_range):
     '''
     Compute energy barrier for an transition state species
     '''
@@ -331,10 +331,10 @@ def get_ts_energy(db_filepath, snapshot_range):
     snapshot_energies = []
     snapshot_forces = []
     for index, snapshot_id in enumerate(range(snapshot_range[0],
-                                              snapshot_range[1]+1)):
+                                              snapshot_range[1] + 1)):
         snapshot_positions.append(db.get(id=snapshot_id).toatoms().positions)
         snapshot_energies.append(db.get(
-                            id=snapshot_id).toatoms().get_potential_energy())
+            id=snapshot_id).toatoms().get_potential_energy())
         snapshot_forces.append(db.get(id=snapshot_id).toatoms().get_forces())
         if index == 0:
             lattice_vectors = db.get(id=snapshot_id).toatoms().cell
@@ -349,11 +349,9 @@ def get_ts_energy(db_filepath, snapshot_range):
     final_energy = snapshot_energies[-1]
     ts_energy = max(snapshot_energies_fit)
 
-    # backward barrier
-    backward_barrier = ts_energy - final_energy
-    # forward barrier
-    forward_barrier = ts_energy - initial_energy
-    return (forward_barrier, backward_barrier)
+    constant_charge_forward_barrier = ts_energy - initial_energy
+    constant_charge_backward_barrier = ts_energy - final_energy
+    return (constant_charge_forward_barrier, constant_charge_backward_barrier)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
