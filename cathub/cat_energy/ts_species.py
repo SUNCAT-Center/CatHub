@@ -81,16 +81,32 @@ def get_constant_potential_barrier(constant_charge_barrier,
     return constant_potential_barrier
 
 
-def get_charge_extrapolated_constant_potential_barriers(db_filepath,
-                                                        snapshot_range):
+def get_charge_extrapolated_constant_potential_barriers(
+        db_filepath, snapshot_range, species_workfunction_data, beta):
     '''Compute charge extrapolated constant potential energy barrier for a
     transition state species '''
 
     (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
         get_constant_charge_barriers(db_filepath, snapshot_range)
 
-    charge_extrapolated_constant_potential_forward_barrier = constant_charge_forward_barrier
-    charge_extrapolated_constant_potential_backward_barrier = constant_charge_backward_barrier
+    barrier_natures = ['forward', 'backward']
+    barrier_workfunction_state = 'TS'  # TS is the default
+    for barrier_nature in barrier_natures:
+        if barrier_nature == 'forward':
+            barrier = constant_charge_forward_barrier
+            del_phi = species_workfunction_data[1] - species_workfunction_data[0]
+            delq = - beta
+            constant_potential_forward_barrier = get_constant_potential_barrier(
+                barrier, delq, del_phi, barrier_workfunction_state)
+        else:
+            barrier = constant_charge_backward_barrier
+            del_phi = species_workfunction_data[1] - species_workfunction_data[2]
+            delq = 1 - beta
+            constant_potential_backward_barrier = get_constant_potential_barrier(
+                barrier, delq, del_phi, barrier_workfunction_state)
+
+    charge_extrapolated_constant_potential_forward_barrier = constant_potential_forward_barrier
+    charge_extrapolated_constant_potential_backward_barrier = constant_potential_backward_barrier
     return (charge_extrapolated_constant_potential_forward_barrier,
             charge_extrapolated_constant_potential_backward_barrier)
 
@@ -230,10 +246,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         beta = beta_list[species_index]
         snapshot_range = snapshot_range_list[species_index]
 
-        reaction_index = species_list.index(species_name)
+        input_ts_index = ts_states_user_input.index(species_list[-1])
+        species_workfunction_data = ts_data['workfunction_data'][input_ts_index]
         charge_extrapolated_constant_potential_barriers.append(
-            get_charge_extrapolated_constant_potential_barriers(db_filepath,
-                                                                snapshot_range))
+            get_charge_extrapolated_constant_potential_barriers(
+                db_filepath, snapshot_range, species_workfunction_data, beta))
 
         raw_energy.append(float("nan"))
         # Zero DFT Correction for transition states
@@ -257,6 +274,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
+        reaction_index = species_list.index(species_name)
+        reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
         rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
                                              reference_gases, reactants,
                                              beta_list[species_index]))
