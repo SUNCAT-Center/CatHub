@@ -74,10 +74,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                                     * CM2EV)
 
     # Load reaction expression data
-    reactants_rxn_expressions = []
-    products_rxn_expressions = []
-    ts_states_rxn_expressions = []
-    beta_list_rxn_expressions = []
+    reactants_rxn_expressions, products_rxn_expressions = [], []
+    ts_states_rxn_expressions, beta_list_rxn_expressions = [], []
     for rxn_expression in rxn_expressions:
         (reactant_dict, product_dict,
          ts_states, beta) = read_reaction_expression_data(rxn_expression)
@@ -110,7 +108,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df_activation_copy = df_activation.copy()
 
     df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
-                                                                    json.loads)
+        json.loads)
     for index, reactant in enumerate(df_activation_copy_reactant_dict_col):
         row_index = df_activation_copy.index[index]
         new_dict = {}
@@ -120,10 +118,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     new_dict[key] = value
             df_activation_copy.at[row_index, 'reactants'] = json.dumps(new_dict)
     df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
-                                                                    json.loads)
+        json.loads)
 
     df_activation_copy_product_dict_col = df_activation_copy.products.apply(
-                                                                    json.loads)
+        json.loads)
     for index, product in enumerate(df_activation_copy_product_dict_col):
         row_index = df_activation_copy.index[index]
         new_dict = {}
@@ -133,17 +131,17 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                     new_dict[key] = value
             df_activation_copy.at[row_index, 'products'] = json.dumps(new_dict)
     df_activation_copy_product_dict_col = df_activation_copy.products.apply(
-                                                                    json.loads)
+        json.loads)
 
     df_index_list = []
     df_index_map = []
     for reaction_index in reaction_index_map:
         df_indices_product = df_activation_copy_product_dict_col[
-                    df_activation_copy_product_dict_col
-                    == products_rxn_expressions[reaction_index]].index.values
+            df_activation_copy_product_dict_col
+            == products_rxn_expressions[reaction_index]].index.values
         df_indices_reactant = df_activation_copy_reactant_dict_col[
-                    df_activation_copy_reactant_dict_col
-                    == reactants_rxn_expressions[reaction_index]].index.values
+            df_activation_copy_reactant_dict_col
+            == reactants_rxn_expressions[reaction_index]].index.values
         df_indices = np.intersect1d(df_indices_reactant, df_indices_product)
         if df_indices:
             df_index_list.append(df_indices[0])
@@ -152,15 +150,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             df_index_map.append('')
     df_activation_rxns = df_activation.loc[df_index_list]
 
-    products_list = []
-    species_list = []
-    beta_list = []
-    snapshot_range_list = []
+    products_list, species_list, beta_list, snapshot_range_list = [], [], [], []
     for index, df_index in enumerate(df_index_map):
         if df_index:
             species_list.append(ts_states_user_input[index])
             products_list.append(json.loads(
-                                        df_activation.products.loc[df_index]))
+                df_activation.products.loc[df_index]))
             beta_list.append(beta_list_map[index])
             snapshot_range_list.append(ts_data['rxn_pathway_image_ids'][index])
 
@@ -203,13 +198,13 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         if species_name in json_species_list:
             thermo = HarmonicThermo(
-                                vib_energies=vibrational_energies[species_name])
+                vib_energies=vibrational_energies[species_name])
 
             # zero point energy correction
             zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
 
             # enthalpic temperature correction
-            enthalpy.append(thermo.get_internal_energy(temp,verbose=False))
+            enthalpy.append(thermo.get_internal_energy(temp, verbose=False))
 
             S = thermo.get_entropy(temp, verbose=False)
             # entropy contribution
@@ -237,8 +232,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                         == noncatmap_style_species])
                 idx = idx1.intersection(idx2)
                 if len(idx) == 1:
-                    fin_ads_energy += (num_products
-                                       * df_out.formation_energy[idx[0]])
+                    fin_ads_energy += (
+                        num_products * df_out.formation_energy[idx[0]])
             elif 'star' in product:
                 noncatmap_style_species = product.replace('star', '')
                 if noncatmap_style_species:
@@ -247,8 +242,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                             == noncatmap_style_species])
                     idx = idx1.intersection(idx2)
                     if len(idx) == 1:
-                        fin_ads_energy += (num_products
-                                           * df_out.formation_energy[idx[0]])
+                        fin_ads_energy += (
+                            num_products * df_out.formation_energy[idx[0]])
 
         # Apply charge extrapolation scheme
         if ts_data['extrapolation']:
@@ -273,12 +268,10 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         formation_energy.append(term1_backward + term4)
 
         if species_name in json_species_list:
-            frequencies.append(
-                ts_vibration_data[json_species_list.index(species_name)][
-                                                                'frequencies'])
-            references.append(
-                ts_vibration_data[json_species_list.index(species_name)][
-                                                                'reference'])
+            frequencies.append(ts_vibration_data[json_species_list.index(
+                species_name)]['frequencies'])
+            references.append(ts_vibration_data[json_species_list.index(
+                species_name)]['reference'])
         else:
             frequencies.append([])
             references.append('')
@@ -444,34 +437,34 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     chemical_symbol_to_index_list = {}
     for chemical_symbol in chemical_symbols_dict:
         chemical_symbol_to_index_list[chemical_symbol] = [
-                i for i, x in enumerate(element_list) if x == chemical_symbol]
+            i for i, x in enumerate(element_list) if x == chemical_symbol]
 
     chemical_symbols_to_sorted_indices = {}
     anchor_first_run = 1  # first run
     for chemical_symbol, num_atoms in chemical_symbols_dict.items():
         # identify indices of the chemical symbol with lowest z-coordinate
         chemical_symbol_indices = np.asarray(
-                [i for i, x in enumerate(element_list) if x == chemical_symbol])
+            [i for i, x in enumerate(element_list) if x == chemical_symbol])
         chemical_symbol_z_coordinates = z_coordinates[chemical_symbol_indices]
         sort_indices = chemical_symbol_z_coordinates.argsort()
         chemical_symbols_to_sorted_indices[chemical_symbol] = (
-                                        chemical_symbol_indices[sort_indices])
+            chemical_symbol_indices[sort_indices])
         if anchor_first_run:
             anchor_chemical_symbol = chemical_symbol
             anchor_atom_index = (
-                        chemical_symbols_to_sorted_indices[chemical_symbol][0])
+                chemical_symbols_to_sorted_indices[chemical_symbol][0])
             anchor_first_run = 0
         elif z_coordinates[chemical_symbols_to_sorted_indices[
-                        chemical_symbol][0]] < z_coordinates[anchor_atom_index]:
+                chemical_symbol][0]] < z_coordinates[anchor_atom_index]:
             anchor_chemical_symbol = chemical_symbol
             anchor_atom_index = chemical_symbols_to_sorted_indices[
-                                                            chemical_symbol][0]
+                chemical_symbol][0]
 
     anchor_z_coordinate = z_coordinates[anchor_atom_index]
     substrate_indices = np.where(z_coordinates
                                  < anchor_z_coordinate)[0].tolist()
-    non_substrate_indices = [index for index in total_indices
-                                            if index not in substrate_indices]
+    non_substrate_indices = [
+        index for index in total_indices if index not in substrate_indices]
 
     adsorbate_scrape = {}
     num_atoms_to_scrape = sum(chemical_symbols_dict.values())
@@ -486,17 +479,17 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     while num_atoms_to_scrape:
         for reference_atom_index in reference_atom_indices:
             distance_to_ref = np.linalg.norm(
-                                    coordinates[non_substrate_indices]
-                                    - coordinates[reference_atom_index], axis=1)
-            bonding_subindices_to_ref = np.where((distance_to_ref > 0)
-                                & (distance_to_ref < bond_distance_cutoff))[0]
+                coordinates[non_substrate_indices]
+                - coordinates[reference_atom_index], axis=1)
+            bonding_subindices_to_ref = np.where(
+                (distance_to_ref > 0) & (distance_to_ref < bond_distance_cutoff))[0]
             distance_to_subindices = distance_to_ref[bonding_subindices_to_ref]
             sorted_bonding_subindices_to_ref = bonding_subindices_to_ref[
-                                            np.argsort(distance_to_subindices)]
+                np.argsort(distance_to_subindices)]
             bonding_atom_indices_to_ref = [
-                    non_substrate_indices[index]
-                    for index in sorted_bonding_subindices_to_ref
-                    if non_substrate_indices[index] not in adsorbate_indices]
+                non_substrate_indices[index]
+                for index in sorted_bonding_subindices_to_ref
+                if non_substrate_indices[index] not in adsorbate_indices]
             reference_atom_indices = bonding_atom_indices_to_ref[:]
             for atom_index in bonding_atom_indices_to_ref:
                 chemical_symbol = element_list[atom_index]
