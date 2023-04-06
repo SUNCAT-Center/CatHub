@@ -27,7 +27,7 @@ def write_energies(
     if verbose:
         system_header = (f'###### {system_parameters["desired_surface"]}'
                          f'_{system_parameters["desired_facet"]}: '
-                         f'SHE Potential = {u_she:.2f} V/A ######')
+                         f'SHE Potential = {u_she:.2f} V ######')
         print('-' * len(system_header))
         print(system_header)
         print('-' * len(system_header))
