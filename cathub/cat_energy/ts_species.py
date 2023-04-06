@@ -127,11 +127,12 @@ def get_charge_extrapolated_constant_potential_barriers(
             charge_extrapolated_constant_potential_backward_barrier)
 
 
-def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                      rxn_expressions, ts_data, system_parameters,
-                      reference_gases, external_effects, verbose, latex):
+def write_ts_energies(
+        db_filepath, df_out, ts_jsondata_filepath, rxn_expressions, ts_data,
+        system_parameters, reference_gases, external_effects, verbose, latex):
     '''
-    Function to compute and return energetics of transition state species
+    Write formation energies of transition state species to energies.txt after
+    applying free energy corrections
     '''
 
     # Data from local cathub .db file
@@ -161,6 +162,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                                     * CM2EV)
 
     # Load reaction expression data
+    num_rxns = len(rxn_expressions)
     reactants_rxn_expressions, products_rxn_expressions = [], []
     ts_states_rxn_expressions, beta_list_rxn_expressions = [], []
     for rxn_expression in rxn_expressions:
@@ -173,20 +175,13 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     df_activation = df1[df1['activation_energy'].notna()]
     ts_states_user_input = ts_data['ts_states']
-    reaction_index_map = []
-    beta_list_map = []
-    for ts_state in ts_states_user_input:
-        if ts_state in ts_states_rxn_expressions:
-            reaction_index = ts_states_rxn_expressions.index(ts_state)
-            reaction_index_map.append(reaction_index)
-            beta_list_map.append(beta_list_rxn_expressions[reaction_index])
 
     # build dataframe data for transition state species
     surface, site, species, raw_energy = [], [], [], []
     charge_extrapolated_constant_potential_barriers = []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    formation_energy, alk_corr = [], [], [], []
-    energy_vector, frequencies, references = [], [], []
+    formation_energy, alk_corr, energy_vector, frequencies = [], [], [], []
+    references = []
 
     # simple reaction species: only one active product and filter out
     # reactions without any transition state species
@@ -218,9 +213,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df_activation_copy_product_dict_col = df_activation_copy.products.apply(
         json.loads)
 
-    df_index_list = []
-    df_index_map = []
-    for reaction_index in reaction_index_map:
+    df_index_rxn_expressions = []
+    for reaction_index in range(num_rxns):
         df_indices_product = df_activation_copy_product_dict_col[
             df_activation_copy_product_dict_col
             == products_rxn_expressions[reaction_index]].index.values
@@ -229,11 +223,11 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             == reactants_rxn_expressions[reaction_index]].index.values
         df_indices = np.intersect1d(df_indices_reactant, df_indices_product)
         if df_indices:
-            df_index_list.append(df_indices[0])
-            df_index_map.append(df_indices[0])
+            df_index_rxn_expressions.append(df_indices[0])
         else:
-            df_index_map.append('')
-    df_activation_rxns = df_activation.loc[df_index_list]
+            df_index_rxn_expressions.append('')
+    available_df_indices = [df_index for df_index in df_index_rxn_expressions if df_index != '']
+    df_activation_rxns = df_activation.loc[available_df_indices]
 
     products_list, species_list, beta_list, snapshot_range_list = [], [], [], []
     for index, df_index in enumerate(df_index_map):
