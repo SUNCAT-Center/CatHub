@@ -12,8 +12,8 @@ def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
         fake_ads, beef_dft_helmholtz_offset, external_effects, system_parameters,
         facet_conditional, write_species, gas_jsondata_filepath,
-        ads_jsondata_filepath, ts_jsondata_filepath, ts_data,
-        write_mkm_input_files, verbose=True, latex=True):
+        ads_jsondata_filepath, ts_jsondata_filepath, rxn_expressions_filepath,
+        ts_data, write_mkm_input_files, verbose=True, latex=True):
     '''
     Function to delegate computation and returning energetics of requested
     species
@@ -59,6 +59,8 @@ def write_energies(
                                           external_effects, verbose, latex)
 
     if write_species['transition_states']:
+        exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>',
+                     'exec'))
         if verbose:
             ts_phase_header = 'Transition State Free Energy Correction:'
             print(ts_phase_header)
