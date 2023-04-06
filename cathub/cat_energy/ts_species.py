@@ -72,6 +72,15 @@ def get_constant_charge_barriers(db_filepath, snapshot_range):
     return (constant_charge_forward_barrier, constant_charge_backward_barrier)
 
 
+def get_constant_potential_barrier(constant_charge_barrier,
+                                   delq, del_phi, barrier_workfunction_state='TS'):
+    if barrier_workfunction_state == 'TS':
+        constant_potential_barrier = constant_charge_barrier - delq * del_phi / 2
+    else:
+        constant_potential_barrier = constant_charge_barrier + delq * del_phi / 2
+    return constant_potential_barrier
+
+
 def get_charge_extrapolated_constant_potential_barriers(db_filepath,
                                                         snapshot_range):
     '''Compute charge extrapolated constant potential energy barrier for a
