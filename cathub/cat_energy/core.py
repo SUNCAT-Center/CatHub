@@ -61,28 +61,6 @@ def write_energies(
     if write_species['transition_states']:
         exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>',
                      'exec'))
-        if verbose:
-            ts_phase_header = 'Transition State Free Energy Correction:'
-            print(ts_phase_header)
-            print('-' * len(ts_phase_header))
-
-            print('Term1 = Backward Electronic Activation Energy '
-                  '+ DFT Correction')
-            print('Term2 = Enthalpic Temperature Correction '
-                   '+ Entropy Contribution')
-            print('Term3 = RHE-scale Dependency')
-            if ts_data['extrapolation']:
-                print('Term4 = Solvation Correction + Electric Field Correction'
-                      ' + Alkaline Correction + Charge Extrapolation Correction'
-                      ' + Final Adsorbate Energy')
-            else:
-                print('Term4 = Solvation Correction + Electric Field Correction'
-                      ' + Alkaline Correction + Final Adsorbate Energy')
-            print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
-            print('∆G at U_RHE=0.0 V = ∆G - Term3')
-            print()
-        # exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>',
-        #              'exec'))
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                    locals()['rxn_expressions'], ts_data,
                                    system_parameters, reference_gases,

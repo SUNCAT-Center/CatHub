@@ -291,6 +291,23 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     df_out = df_out.append(df3, ignore_index=True, sort=False)
 
     if verbose:
+        ts_phase_header = 'Transition State Free Energy Correction:'
+        print(ts_phase_header)
+        print('-' * len(ts_phase_header))
+
+        print('Term1 = Backward Electronic Activation Energy + DFT Correction')
+        print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
+        print('Term3 = RHE-scale Dependency')  
+        if ts_data['extrapolation']:
+            print('Term4 = External Effect Corrections + Alkaline Correction'
+                  ' + Charge Extrapolation Correction + Final Adsorbate Energy')
+        else:
+            print('Term4 = External Effect Corrections + Alkaline Correction'
+                  ' + Final Adsorbate Energy')
+        print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
+        print('∆G at U_RHE=0.0 V = ∆G - Term3')
+        print()
+
         table = []
         table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)",
                          "Term4 (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
@@ -300,12 +317,12 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                   - df3["energy_vector"][index][2])
             sub_table.extend(
                 [species_name,
-                f'{df3["energy_vector"][index][0]:.{NUM_DECIMAL_PLACES}f}',
-                f'{df3["energy_vector"][index][1]:.{NUM_DECIMAL_PLACES}f}',
-                f'{df3["energy_vector"][index][2]:.{NUM_DECIMAL_PLACES}f}',
-                f'{df3["energy_vector"][index][3]:.{NUM_DECIMAL_PLACES}f}',
-                f'{df3["energy_vector"][index][5]:.{NUM_DECIMAL_PLACES}f}',
-                f'{delg_at_zero_u_rhe:.{NUM_DECIMAL_PLACES}f}'])
+                 f'{df3["energy_vector"][index][0]:.{NUM_DECIMAL_PLACES}f}',
+                 f'{df3["energy_vector"][index][1]:.{NUM_DECIMAL_PLACES}f}',
+                 f'{df3["energy_vector"][index][2]:.{NUM_DECIMAL_PLACES}f}',
+                 f'{df3["energy_vector"][index][3]:.{NUM_DECIMAL_PLACES}f}',
+                 f'{df3["energy_vector"][index][5]:.{NUM_DECIMAL_PLACES}f}',
+                 f'{delg_at_zero_u_rhe:.{NUM_DECIMAL_PLACES}f}'])
             table.append(sub_table)
         if latex:
             print(tabulate(table, headers=table_headers, tablefmt='latex',
