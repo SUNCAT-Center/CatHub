@@ -81,6 +81,13 @@ def get_constant_potential_barrier(constant_charge_barrier,
     return constant_potential_barrier
 
 
+def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
+                             extrapolated_workfunction, delq):
+    extrapolated_barrier = (constant_potential_barrier
+                            - delq * (extrapolated_workfunction - barrier_workfunction))
+    return extrapolated_barrier
+
+
 def get_charge_extrapolated_constant_potential_barriers(
         db_filepath, snapshot_range, species_workfunction_data, beta):
     '''Compute charge extrapolated constant potential energy barrier for a
