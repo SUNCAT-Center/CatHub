@@ -6,7 +6,7 @@ import json
 import numpy as np
 import pandas as pd
 from ase.db import connect
-from ase.neb import fit0
+from ase.utils.forcecurve import fit_raw
 from ase.thermochemistry import HarmonicThermo
 from tabulate import tabulate
 
@@ -378,11 +378,11 @@ def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
             lattice_vectors = db.get(id=snapshot_id).toatoms().cell
             pbc = db.get(id=snapshot_id).toatoms().pbc
 
-    _, snapshot_energies, _, snapshot_energies_fit, _ = fit0(snapshot_energies,
-                                                             snapshot_forces,
-                                                             snapshot_positions,
-                                                             lattice_vectors,
-                                                             pbc)
+    _, snapshot_energies, _, snapshot_energies_fit, _ = fit_raw(snapshot_energies,
+                                                                snapshot_forces,
+                                                                snapshot_positions,
+                                                                lattice_vectors,
+                                                                pbc)
     initial_energy = snapshot_energies[0]
     final_energy = snapshot_energies[-1]
     ts_energy = max(snapshot_energies_fit)
