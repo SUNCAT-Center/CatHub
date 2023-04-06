@@ -2,6 +2,7 @@
 Module with function definitions relating to transition state species
 '''
 import json
+import sys
 
 import numpy as np
 import pandas as pd
@@ -264,6 +265,8 @@ def write_ts_energies(
                     db_filepath, neb_image_id_range,
                     corrected_species_workfunction_data, beta_list[-1], u_she,
                     ts_data['extrapolation'], alk_corr[-1]))
+        else:
+            sys.exit(f"Barrier data for {ts_state} not found. Exiting...")
 
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
