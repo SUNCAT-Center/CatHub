@@ -171,24 +171,17 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         # she_energy_contribution, solvation_correction]
         beta = beta_list[species_index]
         snapshot_range = snapshot_range_list[species_index]
+
         site_wise_energy_contributions = get_ts_energies(
                         df_activation_rxns, db_filepath, species_list,
                         species_name, snapshot_range,
                         system_parameters, external_effects, beta)
 
-        site_wise_energy_contributions = np.asarray(
-                                                site_wise_energy_contributions)
-
-        site_wise_adsorption_energies = np.sum(site_wise_energy_contributions,
-                                               axis=1)
-        min_adsorption_energy = min(site_wise_adsorption_energies)
-        min_index = np.where(
-                site_wise_adsorption_energies == min_adsorption_energy)[0][0]
         raw_energy.append(float("nan"))
         # forward barrier
-        forward_barrier.append(site_wise_energy_contributions[min_index][0])
+        forward_barrier.append(site_wise_energy_contributions[0])
         # backward barrier
-        backward_barrier.append(site_wise_energy_contributions[min_index][1])
+        backward_barrier.append(site_wise_energy_contributions[1])
         # Zero DFT Correction for transition states
         dft_corr.append(0.0)
 
@@ -210,9 +203,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        rhe_corr.append(site_wise_energy_contributions[min_index][2])
-        solv_corr.append(site_wise_energy_contributions[min_index][4])
-        efield_corr.append(site_wise_energy_contributions[min_index][3]
+        rhe_corr.append(site_wise_energy_contributions[2])
+        solv_corr.append(site_wise_energy_contributions[4])
+        efield_corr.append(site_wise_energy_contributions[3]
                            if external_effects else 0.0)
 
         # Apply alkaline correction
@@ -332,25 +325,19 @@ def get_ts_energies(
     suitable adsorption sites at a given u_she/RHE
     '''
 
-    indices = [index for index, value in enumerate(species_list)
-               if value == species_value]
-
-    site_wise_energy_contributions = []
-    for reaction_index in indices:
-        # facet = facet_list[index]
-        reactants = json.loads(df.reactants.iloc[reaction_index])
-        # products = products_list[reaction_index]
-        # reaction_energy = df.reaction_energy.iloc[reaction_index]
-        (forward_barrier,
-         backward_barrier,
-         rhe_energy_contribution,
-         she_energy_contribution,
-         solvation_correction) = get_ts_energy(
-             db_filepath, species_value, reactants, snapshot_range,
-             adsorbate_parameters, field_effects, beta)
-        site_wise_energy_contributions.append(
-            [forward_barrier, backward_barrier, rhe_energy_contribution,
-            she_energy_contribution, solvation_correction])
+    reaction_index = species_list.index(species_value)
+    reactants = json.loads(df.reactants.iloc[reaction_index])
+    (forward_barrier,
+        backward_barrier,
+        rhe_energy_contribution,
+        she_energy_contribution,
+        solvation_correction) = get_ts_energy(
+            db_filepath, species_value, reactants, snapshot_range,
+            adsorbate_parameters, field_effects, beta)
+    site_wise_energy_contributions = (forward_barrier, backward_barrier,
+                                      rhe_energy_contribution,
+                                      she_energy_contribution,
+                                      solvation_correction)
     return site_wise_energy_contributions
 
 def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
