@@ -235,7 +235,7 @@ def write_ts_energies(
         species_list.append(ts_state)
         beta_list.append(beta_list_rxn_expressions[reaction_index])
         df_index = df_index_rxn_expressions[reaction_index]
-        if df_index:
+        if df_index and ts_state in ts_data['ts_states']:
             reactants_list.append(json.loads(
                 df_activation.reactants.loc[df_index]))
             products_list.append(json.loads(
