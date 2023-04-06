@@ -15,7 +15,7 @@ from .conversion import formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 
 def write_adsorbate_energies(
         db_filepath, df_out, ads_jsondata_filepath, system_parameters,
-        facet_conditional, reference_gases, dft_corrections_gases,
+        facet_conditional, reference_gases, fake_ads, dft_corrections_gases,
         external_effects, verbose, latex):
     '''
     Write formation energies to energies.txt after applying free energy
@@ -54,6 +54,23 @@ def write_adsorbate_energies(
     rhe_corr, formation_energy, energy_vector, frequencies = [], [], [], []
     references = []
 
+    # build dataframe data for dummy gases
+    for fake_ads_species, fake_ads_energy in fake_ads.items():
+        surface.append(desired_surface)
+        site.append(desired_facet)
+        species.append(fake_ads_species)
+        raw_energy.append(float("nan"))
+        elec_energy_calc.append(fake_ads_energy)
+        dft_corr.append(0.0)
+        zpe.append(0.0)
+        enthalpy.append(0.0)
+        entropy.append(0.0)
+        rhe_corr.append(0.0)
+        formation_energy.append(fake_ads_energy)
+        energy_vector.append([fake_ads_energy, 0.0, 0.0, 0.0, 0.0])
+        frequencies.append([])
+        references.append('')
+
     # simple reaction species: only one active product and filter out reactions
     # without any adsorbed species
     index_list = []
@@ -62,8 +79,7 @@ def write_adsorbate_energies(
             index_list.append(index)
     df2 = df1.iloc[index_list]
 
-    products_list = []
-    species_list = []
+    products_list, species_list = [], []
     for index, products_string in enumerate(df2.products):
         products_list.append(json.loads(products_string))
         for product in products_list[-1]:

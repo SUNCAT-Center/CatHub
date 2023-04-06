@@ -10,7 +10,7 @@ from .conversion import u_she_to_u_rhe
 
 def write_energies(
         db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
-        beef_dft_helmholtz_offset, external_effects, system_parameters,
+        fake_ads, beef_dft_helmholtz_offset, external_effects, system_parameters,
         facet_conditional, write_species, gas_jsondata_filepath,
         ads_jsondata_filepath, ts_jsondata_filepath, ts_data,
         write_mkm_input_files, verbose=True, latex=True):
@@ -54,7 +54,8 @@ def write_energies(
         df_out = write_adsorbate_energies(db_filepath, df_out,
                                           ads_jsondata_filepath,
                                           system_parameters, facet_conditional,
-                                          reference_gases, dft_corrections_gases,
+                                          reference_gases, fake_ads,
+                                          dft_corrections_gases,
                                           external_effects, verbose, latex)
 
     if write_species['transition_states']:
@@ -82,8 +83,8 @@ def write_energies(
         #              'exec'))
         df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                                    locals()['rxn_expressions'], ts_data,
-                                   system_parameters, external_effects,
-                                   verbose, latex)
+                                   system_parameters, reference_gases,
+                                   external_effects, verbose, latex)
 
     # write corrected energy data to mkm input file
     if write_mkm_input_files:
