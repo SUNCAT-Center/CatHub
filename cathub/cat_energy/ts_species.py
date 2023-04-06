@@ -248,9 +248,16 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         input_ts_index = ts_states_user_input.index(species_list[-1])
         species_workfunction_data = ts_data['workfunction_data'][input_ts_index]
+        corrected_species_workfunction_data = []
+        for workfunction_value in species_workfunction_data:
+            if workfunction_value != 'nan':
+                corrected_species_workfunction_data.append(workfunction_value - phi_correction)
+            else:
+                corrected_species_workfunction_data.append(float('nan'))
         charge_extrapolated_constant_potential_barriers.append(
             get_charge_extrapolated_constant_potential_barriers(
-                db_filepath, snapshot_range, species_workfunction_data, beta))
+                db_filepath, snapshot_range, corrected_species_workfunction_data,
+                beta))
 
         raw_energy.append(float("nan"))
         # Zero DFT Correction for transition states
