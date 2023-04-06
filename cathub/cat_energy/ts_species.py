@@ -13,7 +13,7 @@ from tabulate import tabulate
 from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, write_columns
 from .conversion import read_reaction_expression_data, \
-    formula_to_chemical_symbols, CM2EV, get_electric_field_contribution
+    formula_to_chemical_symbols, CM2EV, get_rhe_contribution
 
 
 def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
@@ -40,7 +40,7 @@ def compute_barrier_extrapolation(workfunction_data, phi_correction, phi_ref,
 
 def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
                       rxn_expressions, ts_data, system_parameters,
-                      external_effects, verbose, latex):
+                      reference_gases, external_effects, verbose, latex):
     '''
     Function to compute and return energetics of transition state species
     '''
@@ -96,7 +96,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
     surface, site, species, raw_energy = [], [], [], []
     forward_barrier, backward_barrier = [], []
     dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    solv_corr, formation_energy, efield_corr, alk_corr = [], [], [], []
+    formation_energy, alk_corr = [], [], [], []
     if ts_data['extrapolation']:
         extrapolation_corr = []
     energy_vector, frequencies, references = [], [], []
@@ -175,9 +175,8 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
         reaction_index = species_list.index(species_name)
         reactants = json.loads(df_activation_rxns.reactants.iloc[reaction_index])
-        site_wise_energy_contributions = get_ts_energy(
-            db_filepath, species_name, reactants, snapshot_range,
-            system_parameters, external_effects, beta)
+        site_wise_energy_contributions = get_ts_energy(db_filepath,
+                                                       snapshot_range)
 
         raw_energy.append(float("nan"))
         # forward barrier
@@ -205,7 +204,9 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             enthalpy.append(0.0)
             entropy.append(0.0)
 
-        rhe_corr.append(site_wise_energy_contributions[2])
+        rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
+                                             reference_gases, reactants,
+                                             beta_list[species_index]))
 
         # Apply alkaline correction
         alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
@@ -320,8 +321,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         print('\n')
     return df_out
 
-def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
-                  adsorbate_parameters, field_effects, beta):
+def get_ts_energy(db_filepath, snapshot_range):
     '''
     Compute energy barrier for an transition state species
     '''
@@ -353,11 +353,7 @@ def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
     backward_barrier = ts_energy - final_energy
     # forward barrier
     forward_barrier = ts_energy - initial_energy
-
-    # Apply field effects
-    rhe_energy_contribution = get_electric_field_contribution(
-        field_effects, species_value, reactants, beta)[0]
-    return (forward_barrier, backward_barrier, rhe_energy_contribution)
+    return (forward_barrier, backward_barrier)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
