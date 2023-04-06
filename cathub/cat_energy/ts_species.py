@@ -230,18 +230,33 @@ def write_ts_energies(
     available_df_indices = [df_index for df_index in df_index_rxn_expressions if df_index != '']
     df_activation_rxns = df_activation.loc[available_df_indices]
 
-    products_list, species_list, beta_list, snapshot_range_list = [], [], [], []
-    for index, df_index in enumerate(df_index_map):
+    species_list, beta_list, reactants_list, products_list = [], [], [], []
+    phi_correction = ts_data['phi_correction']
+    for reaction_index in valid_ts_states_reaction_indices:
+        species_list.append(ts_states_rxn_expressions[reaction_index])
+        beta_list.append(beta_list_rxn_expressions[reaction_index])
+        df_index = df_index_rxn_expressions[reaction_index]
         if df_index:
-            species_list.append(ts_states_user_input[index])
+            reactants_list.append(json.loads(
+                df_activation.reactants.loc[df_index]))
             products_list.append(json.loads(
                 df_activation.products.loc[df_index]))
-            beta_list.append(beta_list_map[index])
-            snapshot_range_list.append(ts_data['rxn_pathway_image_ids'][index])
+            input_ts_index = ts_states_user_input.index(species_list[-1])
+            snapshot_range = ts_data['rxn_pathway_image_ids'][input_ts_index]
+            species_workfunction_data = ts_data['workfunction_data'][input_ts_index]
+            corrected_species_workfunction_data = []
+            for workfunction_value in species_workfunction_data:
+                if workfunction_value != 'nan':
+                    corrected_species_workfunction_data.append(workfunction_value - phi_correction)
+                else:
+                    corrected_species_workfunction_data.append(float('nan'))
+            alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
+            charge_extrapolated_constant_potential_barriers.append(
+                get_charge_extrapolated_constant_potential_barriers(
+                    db_filepath, snapshot_range,
+                    corrected_species_workfunction_data, beta_list[-1], u_she,
+                    ts_data['extrapolation'], alk_corr[-1]))
 
-    phi_correction = ts_data['phi_correction']
-    phi_ref = ts_data['phi_ref']
-    workfunction_data = ts_data['workfunction_data']
     for species_index, species_name in enumerate(species_list):
         if '-' in desired_surface:
             surface.append(desired_surface.split('-')[0])
@@ -249,25 +264,6 @@ def write_ts_energies(
             surface.append(desired_surface)
         site.append(desired_facet)
         species.append(species_name)
-
-        # [adsorption_energy_rhe0, rhe_energy_contribution,
-        # she_energy_contribution, solvation_correction]
-        beta = beta_list[species_index]
-        snapshot_range = snapshot_range_list[species_index]
-
-        input_ts_index = ts_states_user_input.index(species_list[-1])
-        species_workfunction_data = ts_data['workfunction_data'][input_ts_index]
-        corrected_species_workfunction_data = []
-        for workfunction_value in species_workfunction_data:
-            if workfunction_value != 'nan':
-                corrected_species_workfunction_data.append(workfunction_value - phi_correction)
-            else:
-                corrected_species_workfunction_data.append(float('nan'))
-        alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
-        charge_extrapolated_constant_potential_barriers.append(
-            get_charge_extrapolated_constant_potential_barriers(
-                db_filepath, snapshot_range, corrected_species_workfunction_data,
-                beta, u_she, ts_data['extrapolation'], alk_corr[-1]))
 
         raw_energy.append(float("nan"))
         # Zero DFT Correction for transition states
