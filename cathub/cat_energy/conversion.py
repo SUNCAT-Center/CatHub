@@ -183,26 +183,26 @@ def u_she_to_u_rhe(u_she, temp, pH):
     u_rhe = u_she + KB * temp * np.log(10) * pH
     return u_rhe
 
-def u_she_to_field(u_she, u_m_pzc, d):
+def u_she_to_field(u_she, u_pzc, d):
     '''
     Convert SHE potential to electric field
     '''
-    field = (u_she - u_m_pzc) / d
+    field = (u_she - u_pzc) / d
     return field
 
-def u_rhe_to_field(u_rhe, pH, u_m_pzc, d, temp):
+def u_rhe_to_field(u_rhe, pH, u_pzc, d, temp):
     '''
     Convert RHE potential to electric field
     '''
     u_she = u_rhe - KB * temp * np.log(10) * pH
-    field = (u_she - u_m_pzc) / d
+    field = (u_she - u_pzc) / d
     return (u_she, field)
 
-def field_to_voltage(field, pH, u_m_pzc, d, temp):
+def field_to_voltage(field, pH, u_pzc, d, temp):
     '''
     Convert electric field to SHE/RHE potential
     '''
-    u_she = field * d + u_m_pzc
+    u_she = field * d + u_pzc
     u_rhe = u_she + KB * temp * np.log(10) * pH
     return (u_she, u_rhe)
 
