@@ -11,6 +11,7 @@ from ase.units import _e, _hplanck, _c
 CM2M = 1E-02
 CM2EV = _hplanck / _e * _c / CM2M
 KB = 8.617333262145e-5
+PHI_REF = 4.44  # experimental work function of SHE relative to vacuum at  0 V
 
 
 def read_reaction_expression_data(rxn_expression):
