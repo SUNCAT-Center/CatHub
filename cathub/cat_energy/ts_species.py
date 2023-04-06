@@ -16,33 +16,31 @@ from .conversion import read_reaction_expression_data, \
     formula_to_chemical_symbols, CM2EV, PHI_REF, get_rhe_contribution
 
 
-def get_constant_charge_barriers(db_filepath, snapshot_range):
+def get_constant_charge_barriers(db_filepath, neb_image_id_range):
     '''
     Compute energy barrier for an transition state species
     '''
 
     db = connect(str(db_filepath))
-    snapshot_positions = []
-    snapshot_energies = []
-    snapshot_forces = []
-    for index, snapshot_id in enumerate(range(snapshot_range[0],
-                                              snapshot_range[1] + 1)):
-        snapshot_positions.append(db.get(id=snapshot_id).toatoms().positions)
-        snapshot_energies.append(db.get(
-            id=snapshot_id).toatoms().get_potential_energy())
-        snapshot_forces.append(db.get(id=snapshot_id).toatoms().get_forces())
+    neb_image_id_positions = []
+    neb_energies = []
+    neb_forces = []
+    for index, neb_image_id in enumerate(range(neb_image_id_range[0],
+                                               neb_image_id_range[1] + 1)):
+        neb_image_id_positions.append(db.get(id=neb_image_id).toatoms().positions)
+        neb_energies.append(db.get(
+            id=neb_image_id).toatoms().get_potential_energy())
+        neb_forces.append(db.get(id=neb_image_id).toatoms().get_forces())
         if index == 0:
-            lattice_vectors = db.get(id=snapshot_id).toatoms().cell
-            pbc = db.get(id=snapshot_id).toatoms().pbc
+            lattice_vectors = db.get(id=neb_image_id).toatoms().cell
+            pbc = db.get(id=neb_image_id).toatoms().pbc
 
-    _, snapshot_energies, _, snapshot_energies_fit, _ = fit_raw(snapshot_energies,
-                                                                snapshot_forces,
-                                                                snapshot_positions,
-                                                                lattice_vectors,
-                                                                pbc)
-    initial_energy = snapshot_energies[0]
-    final_energy = snapshot_energies[-1]
-    ts_energy = max(snapshot_energies_fit)
+    _, neb_energies, _, neb_energies_fit, _ = \
+        fit_raw(neb_energies, neb_forces, neb_image_id_positions,
+                lattice_vectors, pbc)
+    initial_energy = neb_energies[0]
+    final_energy = neb_energies[-1]
+    ts_energy = max(neb_energies_fit)
 
     constant_charge_forward_barrier = ts_energy - initial_energy
     constant_charge_backward_barrier = ts_energy - final_energy
@@ -66,13 +64,13 @@ def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
 
 
 def get_charge_extrapolated_constant_potential_barriers(
-        db_filepath, snapshot_range, species_workfunction_data, beta, u_she,
+        db_filepath, neb_image_id_range, species_workfunction_data, beta, u_she,
         extrapolate, alk_corr):
     '''Compute charge extrapolated constant potential energy barrier for a
     transition state species '''
 
     (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
-        get_constant_charge_barriers(db_filepath, snapshot_range)
+        get_constant_charge_barriers(db_filepath, neb_image_id_range)
 
     barrier_natures = ['forward', 'backward']
     barrier_workfunction_state = 'TS'  # TS is the default
@@ -241,7 +239,7 @@ def write_ts_energies(
                 df_activation.reactants.loc[df_index]))
             products_list.append(json.loads(
                 df_activation.products.loc[df_index]))
-            snapshot_range = ts_data['ts_states'][species_list[-1]]['neb_image_id_range']
+            neb_image_id_range = ts_data['ts_states'][species_list[-1]]['neb_image_id_range']
             species_workfunction_data = ts_data['ts_states'][species_list[-1]]['wf_data']
             corrected_species_workfunction_data = []
             for workfunction_value in species_workfunction_data:
@@ -252,7 +250,7 @@ def write_ts_energies(
             alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
             charge_extrapolated_constant_potential_barriers.append(
                 get_charge_extrapolated_constant_potential_barriers(
-                    db_filepath, snapshot_range,
+                    db_filepath, neb_image_id_range,
                     corrected_species_workfunction_data, beta_list[-1], u_she,
                     ts_data['extrapolation'], alk_corr[-1]))
         else:
