@@ -56,6 +56,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     temp = system_parameters['temp']
     u_rhe = system_parameters['u_rhe']
+    u_she = system_parameters['u_she']
 
     # Load vibrational data
     with open(ts_jsondata_filepath, encoding='utf8') as f:
@@ -205,9 +206,6 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
             entropy.append(0.0)
 
         rhe_corr.append(site_wise_energy_contributions[2])
-        solv_corr.append(site_wise_energy_contributions[4])
-        efield_corr.append(site_wise_energy_contributions[3]
-                           if external_effects else 0.0)
 
         # Apply alkaline correction
         alk_corr.append(ts_data['alk_corr'] if beta else 0.0)
@@ -247,12 +245,16 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
         term1_backward = backward_barrier[-1] + dft_corr[-1]
         term2 = enthalpy[-1] + entropy[-1]
         term3 = rhe_corr[-1]
+        if species_name in external_effects:
+            external_effect_contribution = np.poly1d(external_effects[species_name])(u_she)
+        else:
+            external_effect_contribution = 0.0
         if ts_data['extrapolation']:
-            term4 = (solv_corr[-1] + efield_corr[-1] + alk_corr[-1]
+            term4 = (external_effect_contribution + alk_corr[-1]
                      + extrapolation_corr[-1] + fin_ads_energy)
         else:
-            term4 = (solv_corr[-1] + efield_corr[-1]
-                     + alk_corr[-1] + fin_ads_energy)
+            term4 = (external_effect_contribution + alk_corr[-1]
+                     + fin_ads_energy)
         G = mu = term1_backward + term2 + term3 + term4
         energy_vector.append([term1_backward, term2, term3, term4, mu, G])
         formation_energy.append(term1_backward + term4)
@@ -268,7 +270,7 @@ def write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
 
     df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
                                 backward_barrier, dft_corr, zpe, enthalpy,
-                                entropy, rhe_corr, solv_corr, formation_energy,
+                                entropy, rhe_corr, formation_energy,
                                 energy_vector, frequencies, references)),
                        columns=write_columns)
     df_out = df_out.append(df3, ignore_index=True, sort=False)
@@ -352,19 +354,10 @@ def get_ts_energy(db_filepath, species_value, reactants, snapshot_range,
     # forward barrier
     forward_barrier = ts_energy - initial_energy
 
-    # Apply solvation energy corrections
-    if species_value in adsorbate_parameters['solvation_corrections']:
-        solvation_correction = adsorbate_parameters['solvation_corrections'][
-                                                                species_value]
-    else:
-        solvation_correction = 0.0
-
     # Apply field effects
-    (rhe_energy_contribution, she_energy_contribution) = (
-                get_electric_field_contribution(field_effects, species_value,
-                                                reactants, beta))
-    return (forward_barrier, backward_barrier, rhe_energy_contribution,
-            she_energy_contribution, solvation_correction)
+    rhe_energy_contribution = get_electric_field_contribution(
+        field_effects, species_value, reactants, beta)[0]
+    return (forward_barrier, backward_barrier, rhe_energy_contribution)
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
