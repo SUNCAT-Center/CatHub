@@ -18,6 +18,7 @@ def read_reaction_expression_data(rxn_expression):
     function to read reaction expression data to return its components
     '''
     discard_species_list = ['*_t', '_t', '_g']
+    reactant_discard_species_list = ['_t', '_g']
     if ';' in rxn_expression:
         (rxn, beta) = rxn_expression.split(';')
     else:
@@ -36,7 +37,7 @@ def read_reaction_expression_data(rxn_expression):
 
     if '+' in reactant_term:
         reactant_species = reactant_term.split('+')
-        for discard_species in discard_species_list:
+        for discard_species in reactant_discard_species_list:
             if discard_species in reactant_species:
                 reactant_species.remove(discard_species)
         reactant_list = reactant_species
