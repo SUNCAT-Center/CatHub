@@ -409,13 +409,10 @@ def write_ts_energies(
 
         print('Term1 = Backward Electronic Activation Energy + DFT Correction')
         print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
-        print('Term3 = RHE-scale Dependency')  
-        if ts_data['extrapolation']:
-            print('Term4 = External Effect Corrections + Alkaline Correction'
-                  ' + Charge Extrapolation Correction + Final Adsorbate Energy')
-        else:
-            print('Term4 = External Effect Corrections + Alkaline Correction'
-                  ' + Final Adsorbate Energy')
+        print('Term3 = RHE-scale Dependency')
+        print('Term4 = External Effects '
+              + '+ Charge Extrapolation Correction' if ts_data.get('extrapolation', False) else ''
+              + ' + Alkaline Correction + Final Adsorbate Energy')
         print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
         print('∆G at U_RHE=0.0 V = ∆G - Term3')
         print()
