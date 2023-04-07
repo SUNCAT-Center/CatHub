@@ -230,7 +230,6 @@ def write_ts_energies(
     df_activation_rxns = df_activation.loc[available_df_indices]
 
     species_list, beta_list, reactants_list, products_list = [], [], [], []
-    phi_correction = ts_data['phi_correction']
     for reaction_index in valid_ts_states_reaction_indices:
         ts_state = ts_states_rxn_expressions[reaction_index]
         species_list.append(ts_state)
@@ -256,7 +255,8 @@ def write_ts_energies(
             corrected_species_workfunction_data = []
             for workfunction_value in species_workfunction_data:
                 if workfunction_value != 'nan':
-                    corrected_species_workfunction_data.append(workfunction_value - phi_correction)
+                    corrected_species_workfunction_data.append(
+                        workfunction_value - ts_data['phi_correction'])
                 else:
                     corrected_species_workfunction_data.append(float('nan'))
             alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
