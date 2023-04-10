@@ -56,7 +56,7 @@ def write_adsorbate_energies(
 
     # build dataframe data for dummy gases
     for fake_ads_species, fake_ads_energy in fake_ads.items():
-        surface.append(desired_surface)
+        surface.append(desired_surface.split('-')[0])
         site.append(desired_facet)
         species.append(fake_ads_species)
         raw_energy.append(float("nan"))
