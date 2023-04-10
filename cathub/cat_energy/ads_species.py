@@ -69,7 +69,7 @@ def write_adsorbate_energies(
         formation_energy.append(fake_ads_energy)
         energy_vector.append([fake_ads_energy, 0.0, 0.0, 0.0, 0.0])
         frequencies.append([])
-        references.append('')
+        references.append('Fake ads')
 
     # simple reaction species: only one active product and filter out reactions
     # without any adsorbed species
