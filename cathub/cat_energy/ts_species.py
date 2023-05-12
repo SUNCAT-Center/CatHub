@@ -89,16 +89,20 @@ def get_charge_extrapolated_constant_potential_barriers(
             constant_potential_backward_barrier = get_constant_potential_barrier(
                 barrier, delq, del_phi, barrier_workfunction_state)
 
-    # Apply charge extrapolation scheme
-    if extrapolate:
-        if barrier_workfunction_state == 'IS':
-            barrier_workfunction = species_workfunction_data[0]
-        elif barrier_workfunction_state == 'TS':
-            barrier_workfunction = species_workfunction_data[1]
-        elif barrier_workfunction_state == 'FS':
-            barrier_workfunction = species_workfunction_data[2]
+    if barrier_workfunction_state == 'IS':
+        barrier_workfunction = species_workfunction_data[0]
+    elif barrier_workfunction_state == 'TS':
+        barrier_workfunction = species_workfunction_data[1]
+    elif barrier_workfunction_state == 'FS':
+        barrier_workfunction = species_workfunction_data[2]
 
-        workfunction_at_u_she = u_she + PHI_REF
+    # Apply charge extrapolation scheme
+    if extrapolate['perform']:
+        if extrapolate['potential_type'] == 'fixed':
+            workfunction_at_u_she = extrapolate['potential_value'] + PHI_REF
+        elif extrapolate['potential_type'] == 'potential-dependent':
+            workfunction_at_u_she = u_she + PHI_REF
+
         for barrier_nature in barrier_natures:
             if barrier_nature == 'forward':
                 delq = - beta
@@ -411,7 +415,7 @@ def write_ts_energies(
         print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
         print('Term3 = RHE-scale Dependency')
         print('Term4 = External Effects '
-              + '+ Charge Extrapolation Correction' if ts_data.get('extrapolation', False) else ''
+              + '+ Charge Extrapolation Correction' if ts_data['extrapolation'].get('perform', False) else ''
               + ' + Alkaline Correction + Final Adsorbate Energy')
         print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
         print('∆G at U_RHE=0.0 V = ∆G - Term3')
