@@ -62,8 +62,6 @@ def convert_tuples_to_lists(data):
 
 
 def generate_yaml_from_pub_id(pub_id_name):
-    pub_id_name = 'PasumarthiFacetDependence2023'
-
     # To get data on catalysis-hub.org
     db = CathubSQL()
 
