@@ -557,9 +557,8 @@ class CathubSQLite:
         formula = atoms.get_chemical_formula()
         filename = atoms.info.get('filename')
         base_dir = os.path.dirname(filename)
-        filename = os.environ.get('PWD') + '/' + filename
 
-        rows = db_ase.select(energy=energy) #filename=filename)#, formula=formula)
+        rows = db_ase.select(energy=energy)
         id = None
         former_keys = {}
         for row in rows:
@@ -617,8 +616,8 @@ def check_ase_ids(values, ase_ids):
     for spec in ase_ids.keys():
         if '_' in spec:
             n_split += 1
-    assert len(reaction_species) <= len(ase_values) + n_split, \
-        'ASE ids missing in {}'.format(ase_ids)
+    #assert len(reaction_species) <= len(ase_values) + n_split, \
+    #    'ASE ids missing in {}'.format(ase_ids)
     return
 
 

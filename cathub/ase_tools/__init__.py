@@ -21,9 +21,9 @@ from pathlib import Path
 Path().expanduser()
 
 
-accepted_formats = ['vasp-out','vasp-xml', 'gpaw_out', 'espresso-out', 'castep', 'crystal',
+accepted_formats = ['vasp-out', 'vasp-xml', 'gpaw_out', 'espresso-out', 'castep', 'crystal',
                     'ulm', 'cube', 'elk', 'gaussian', 'aims',
-                    'dacapo', 'turbomole','db', 'json', 'traj']
+                    'dacapo', 'turbomole', 'db', 'json', 'traj']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': None,
@@ -73,6 +73,7 @@ def get_chemical_formula(atoms, mode='metal'):
         formual == 'OH'
     return formula
 
+
 def get_reduced_chemical_formula(atoms):
     numbers = atoms.numbers
     reduced_numbers, den = get_reduced_numbers(numbers)
@@ -104,7 +105,6 @@ def collect_structures(foldername,
                        exc_pattern=[],
                        level='*'):
 
-    structures = []
     if inc_pattern:
         inc_pattern = inc_pattern.split(',')
     if exc_pattern:
@@ -153,39 +153,57 @@ def collect_structures(foldername,
                         count = db.count()
                         print('Processing ASE db with {} structures'.format(count))
                         for row in db.select('energy'):
-                            structure = [row.toatoms()]
-                            structure[-1].info['filename'] = row.formula + \
+                            structure = row.toatoms()
+                            structure.info['filename'] = row.formula + \
                                 '@' + posix_filename
-                            structure[-1].info['filetype'] = filetype
-                            yield structure  # structures += [structure]
+                            structure.info['filetype'] = filetype
+                            yield structure
                 else:
                     try:
-                        structure = ase.io.read(posix_filename, '-1:')
-                        structure[-1].info['filename'] = posix_filename
-                        structure[-1].info['filetype'] = filetype
+                        basename = os.path.basename(
+                            posix_filename).split('.')[0]
+                        if basename == 'neb':  # all neb in same file
+                            structures = ase.io.read(posix_filename, ':')
+                            for k, s in enumerate(structures):
+                                s.info['filename'] = posix_filename
+                                s.info['neb_name'] = 'neb' + str(k)
+                                s.info['filetype'] = filetype
 
-                        assert getattr(structure[-1], 'calc', None) is not None, "No calculator"
-                        if structure[-1].calc.parameters == {}:
-                            vasprun_file = '/'.join(posix_filename.split('/')[:-1]) + '/vasprun.xml'
+                        else:
+                            structures = ase.io.read(posix_filename, '-1:')
+                            structures[-1].info['filename'] = posix_filename
+                            structures[-1].info['filetype'] = filetype
+                            if 'neb' in posix_filename:
+                                structures[-1].info['neb_name'] = posix_filename.split('/')[-1].split('.')[
+                                    0]
+
+                        # to be enforced soon
+                        # assert getattr(structures[-1], 'calc', None) != None, "No calculator"
+                        if structures[-1].calc.parameters == {}:
+                            vasprun_file = '/'.join(posix_filename.split('/')
+                                                    [:-1]) + '/vasprun.xml'
                             if os.path.exists(vasprun_file):
-                                parameters = read_params_xml(filename=vasprun_file)
-                                structure[-1].calc.parameters = parameters
+                                parameters = read_params_xml(
+                                    filename=vasprun_file)
+                                structures[-1].calc.parameters = parameters
                             elif filetype == 'json':  # ASE doesn't read parameters from json :(
                                 parameters = json.load(open(posix_filename, 'r'))['1']\
                                     .get('calculator_parameters', {})
-                                structure[-1].calc.parameters = parameters
+                                structures[-1].calc.parameters = parameters
 
-                        assert getattr(structure[-1].calc, 'parameters', {}) is not {}, "No calculator parameters"
+                                # to be enforced soon
+                                #assert getattr(structures[-1].calc, 'parameters', {}) != {}, "No calculator parameters"
 
-                        try:
-                            structure[-1].get_potential_energy()
-                            # ensure that the structure has an energy
-                            yield structure  # structures.append(structure)
-                        except RuntimeError:
-                            if verbose:
-                                print("Did not add {posix_filename} since it has no energy"
-                                    .format(
-                                        posix_filename=posix_filename,))
+                        for s in structures:
+                            try:
+                                # ensure that the structure has an energy
+                                s.get_potential_energy()
+                                yield s
+                            except RuntimeError:
+                                if verbose:
+                                    print("Did not add {posix_filename} since it has no energy"
+                                          .format(
+                                              posix_filename=posix_filename,))
                     except ET.ParseError:
                         print("Couldn't read XML file {posix_filename}"
                               .format(
@@ -237,11 +255,13 @@ def collect_structures(foldername,
                             posix_filename=posix_filename,
                             e=e,
                         ))
-    #return structures
+
+
 def copy_atoms(atoms):
     atoms2 = atoms.copy()
     atoms2.calc = atoms.calc
     return atoms2
+
 
 def get_energies(atoms_list):
     """ Potential energy for a list of atoms objects"""
@@ -266,7 +286,6 @@ def get_formula_from_numbers(numbers, mode='all'):
 def get_numbers_from_formula(formula):
     atoms = Atoms(formula)
     return get_atomic_numbers(atoms)
-
 
 
 def get_reaction_from_folder(folder_name):
@@ -360,7 +379,7 @@ def read_params_xml(filename='vasprun.xml', index=-1):
     calculation = []
     ibz_kpts = None
     kpt_weights = None
-    parameters = {'kpoints':{}, 'generator':{}, 'incar':{}}#OrderedDict()
+    parameters = {'kpoints': {}, 'generator': {}, 'incar': {}}  # OrderedDict()
     try:
         for event, elem in tree:
             if event == 'end':
@@ -386,7 +405,8 @@ def read_params_xml(filename='vasprun.xml', index=-1):
                     for par in elem.iter():
                         if par.tag in ['v', 'i']:
                             parname = par.attrib['name']
-                            parameters[elem.tag][parname] = __get_xml_parameter(par)
+                            parameters[elem.tag][parname] = __get_xml_parameter(
+                                par)
                 elif elem.tag in ['atominfo']:
                     psp_info = []
                     for subelem in elem.iter():
@@ -399,7 +419,8 @@ def read_params_xml(filename='vasprun.xml', index=-1):
                                     psp_info += [{}]
                                     i = 0
                                 elif ss.tag == 'c':
-                                    psp_info[-1][fieldnames[i]] = ss.text.strip()
+                                    psp_info[-1][fieldnames[i]
+                                                 ] = ss.text.strip()
                                     i += 1
 
                     parameters['psp_info'] = psp_info

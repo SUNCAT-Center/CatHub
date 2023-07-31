@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-
 import os
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     get_reduced_chemical_formula, symbols, collect_structures, \
@@ -24,9 +23,8 @@ Path().expanduser()
 
 def fuzzy_match(structures, options):
     # filter out cell with ill-defined unit cells
-    structures = [structure[-1] for structure in structures
-                  if structure[-1].number_of_lattice_vectors == 3
-                  ]
+    structures = [s for s in structures
+                  if s.number_of_lattice_vectors == 3]
 
     # sort by density
     structures = sorted(structures,
