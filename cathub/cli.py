@@ -8,6 +8,7 @@ import collections
 from tabulate import tabulate
 from ase.symbols import string2symbols
 from ase.cli import main
+from ase.db import connect as ase_connect
 from . import query
 from . import make_folders_template
 from . import psql_server_connect
@@ -483,6 +484,14 @@ def connect(user):
     " below which the structures are"
     " considered gas-phase molecules.")
 @click.option(
+    '-rtol', '--reorganization-tol',
+    type=float,
+    default=1,
+    show_default=True,
+    help="Specify the tolerance (A) for"
+    " structural reorganization between"
+    " empty and adsorbate slabs.")
+@click.option(
     '-hc', '--high-coverage',
     type=bool,
     is_flag=True,
@@ -504,15 +513,12 @@ def connect(user):
     '-k', '--keep-all-energies',
     type=bool,
     is_flag=True,
-    help="When multiple energies for the same facet and adsorbate"
-    "are found keep all energies"
-    "not only the most stable.")
+    help="Consider all structures with different energies")
 @click.option(
     '-ks', '--keep-all-slabs',
     type=bool,
     is_flag=True,
-    help="Consider all slabs as the empty surface"
-    "not only the most stable.")
+    help="Consider all slabs with different chemical formula as the empty surface, choosing the most stable configuration for each chemical formula.")
 @click.option(
     '-m', '--max-energy',
     type=float,
@@ -590,6 +596,22 @@ def connect(user):
     default='XC-FUNCTIONAL',
     show_default=True,
     help="The DFT exchange-correlation functional used for calculations")
+
+@click.option(
+    '-o', '--out-folder',
+    type=str,
+    default=None,
+    show_default=True,
+    help="output folder for oganized data. Default is <foldername>.organized")
+
+@click.option(
+    '-fe', '--file-extension',
+    type=str,
+    default='OUTCAR',
+    show_default=True,
+    help="Extension of main output file")
+
+
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
@@ -617,3 +639,82 @@ def organize(**kwargs):
         kwargs.keys()
     )(**kwargs)
     _organize.main(options=options)
+
+@cli.command()
+@click.argument('folder_name')
+
+@click.option(
+    '-fe', '--file-extension',
+    type=str,
+    default='OUTCAR',
+    show_default=True,
+    help="Extension of main output file")
+
+@click.option(
+    '-o', '--out-db',
+    type=str,
+    default=None,
+    show_default=True,
+    help="Name of output db")
+
+
+def collect(folder_name, **kwargs):
+
+    #structures = ase_tools.collect_structures(folder_name,
+    #                                level='**/*vasprun.xml',
+    #                                **kwargs)
+
+    level = '**/*' + kwargs['file_extension']
+
+    dbname = kwargs['out_db'] or \
+        folder_name.replace('.', '').replace('/', '_').rstrip('_') + '_cathub.db'
+    with CathubSQLite(dbname) as db:
+        for s in ase_tools.collect_structures(folder_name,
+                                              level=level,
+                                              verbose=True): #structures:
+            db.write_structure(s[-1])
+
+@cli.command()
+@click.argument('dbfile')
+
+@click.option(
+    '-id', '--id', default=None, help='Ase db structure id. If None all structures will be written')
+@click.option(
+    '-o', '--out-file', default=None, help='Output file for log files')
+
+def get_log(dbfile, id, out_file):
+    "Extract log file from db for selected structure"
+    if not id:
+        with ase_connect(dbfile) as db:
+            formulas = []
+            ids = []
+            if id:
+                selection = 'id={}'.format(id)
+            else:
+                selection = None
+            for row in db.select(selection=selection):
+                formulas += [row.formula]
+                ids += [row.id]
+    else:
+        ids = [id]
+    basedir = out_file or 'cathub_structures'
+    try:
+        os.mkdir(basedir)
+    except FileExistsError:
+        pass
+
+    with CathubSQLite(dbfile) as db:
+        for formula, id in zip(formulas, ids):
+            path = basedir +'/{}_{}/'.format(id, formula)
+            rows = db.read_log(id=id)
+            try:
+                os.mkdir(path)
+            except FileExistsError:
+                pass
+            for row in rows:
+                ase_id, logtype, logfile = row
+                #print(bytes(self.logfile).decode('utf-8'))
+                if logtype == 'vasp-xml':
+                    logtype = 'vasprun.xml'
+                with open(path + logtype, 'wb') as file:
+                    file.write(logfile)

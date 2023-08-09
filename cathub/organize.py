@@ -1,13 +1,14 @@
 #!/usr/bin/env python
 
-# builtin imports
+import os
 from .ase_tools import gas_phase_references, get_chemical_formula, \
     get_reduced_chemical_formula, symbols, collect_structures, \
-    compare_parameters
+    compare_parameters, copy_atoms
 import cathub.ase_tools
 import ase.atoms
 import ase.utils
 import ase.io
+from ase.geometry import get_distances
 import numpy as np
 import pickle
 import json
@@ -20,14 +21,11 @@ from random import randint
 from pathlib import Path
 Path().expanduser()
 
-# local imports
-
-
 def fuzzy_match(structures, options):
     # filter out cell with ill-defined unit cells
-    structures = [structure[-1] for structure in structures
-                  if structure[-1].number_of_lattice_vectors == 3
-                  ]
+    structures = [s for s in structures
+                  if s.number_of_lattice_vectors == 3]
+
     # sort by density
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
@@ -153,12 +151,12 @@ def fuzzy_match(structures, options):
             idx = [i for i, s in enumerate(surface_size) if s == ss]
             subset = [surfaces[i] for i in idx]
             energies = [s.get_potential_energy() for s in subset]
-            formulas = [s.get_chemical_formula() for s in subset]
+            formulas = [get_chemical_formula(s) for s in subset]
             idx = np.argsort(energies)
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies:
+            if options.keep_all_energies or options.keep_all_slabs:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -172,12 +170,16 @@ def fuzzy_match(structures, options):
         else:
             n_empty = 1  # Only consider lowest energy empty slab for now
         for i, surf_empty in enumerate(surfaces[:n_empty]):
+            surf_empty = copy_atoms(surf_empty)
+            surf_empty.set_tags(None)
             for j, surf_ads in enumerate(surfaces[i+1:]):
+                surf_ads = copy_atoms(surf_ads)
+
                 if surf_empty.get_chemical_formula() == surf_ads.get_chemical_formula():
                     continue
                 if options.verbose:
-                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty),
-                                                  get_chemical_formula(surf_ads)))
+                    print('\n    {} vs {}'.format(get_chemical_formula(surf_empty, mode='metal'),
+                                                  get_chemical_formula(surf_ads, mode='metal')))
                     print('    -------------------')
 
                 # Check for calculator parameter consistency
@@ -196,6 +198,7 @@ def fuzzy_match(structures, options):
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
                         continue
+
                 if not options.skip_constraints:
                     constraints_empty = [c.todict()['kwargs']['indices']
                                          for c in surf_empty.constraints
@@ -245,6 +248,23 @@ def fuzzy_match(structures, options):
                 if not sorted(equal_numbers) ==\
                    sorted(atomic_num_surf):
                     continue
+
+                distances, distances_abs = \
+                        get_distances(
+                                surf_ads.get_positions(),
+                                surf_empty.get_positions(),
+                                cell=surf_ads.cell, pbc=True)
+
+
+                min_dist = np.min(distances_abs, axis=1)
+                ads_pos_idx = np.where(min_dist > options.reorganization_tol)[0]
+                ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
+
+                if not ads_pos_numbers == diff_numbers:
+                    if options.verbose:
+                        print("        -Skipping due to structural mismatch. \n include by increasing 'cathub -rtol ' ")
+                    continue
+
                 equal_formula = get_reduced_chemical_formula(
                     ase.atoms.Atoms(equal_numbers))
 
@@ -260,20 +280,18 @@ def fuzzy_match(structures, options):
 
                 if rep_ads > 1 and rep_ads == rep:
                     red_diff_numbers *= rep
-                elif rep > 1 and not options.high_coverage:
-                    continue
 
-                if not red_diff_numbers in adsorbate_numbers:
-                    #index = adsorbate_numbers.index(red_diff_numbers)
+                if not diff_numbers in adsorbate_numbers:
                     if options.verbose:
                         print("        -Adsorbate {} detected.".format(adsorbate),
                               "Include with 'cathub organize -a {}'".format(adsorbate))
                     continue
 
+                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
+                surf_ads.set_tags(tags)
+
                 dE = surf_ads.get_potential_energy() \
                     - surf_empty.get_potential_energy()
-
-                #dE /= rep
 
                 references, prefactors = \
                     gas_phase_references \
@@ -318,7 +336,10 @@ def fuzzy_match(structures, options):
 
                 energy = dE
                 key = equal_formula
-
+                if options.keep_all_slabs and options.keep_all_energies:
+                    key = get_chemical_formula(surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
+                elif options.keep_all_slabs:
+                    key = get_chemical_formula(surf_empty)
                 if not options.keep_all_energies:
                     if energy > np.min(list(collected_energies.get(
                             key, {}).get(facet, {}).get(adsorbate, {}).values()) + [np.inf]):
@@ -332,7 +353,7 @@ def fuzzy_match(structures, options):
                     #key += '_{}'.format(surf_empty.get_potential_energy())
 
                 if options.keep_all_slabs:
-                    key = surf_empty.get_chemical_formula()
+                    key = surf_empty.get_chemical_formula() + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -345,8 +366,18 @@ def fuzzy_match(structures, options):
 
                 if options.interactive:
                     print(' ')
-                    include = input('Include reaction: {}({}) | {} | dE={} ?\n  return(yes) / n(no) / u(update) '.
-                                    format(key.split('_')[0], facet, equation.replace('__', '->'), round(dE, 3)))
+                    include = input(
+"""
+    Include reaction: {}({}) | {} | dE={} ?
+        Ads+slab: {}
+        Empty slab: {}
+
+    return(yes) / n(no) / u(update)
+""".format(key.split('_')[0],
+           facet, equation.replace('__', '->'), round(dE, 3),
+           surf_ads.info['filename'],
+            surf_empty.info['filename']))
+
                     if include == 'n':
                         continue
                     if include == ('u' or 'update'):
@@ -469,12 +500,10 @@ def create_folders(options, structures, publication_template, root=''):
             create_folders(options, structures[key], publication_template={},
                            root=d)
         else:
-            ase.io.write(
-                str(Path(root).joinpath(key + '.' + out_format)),
-                structures[key],
-                format=out_format,
-            )
-
+            filename = str(Path(root).joinpath(key + '.' + out_format))
+            atoms = structures[key]
+            with ase.db.connect(filename, serial=True, append=False) as db:
+                db.write(atoms, data=atoms.info)
 
 def main(options):
     print("Running Organize script")
@@ -488,18 +517,21 @@ def main(options):
         with open(pickle_file, 'rb') as infile:
             structures = pickle.load(infile)
     else:
-        structures = collect_structures(options.foldername,
-                                        options.verbose,
-                                        options.include_pattern,
-                                        options.exclude_pattern,
-                                        level='**/*')
+        level = '**/*' + options.file_extension
+        structures = list(collect_structures(options.foldername,
+                                            options.verbose,
+                                            options.include_pattern,
+                                            options.exclude_pattern,
+                                            level=level))
+
 
         if options.gas_dir:
-            structures.extend(
-                collect_structures(
-                    options.gas_dir,
-                    options.verbose,
-                    level='**/*')
+            for extra_dir in options.gas_dir.split(','):
+                structures.extend(
+                    list(collect_structures(
+                            extra_dir,
+                            options.verbose,
+                            level=level))
             )
         if options.use_cache:
             with open(pickle_file, 'wb') as outfile:
@@ -509,7 +541,7 @@ def main(options):
     structures = fuzzy_match(structures, options)
     if not structures:
         return
-    root = options.foldername.strip('/') + '.organized/'
+    root = options.out_folder or options.foldername.rstrip('/').split('/')[-1] + '.organized/'
     create_folders(options, structures,
                    root=root,
                    publication_template=publication_template,

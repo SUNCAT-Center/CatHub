@@ -1,10 +1,12 @@
 import sys
+import os
 from ase.db.sqlite import SQLite3Database
 import sqlite3
 import json
 from past.utils import PY2
 from tabulate import tabulate
-
+import ase
+import numpy as np
 
 init_commands = [
     """ CREATE TABLE publication (
@@ -53,7 +55,16 @@ init_commands = [
     id integer,
     FOREIGN KEY (ase_id) REFERENCES systems(unique_id),
     FOREIGN KEY (id) REFERENCES reaction(id)
-    );"""]
+    );""",
+
+    """CREATE TABLE log (
+    ase_id text,
+    logtype text,
+    logfile BLOB,
+    FOREIGN KEY (ase_id) REFERENCES systems(unique_id)
+    )""",
+
+    ]
 
 
 class CathubSQLite:
@@ -154,6 +165,24 @@ class CathubSQLite:
 
         return row
 
+    def read_log(self, id):
+
+        con = self.connection or self._connect()
+        self._initialize(con)
+        cur = con.cursor()
+
+        cur.execute('SELECT unique_id FROM \n systems \n WHERE \n id={}'.format(
+            id))
+        row = cur.fetchall()
+        ase_id = row[0][0]
+
+        cur.execute('SELECT * FROM \n log \n WHERE \n ase_id="{}"'.format(
+            ase_id))
+        rows = cur.fetchall()
+
+        return rows
+
+
     def write_publication(self, values):
         """
         Write publication info to db
@@ -199,6 +228,21 @@ class CathubSQLite:
             con.close()
 
         return pid
+
+    def write_log(self, ase_id, logtype, blob):
+        con = self.connection or self._connect()
+        self._initialize(con)
+        cur = con.cursor()
+
+        values = (ase_id, blob)
+        insert_statement = """INSERT INTO
+        log(ase_id, logtype, logfile) VALUES (?, ?, ?)"""
+
+        cur.execute(insert_statement, [ase_id, logtype, blob])
+
+        if self.connection is None:
+            con.commit()
+            con.close()
 
     def write(self, values, data=None):
         """
@@ -498,6 +542,69 @@ class CathubSQLite:
 
         self.stdout.write(tabulate(table, headers) + '\n')
 
+    def write_structure(self, atoms, data=None, update=False,
+                        **key_value_pairs):
+        """Connect to ASE db"""
+
+        db_ase = ase.db.connect(self.filename)
+        db_ase.connection = self.connection
+
+        if db_ase.connection:
+            db_ase.change_count = 0
+        _normalize_key_value_pairs_inplace(key_value_pairs)
+
+        energy = atoms.get_potential_energy()
+        formula = atoms.get_chemical_formula()
+        filename = atoms.info.get('filename')
+        base_dir = os.path.dirname(filename)
+
+        rows = db_ase.select(energy=energy)
+        id = None
+        former_keys = {}
+        for row in rows:
+            if np.all(row.forces == atoms.get_forces()):
+                if update:
+                    count = db_ase.update(row.id, **key_value_pairs)
+                    self.stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
+                                    .format(count, row.id))
+                id = row.id
+                former_keys = row.key_value_pairs
+                break
+        if not id:
+            id = db_ase.write(atoms, data=data, **key_value_pairs)
+
+        ase_id = db_ase.get(id)['unique_id']
+
+        filetype = ase.io.formats.filetype(filename)
+
+        written_outputs = {}
+
+        for out in ['OUTCAR', 'vasprun.xml', 'DOSCAR', 'PROCAR', 'lobsterin', 'lobsterout',
+                    'COHPCAR.lobster', 'ICOHPLIST.lobster']:
+            output_file = '{}/{}'.format(base_dir, out)
+            out_name = out.replace('.', '')
+            if former_keys.get(out_name):
+                print(out_name, ' already written.')
+                continue
+            if os.path.isfile(output_file):
+                with open(output_file, 'rb') as file:
+                    blobData = file.read()
+                self.write_log(ase_id, out, blobData)
+                print('Wrote: ', out)
+                written_outputs[out_name] = 1
+            else:
+                written_outputs[out_name] = 0
+        count = db_ase.update(id, **written_outputs)
+        db_ase.connection.commit()
+
+        return ase_id
+
+
+def _normalize_key_value_pairs_inplace(data):
+    for key in data:
+        if isinstance(data[key], np.int64):
+            data[key] = int(data[key])
+
 
 def check_ase_ids(values, ase_ids):
     ase_values = ase_ids.values()
@@ -505,13 +612,12 @@ def check_ase_ids(values, ase_ids):
 
     reaction_species = set(list(values['reactants'].keys()) +
                            list(values['products'].keys()))
-
     n_split = 0
     for spec in ase_ids.keys():
         if '_' in spec:
             n_split += 1
-    assert len(reaction_species) <= len(ase_values) + n_split, \
-        'ASE ids missing in {}'.format(ase_ids)
+    #assert len(reaction_species) <= len(ase_values) + n_split, \
+    #    'ASE ids missing in {}'.format(ase_ids)
     return
 
 

@@ -1,3 +1,4 @@
+import os
 import sys
 import collections
 import math
@@ -8,16 +9,21 @@ from ase.io import read
 import numpy as np
 import ase
 from ase.utils import formula_metal
+#from ase.io.vasp import read_vasp_xml
+from ase.io.vasp import __get_xml_parameter
 import copy
+import xml.etree.ElementTree as ET
 from cathub.tools import clear_state, get_state, clear_prefactor, get_prefactor
+from cathub.cathubsqlite import CathubSQLite
+from collections import OrderedDict
 
 from pathlib import Path
 Path().expanduser()
 
 
-accepted_formats = ['json', 'gpaw_out', 'traj', 'vasp', 'vasp-out', 'castep', 'crystal',
-                    'ulm', 'cube', 'elk', 'espresso-out', 'gaussian', 'aims',
-                    'dacapo', 'turbomole', 'db']
+accepted_formats = ['vasp-out', 'vasp-xml', 'gpaw_out', 'espresso-out', 'castep', 'crystal',
+                    'ulm', 'cube', 'elk', 'gaussian', 'aims',
+                    'dacapo', 'turbomole', 'db', 'json', 'traj']
 
 PUBLICATION_TEMPLATE = collections.OrderedDict({
     'title': None,
@@ -60,15 +66,21 @@ def get_chemical_formula(atoms, mode='metal'):
     available, mode=hill, when not (ASE <= 3.13)
     """
     try:
-        return atoms.get_chemical_formula(mode=mode)
+        formula = atoms.get_chemical_formula(mode=mode)
     except ValueError:
-        return atoms.get_chemical_formula(mode='hill')
+        formula = atoms.get_chemical_formula(mode='hill')
+    if formula == 'HO':
+        formual == 'OH'
+    return formula
 
 
 def get_reduced_chemical_formula(atoms):
     numbers = atoms.numbers
     reduced_numbers, den = get_reduced_numbers(numbers)
-    return formula_metal(reduced_numbers)
+    formula = formula_metal(reduced_numbers)
+    if formula == 'HO':
+        formula = 'OH'
+    return formula
 
 
 def get_reduced_numbers(numbers):
@@ -93,7 +105,6 @@ def collect_structures(foldername,
                        exc_pattern=[],
                        level='*'):
 
-    structures = []
     if inc_pattern:
         inc_pattern = inc_pattern.split(',')
     if exc_pattern:
@@ -101,6 +112,7 @@ def collect_structures(foldername,
 
     if verbose:
         print(foldername)
+
     for i, filename in enumerate(Path(foldername).glob(level)):
         posix_filename = str(filename.as_posix())
         if verbose:
@@ -109,22 +121,31 @@ def collect_structures(foldername,
             with open(posix_filename) as infile:
                 global PUBLICATION_TEMPLATE
                 PUBLICATION_TEMPLATE = infile.read()
+            if verbose:
+                print('  -> ignore')
             continue
+
         elif posix_filename.endswith('traj.old'):
+            if verbose:
+                print('  -> ignore')
             continue
         elif Path(posix_filename).is_file():
             if inc_pattern:
                 if not np.any([pat in posix_filename for pat in inc_pattern]):
+                    if verbose:
+                        print('  -> ignore')
                     continue
-                if verbose:
-                    print(i, posix_filename)
             if exc_pattern:
                 if np.any([pat in posix_filename for pat in exc_pattern]):
+                    if verbose:
+                        print('  -> ignore')
                     continue
 
             try:
                 filetype = ase.io.formats.filetype(posix_filename)
             except Exception as e:
+                if verbose:
+                    print('  -> ignore')
                 continue
             if filetype in accepted_formats:
                 if filetype == 'db':
@@ -132,34 +153,62 @@ def collect_structures(foldername,
                         count = db.count()
                         print('Processing ASE db with {} structures'.format(count))
                         for row in db.select('energy'):
-                            structure = [row.toatoms()]
-                            structure[-1].info['filename'] = row.formula + \
+                            structure = row.toatoms()
+                            structure.info['filename'] = row.formula + \
                                 '@' + posix_filename
-                            structure[-1].info['filetype'] = filetype
-                            structures += [structure]
+                            structure.info['filetype'] = filetype
+                            yield structure
                 else:
                     try:
-                        structure = ase.io.read(posix_filename, ':')
-                        structure[-1].info['filename'] = posix_filename
-                        structure[-1].info['filetype'] = filetype
-                        if filetype == 'json' and structure[-1].calc:  # ASE doesn't read parameters from json :(
-                            if structure[-1].calc.parameters == {}:
-                                structure[-1].calc.parameters \
-                                    = json.load(
-                                        open(posix_filename,
-                                             'r'))['1'].get('calculator_parameters', {})
+                        basename = os.path.basename(
+                            posix_filename).split('.')[0]
+                        if basename == 'neb':  # all neb in same file
+                            structures = ase.io.read(posix_filename, ':')
+                            for k, s in enumerate(structures):
+                                s.info['filename'] = posix_filename
+                                s.info['neb_name'] = 'neb' + str(k)
+                                s.info['filetype'] = filetype
 
-                        try:
-                            structure[-1].get_potential_energy()
-                            # ensure that the structure has an energy
-                            structures.append(structure)
-                        except RuntimeError:
-                            if verbose:
-                                print("Did not add {posix_filename} since it has no energy"
-                                      .format(
-                                          posix_filename=posix_filename,
-                                      ))
+                        else:
+                            structures = ase.io.read(posix_filename, '-1:')
+                            structures[-1].info['filename'] = posix_filename
+                            structures[-1].info['filetype'] = filetype
+                            if 'neb' in posix_filename:
+                                structures[-1].info['neb_name'] = posix_filename.split('/')[-1].split('.')[
+                                    0]
 
+                        # to be enforced soon
+                        # assert getattr(structures[-1], 'calc', None) != None, "No calculator"
+                        if structures[-1].calc.parameters == {}:
+                            vasprun_file = '/'.join(posix_filename.split('/')
+                                                    [:-1]) + '/vasprun.xml'
+                            if os.path.exists(vasprun_file):
+                                parameters = read_params_xml(
+                                    filename=vasprun_file)
+                                structures[-1].calc.parameters = parameters
+                            elif filetype == 'json':  # ASE doesn't read parameters from json :(
+                                parameters = json.load(open(posix_filename, 'r'))['1']\
+                                    .get('calculator_parameters', {})
+                                structures[-1].calc.parameters = parameters
+
+                                # to be enforced soon
+                                #assert getattr(structures[-1].calc, 'parameters', {}) != {}, "No calculator parameters"
+
+                        for s in structures:
+                            try:
+                                # ensure that the structure has an energy
+                                s.get_potential_energy()
+                                yield s
+                            except RuntimeError:
+                                if verbose:
+                                    print("Did not add {posix_filename} since it has no energy"
+                                          .format(
+                                              posix_filename=posix_filename,))
+                    except ET.ParseError:
+                        print("Couldn't read XML file {posix_filename}"
+                              .format(
+                                  posix_filename=posix_filename,
+                              ))
                     except TypeError:
                         print("Warning: Could not read {posix_filename}"
                               .format(
@@ -182,7 +231,7 @@ def collect_structures(foldername,
                             e=e,
                         ))
                     except AssertionError as e:
-                        print("Hit an assertion error with {posix_filename}: {e}".format(
+                        print("Structure not accepted ({posix_filename}): {e}".format(
                             posix_filename=posix_filename,
                             e=e,
                         ))
@@ -207,7 +256,11 @@ def collect_structures(foldername,
                             e=e,
                         ))
 
-    return structures
+
+def copy_atoms(atoms):
+    atoms2 = atoms.copy()
+    atoms2.calc = atoms.calc
+    return atoms2
 
 
 def get_energies(atoms_list):
@@ -233,50 +286,6 @@ def get_formula_from_numbers(numbers, mode='all'):
 def get_numbers_from_formula(formula):
     atoms = Atoms(formula)
     return get_atomic_numbers(atoms)
-
-
-def check_in_ase(atoms, ase_db, energy=None):
-    """Check if entry is allready in ASE db"""
-
-    db_ase = ase.db.connect(ase_db)
-    if energy is None:
-        energy = atoms.get_potential_energy()
-    formula = get_chemical_formula(atoms)
-    rows = db_ase.select(energy=energy)
-    n = 0
-    ids = []
-    for row in rows:
-        if formula == row.formula:
-            return row.id, row.unique_id
-    return None, None
-
-
-def _normalize_key_value_pairs_inplace(data):
-    for key in data:
-        if isinstance(data[key], np.int64):
-            data[key] = int(data[key])
-
-
-def write_ase(atoms, db_file, stdout=sys.stdout, user=None, data=None,
-              **key_value_pairs):
-    """Connect to ASE db"""
-    db_ase = ase.db.connect(db_file)
-    _normalize_key_value_pairs_inplace(key_value_pairs)
-    id = db_ase.write(atoms, data=data, **key_value_pairs)
-    #stdout.write('  writing atoms to ASE db row id = {}\n'.format(id))
-    unique_id = db_ase.get(id)['unique_id']
-    return unique_id
-
-
-def update_ase(db_file, identity, stdout, **key_value_pairs):
-    """Connect to ASE db"""
-    db_ase = ase.db.connect(db_file)
-
-    _normalize_key_value_pairs_inplace(key_value_pairs)
-    count = db_ase.update(identity, **key_value_pairs)
-    stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
-                 .format(count, identity))
-    return
 
 
 def get_reaction_from_folder(folder_name):
@@ -358,3 +367,67 @@ def compare_parameters(atoms1, atoms2):
             return 0
 
     return 1
+
+
+def read_params_xml(filename='vasprun.xml', index=-1):
+    """
+    Reads parameters from vasprun.xml file
+    simplified version of ase.io.vasp functionality
+    """
+    tree = ET.iterparse(filename, events=['start', 'end'])
+    atoms_init = None
+    calculation = []
+    ibz_kpts = None
+    kpt_weights = None
+    parameters = {'kpoints': {}, 'generator': {}, 'incar': {}}  # OrderedDict()
+    try:
+        for event, elem in tree:
+            if event == 'end':
+                if elem.tag == 'kpoints':
+                    kpts = elem.findall("varray[@name='kpointlist']/v")
+                    weights = elem.findall("varray[@name='weights']/v")
+                    ibz_kpts = np.zeros((len(kpts), 3))
+                    weights_array = []
+                    for i, kpt in enumerate(kpts):
+                        ibz_kpts[i] = [float(val) for val in kpt.text.split()]
+                        weights_array += [weights[i].text.strip()]
+                    parameters['kpoints']['kpointlist'] = ibz_kpts.tolist()
+                    parameters['kpoints']['weights'] = weights_array
+                    for subelem in elem.iter(tag='generation'):
+                        kpts_params = {}
+                        parameters['kpoints']['generation'] = kpts_params
+                        for par in subelem.iter():
+                            if par.tag in ['v', 'i']:
+                                parname = par.attrib['name']
+                                kpts_params[parname] = __get_xml_parameter(par)
+
+                elif elem.tag in ['generator', 'incar']:
+                    for par in elem.iter():
+                        if par.tag in ['v', 'i']:
+                            parname = par.attrib['name']
+                            parameters[elem.tag][parname] = __get_xml_parameter(
+                                par)
+                elif elem.tag in ['atominfo']:
+                    psp_info = []
+                    for subelem in elem.iter():
+                        if subelem.attrib.get('name') == 'atomtypes':
+                            fieldnames = []
+                            for ss in subelem.iter(tag='field'):
+                                fieldnames += [ss.text]
+                            for ss in subelem.iter():
+                                if ss.tag == 'rc':
+                                    psp_info += [{}]
+                                    i = 0
+                                elif ss.tag == 'c':
+                                    psp_info[-1][fieldnames[i]
+                                                 ] = ss.text.strip()
+                                    i += 1
+
+                    parameters['psp_info'] = psp_info
+                    break
+    except ET.ParseError as parse_error:
+
+        if atoms_init is None:
+            raise parse_error
+        return {}
+    return parameters
