@@ -15,7 +15,8 @@ from bokeh.plotting import figure, show
 from bokeh.layouts import column, row, layout
 from bokeh.models import Div, ColumnDataSource, DataTable, DateFormatter, TableColumn, HTMLTemplateFormatter
 from bokeh.palettes import Bokeh, Spectral, RdYlBu
-palette = Bokeh[8] + Spectral[11][::-1] + RdYlBu[11]
+
+palette = Bokeh[8] + Spectral[11][::-1] + RdYlBu[11] + Bokeh[8] + Spectral[11][::-1] + RdYlBu[11]
 
 warnings.filterwarnings('ignore', '.*SQL.*', )
 
@@ -248,20 +249,29 @@ class ExpSQL(CathubPostgreSQL):
             print('Adding publication with doi={} to server'.format(doi))
             self.write(dataframes, doi=doi)
 
-    def write(self, dataframes, doi=None):
+    def write(self, dataframes, doi=None, dataset=None, pub_info=None):
         con = self.connection or self._connect()
         cur = con.cursor()
         self._initialize(con)
 
         main_table = dataframes['Tabulated data']
-        main_table = main_table[main_table['DOI'] == doi]
+        if doi:
+            main_table = main_table[main_table['DOI'] == doi]
+        elif dataset:
+            main_table = main_table[main_table['dataset_name'] == dataset]
+
         XPS_table = dataframes['XPS']
         XRD_table = dataframes['XRD']
         CV_table = dataframes['CV']
         CVend_table = dataframes['CVend']
-        #Stability_table = dataframes['Stability Test']
+        ###Stability_table = dataframes['Stability Test']
 
-        pub_info = doi_request(doi)
+        if not pub_info and doi is not None:
+            pub_info = doi_request(doi)
+        elif doi is None:
+            assert pub_info is not None
+
+
         # np.unique(main_table['inputer_name'].values).tolist()}}
         tags = {'experimental': {'inputer_names': list(
             set([n for n in main_table['inputer_name'].values if not pandas.isnull(n)]))}}
@@ -301,7 +311,8 @@ class ExpSQL(CathubPostgreSQL):
 
         main_table['ICDD_ID'] = main_table['ICDD_ID'].apply(
             lambda x: str(x).split('/'))
-        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(i) for i in str(
+
+        main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(float(i)) for i in str(
             x).split('/') if not (pandas.isnull(i) or i == 'nan' or i == '-')])
 
         XPS_ids = []
@@ -400,6 +411,9 @@ class ExpSQL(CathubPostgreSQL):
                     print('ID not found cvinit!', CV_init_id)
                 else:
                     V = CV_table[CV_init_id + '.1'].values[1:]
+                    #print('shape', V.shape)
+                    #if len(V.shape > 1):
+                #        V = V[:,0]
                     idx = [not (pandas.isnull(v) or v == '--') for v in V]
                     V = np.array(V)[idx]
                     I = np.array(CV_table[CV_init_id + '.2'].values[1:])[idx]
@@ -508,14 +522,23 @@ class ExpSQL(CathubPostgreSQL):
             print('No data')
             return
 
+        for sort_potential in [10,1,0.1,0.05,0.01]:
+            try:
+                dataframe_sample = dataframe_sample.sort_values(by=['onset_potential(+/-0.05_mA/cm2)'])
+                break
+            except:
+                continue
+        #print(dataframe_sample['composition'])
         dataframe_material = self.get_dataframe(
             'material', pub_id=pub_id).replace([None], [np.nan])
         dataframe_material = dataframe_material.dropna(
-            axis=1, thresh=len(dataframe_material))
-
+            axis=1, thresh=len(dataframe_material)-1)
+        dataframe_material = dataframe_material.dropna(
+            axis=0, thresh=len(dataframe_material.columns)-1)
         dataframe_xps = self.get_dataframe('xps', pub_id=pub_id)
         dataframe_xps = dataframe_xps.set_index('mat_id').join(
             dataframe_material.set_index('mat_id'))
+
         dataframe_xps = dataframe_xps.sort_values(by=['composition'])
 
         dataframe_xrd = self.get_dataframe('xrd', pub_id=pub_id)
@@ -530,17 +553,13 @@ class ExpSQL(CathubPostgreSQL):
 
         all_plots = {}
 
-        columns = list(dataframe_material.columns.values)
-        columns.remove('mat_id')
-        columns.remove('pub_id')
-        columns.remove('icdd_ids')
-        prettycolumns = [' '.join([s for s in c.split('_')]) for c in columns]
-        source = ColumnDataSource(dataframe_material)
+        columns = ['composition', 'space_group','morphology','reaction','pH','total_catalyst_loading(mg/cm2)','conductive_support/catalyst_ratio', 'binder_amount(w/w%)']
+        source = ColumnDataSource(dataframe_sample)
         Columns = [
-            TableColumn(field=c, title=prettycolumns[i]) for i, c in enumerate(columns)]  # , formatter=HTMLTemplateFormatter(template='<%= value %>')) for i,c in enumerate(columns)]
+            TableColumn(field=c, title=' '.join([s for s in c.split('_')])) for c in columns]  # , formatter=HTMLTemplateFormatter(template='<%= value %>')) for i,c in enumerate(columns)]
 
-        data_table_mat = DataTable(
-            source=source, columns=Columns, selectable=True, editable=True)
+        data_table_sample = DataTable(
+            source=source, columns=Columns, selectable=True, editable=True, width=1000, height=600)
 
         doi = dataframe_sample['DOI'].values[0]
         title = dataframe_publication['title'].values[0]
@@ -560,7 +579,7 @@ class ExpSQL(CathubPostgreSQL):
                    height=180, width=500)
 
         material_header = Div(
-            text=""" Materials """, style={'font-size': '200%'})
+            text=""" Samples """, style={'font-size': '200%'})
         char_header = Div(
             text="""Characterization """, style={'font-size': '200%'})
         echem_header = Div(
@@ -591,7 +610,7 @@ class ExpSQL(CathubPostgreSQL):
         l = layout([
             [div, logo],
             [column(echem_header, p1), column(
-                material_header, data_table_mat)],
+                material_header, data_table_sample)],#, data_table_sample)],
             [char_header],
             char_plots,
             [cv_header],
@@ -601,7 +620,7 @@ class ExpSQL(CathubPostgreSQL):
 
 
 def load_table(filename, tablename):
-    skiprows = {'Tabulated data': [0, 1]}
+    skiprows = {'Tabulated data': [0, 1], 'Tabulated Data': [0, 1]}
     data = {}
 
     data = pandas.read_excel(filename, sheet_name=tablename,
@@ -614,23 +633,40 @@ def load_table(filename, tablename):
 def get_dataframes_from_sheet(directory):
     filenames = {
         '1-OxR _HxR ActivityDatabase - 1.xlsx':
-        ['Tabulated data',
+        [
+        'Tabulated data',
+        'pretest CV (t-i-V)',
+        'posttest CV (t-i-V)',
+        'stability (t-i-V)'
+        ],
+        '2- OxR _HxR ActivityDatabase - 2.xlsx':
+        [
+         'Tabulated Data',
          'pretest CV (t-i-V)',
          'posttest CV (t-i-V)',
-         'stability (t-i-V)'],
-        'XPS- OxR _HxR ActivityDatabase_.xlsx': ['XPS'],  # , 'XPSPosttest'],
-        'XRD- OxR _HxR ActivityDatabase_.xlsx': ['Sheet1']
+         'stability (t-i-V)'
+         ],
+        'XPS- OxR _HxR ActivityDatabase Survey.xlsx': ['XPS', 'XPSPosttest'],
+        'XRD- OxR _HxR ActivityDatabase .xlsx': ['Sheet1']
     }
     name_map = {'pretest CV (t-i-V)': 'CV',
                 'posttest CV (t-i-V)': 'CVend',
                 'stability (t-i-V)': 'Stability Test',
-                'Sheet1': 'XRD'}
+                'Sheet1': 'XRD',
+                'Tabulated Data': 'Tabulated data'}
     dataframes = {}
     for filename, tables in filenames.items():
         for table in tables:
             data = load_table(filename=directory+filename, tablename=table)
             data = clean_column_names(data)
             table = name_map.get(table, table)
+            if table in list(dataframes.keys()): ## append
+                if table == 'Tabulated data':
+                    axis = 0
+                else:
+                    axis = 1
+                data = pandas.concat([dataframes[table], data], sort=False, axis=axis)
+            data = data.loc[:,~data.columns.duplicated()]
             dataframes[table] = data
     return dataframes
 
@@ -738,25 +774,18 @@ def plot_overpotential(dataframe, currents=[0.01, 0.05, 0.1, 1, 10]):
         V[I] = np.array([v if not v == '-' else None for v in
                          dataframe['onset_potential(+/-{}_mA/cm2)'.format(I)].values])
         NV += [len([v for v in V[I] if v is not None])]
-    if len(set(NV)) > 1:
-        I_sort = np.argsort(NV)[::-1]
-    else:
-        I_sort = range(len(currents))
-    for i, I in enumerate([currents[i] for i in I_sort]):
+
+    for i, I in enumerate(currents):#[currents[i] for i in I_sort]):
         if np.all([i is None for i in V[I]]):
             continue
-        if idx is None:
-            sort_nonone = [v if v is not None else 100 for v in V[I]]
-            idx = np.argsort(sort_nonone)
-        p.line(range(len(idx)), V[I][idx], color=palette[i],
+        p.line(range(len(V[I])), V[I], color=palette[i],
                legend_label='{} mA/cm2'.format(I))
-        p.circle(range(len(idx)), V[I][idx], color=palette[i])
-        #p.plot(range(len(idx)), V[I][idx], '.-', markersize=12, linewidth=2, label = '{} mA/cm2'.format(I))
+        p.circle(range(len(V[I])), V[I], color=palette[i])
 
     p.xaxis.ticker = list(range(len(V[I])))
     materials_list = [mat if not mat is None else 'Support [{}]'
                       .format(dataframe['conductive_support_ID'].values[0])
-                      for mat in dataframe['composition'].values[idx]]
+                      for mat in dataframe['composition'].values]
     tick_dct = {}
     for i, v in enumerate(list(range(len(V[I])))):
         tick_dct[v] = materials_list[i]
@@ -770,7 +799,7 @@ def plot_overpotential(dataframe, currents=[0.01, 0.05, 0.1, 1, 10]):
 
 def plot_cvs(dataframe, cv_type='initial', cv_ids=None):
     dataframe = dataframe[dataframe['type'] == 'CV_{}'.format(cv_type)]
-    #source = ColumnDataSource(dataframe)
+
     p = figure(title='CV ({})'.format(cv_type),
                x_axis_label='Potential (V)',
                y_axis_label='Current (mA/cm2)')
