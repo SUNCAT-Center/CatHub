@@ -1141,7 +1141,7 @@ def get_value_str(values, start_index=0):
         elif v is None or v == '' or v == '-' or v == 'nan' or pd.isnull(v):
             value_str += ", {0}".format('NULL')
         elif isinstance(v, str):
-            value_str += ", '{0}'".format(v)
+            value_str += ", '{0}'".format(v.replace("'", ""))
         else:
             value_str += ", {0}".format(v)
     return value_str
