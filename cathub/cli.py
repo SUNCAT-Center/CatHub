@@ -458,13 +458,6 @@ def connect(user):
     help="Specify a folder where gas-phase molecules"
     " for calculating adsorption energies are located.")
 @click.option(
-    '-e', '--exclude-pattern',
-    type=str,
-    default='',
-    show_default=True,
-    help="Regular expression that matches"
-    " file (paths) are should be ignored.")
-@click.option(
     '-E', '--energy-corrections',
     default='',
     type=str,
@@ -488,21 +481,14 @@ def connect(user):
     type=float,
     default=1,
     show_default=True,
-    help="Specify the tolerance (A) for"
+    help="Specify the tolerance (Ang) for"
     " structural reorganization between"
-    " empty and adsorbate slabs.")
-@click.option(
-    '-hc', '--high-coverage',
-    type=bool,
-    is_flag=True,
-    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
-@click.option(
-    '-i', '--include-pattern',
-    type=str,
-    default='',
-    show_default=True,
-    help="Expressions that match"
-         " only those files that are included.",)
+    " empty and adsorbate slabs. Should not be larger than the adsorbate-surface bond.")
+#@click.option(
+#    '-hc', '--high-coverage',
+#    type=bool,
+#    is_flag=True,
+#    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
 @click.option(
     '-I', '--interactive',
     is_flag=True,
@@ -512,27 +498,23 @@ def connect(user):
 @click.option(
     '-k', '--keep-all-energies',
     type=bool,
+    default=False,
+    show_default=True,
     is_flag=True,
-    help="Consider all structures with different energies")
+    help="Consider all structures with higher energies for each slab configuration. Use this to include all possible adsorption sites. If -ks flag is also set, all structures will also be considered for the empty slab")
 @click.option(
     '-ks', '--keep-all-slabs',
     type=bool,
+    default=False,
+    show_default=True,
     is_flag=True,
-    help="Consider all slabs with different chemical formula as the empty surface, choosing the most stable configuration for each chemical formula.")
+    help="Consider slabs with different chemical formula as the empty surface, choosing the lowest energy configuration for each chemical formula. If --keep-all-energies is also set, all possible structures will be considered. By default only the slab with least number of atoms is considered as the empty slab.")
 @click.option(
     '-m', '--max-energy',
     type=float,
-    default=100.,
+    default=20.,
     show_default=True,
-    help="Maximum absolute energy (in eV) that is considered.",)
-@click.option(
-    '-n', '--no-hydrogen',
-    type=bool,
-    is_flag=True,
-    help="By default hydrogen is included as a gas-phase species"
-         "to avoid using typically less accurate gas-phase references."
-         "Use this flag to avoid using hydrogen."
-)
+    help="Maximum absolute adsorption energy (in eV) that is considered.",)
 @click.option(
     '-r', '--exclude-reference',
     type=str,
@@ -568,28 +550,11 @@ def connect(user):
     show_default=True,
     help="Skip constraint check.")
 @click.option(
-    '-t', '--traj-format',
-    type=bool,
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Store intermediate filetype as traj"
-    "instead of json files")
-@click.option(
-    '-u', '--use-cache',
-    type=bool,
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="When set the script will cache"
-    " structures between runs in a file named"
-    " <FOLDER_NAME>.cache.pckl")
-@click.option(
     '-v', '--verbose',
     is_flag=True,
     default=False,
     show_default=True,
-    help="Show more debugging messages.")
+    help="Turn on debugging messages.")
 @click.option(
     '-x', '--xc-functional',
     type=str,
@@ -644,7 +609,7 @@ def organize(**kwargs):
 @click.argument('folder_name')
 
 @click.option(
-    '-fe', '--file-extension',
+    '-fe', '--file-extensions',
     type=str,
     default='OUTCAR',
     show_default=True,
