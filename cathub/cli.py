@@ -570,27 +570,18 @@ def connect(user):
     help="output folder for oganized data. Default is <foldername>.organized")
 
 @click.option(
-    '-fe', '--file-extension',
+    '-fe', '--file-extensions',
     type=str,
-    default='OUTCAR',
+    default='json,traj,OUTCAR',
     show_default=True,
-    help="Extension of main output file")
+    help="Extensions considered for main structure file read by ASE")
 
 
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
-    # do argument wrangling  before turning it into an obect
-    # since namedtuples are immutable
-    if len(kwargs['adsorbates']) == 0:
-        print("""Warning: no adsorbates specified,
-        can't pick up reaction reaction energies.""")
-        print("         Enter adsorbates like --adsorbates CO,O,CO2")
-        print("         [Comma-separated list without spaces.]")
-    kwargs['adsorbates'] = list(map(
-        lambda x: (''.join(sorted(string2symbols(x)))),
-        kwargs['adsorbates'].split(','),
-    ))
+    kwargs['adsorbates'] = kwargs['adsorbates'].split(',')
+
     if kwargs['energy_corrections']:
         e_c_dict = {}
         for e_c in kwargs['energy_corrections'].split(','):
@@ -624,19 +615,14 @@ def organize(**kwargs):
 
 
 def collect(folder_name, **kwargs):
-
-    #structures = ase_tools.collect_structures(folder_name,
-    #                                level='**/*vasprun.xml',
-    #                                **kwargs)
-
-    level = '**/*' + kwargs['file_extension']
+    file_extensions = kwargs['file_extensions'].split(',')
 
     dbname = kwargs['out_db'] or \
         folder_name.replace('.', '').replace('/', '_').rstrip('_') + '_cathub.db'
     with CathubSQLite(dbname) as db:
         for s in ase_tools.collect_structures(folder_name,
-                                              level=level,
-                                              verbose=True): #structures:
+                                              file_extensions=file_extensions,
+                                              verbose=True):
             db.write_structure(s[-1])
 
 @cli.command()
