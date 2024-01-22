@@ -441,7 +441,7 @@ def connect(user):
 @click.option(
     '-a', '--adsorbates',
     type=str,
-    default='C,O,N,H,S,OH,OOH,CH,CH2,CH3,CO,COH,NH,NH2,NH3,SH,SH2',
+    default='C,O,N,H,S,OH,OOH,O2,H2O,CH,CH2,CH3,CO,COH,NH,NH2,NH3,N2H,N2H2,SH,SH2',
     show_default=True,
     help="Specify adsorbates that are to be included. (E.g. -a CO,O,H )")
 @click.option(
