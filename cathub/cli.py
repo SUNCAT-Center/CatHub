@@ -484,11 +484,11 @@ def connect(user):
     help="Specify the tolerance (Ang) for"
     " structural reorganization between"
     " empty and adsorbate slabs. Should not be larger than the adsorbate-surface bond.")
-#@click.option(
-#    '-hc', '--high-coverage',
-#    type=bool,
-#    is_flag=True,
-#    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
+@click.option(
+    '-hc', '--high-coverage',
+    type=bool,
+    is_flag=True,
+    help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
 @click.option(
     '-I', '--interactive',
     is_flag=True,
