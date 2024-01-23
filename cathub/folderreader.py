@@ -289,7 +289,7 @@ class FolderReader:
         pid = self.write_publication(pub_data)
 
     def read_gas(self):
-        gas_structures = list(collect_structures(self.gas_folder))
+        gas_structures = list(collect_structures(self.gas_folder, level='*'))
         self.ase_ids_gas = {}
         self.gas = {}
 
@@ -324,7 +324,7 @@ class FolderReader:
 
         self.ase_ids = {}
 
-        bulk_structures = list(collect_structures(root))
+        bulk_structures = list(collect_structures(root, level='*'))
         n_bulk = len(bulk_structures)
         if n_bulk == 0:
             return
@@ -358,7 +358,7 @@ class FolderReader:
 
         self.ase_facet = 'x'.join(list(self.facet))
 
-        empty_structures = list(collect_structures(root))
+        empty_structures = list(collect_structures(root, level='*'))
         n_empty = len(empty_structures)
 
         if n_empty == 0:
