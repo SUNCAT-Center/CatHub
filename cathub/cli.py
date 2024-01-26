@@ -496,19 +496,19 @@ def connect(user):
     show_default=True,
     help="Accept and update reactions on the go.")
 @click.option(
-    '-k', '--keep-all-energies',
+    '-k/-dk', '--keep-all-energies/--dont-keep-all-energies',
     type=bool,
-    default=False,
+    default=True,
     show_default=True,
     is_flag=True,
-    help="Consider all structures with higher energies for each slab configuration. Use this to include all possible adsorption sites. If -ks flag is also set, all structures will also be considered for the empty slab")
+    help="Consider structures with higher energies for each slab configuration to include all possible adsorption sites [-k]. Use [-dk] to only consider the most stable site. Pair with the [-ks] flag to consider all possible structures for the empty slab")
 @click.option(
     '-ks', '--keep-all-slabs',
     type=bool,
     default=False,
     show_default=True,
     is_flag=True,
-    help="Consider slabs with different chemical formula as the empty surface, choosing the lowest energy configuration for each chemical formula. If --keep-all-energies is also set, all possible structures will be considered. By default only the slab with least number of atoms is considered as the empty slab.")
+    help="Consider slabs with different chemical formula as the empty surface (by default only the slab with least atoms is considered). To include only the lowest energy for each chemical composition set [-dk] flag.")
 @click.option(
     '-m', '--max-energy',
     type=float,

@@ -156,7 +156,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies or options.keep_all_slabs:
+            if options.keep_all_energies:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -352,24 +352,13 @@ def fuzzy_match(structures, options):
                 key = equal_formula
                 if options.keep_all_slabs and options.keep_all_energies:
                     key = get_chemical_formula(
-                        surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
-                elif options.keep_all_slabs:
-                    key = get_chemical_formula(surf_empty)
-                if not options.keep_all_energies:
-                    if energy > np.min(list(collected_energies.get(
-                            key, {}).get(facet, {}).get(adsorbate, {}).values()) + [np.inf]):
-                        print('FOUND:', surface_ads)
-                        continue
-                else:
+                        surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 4))
+
+                if options.keep_all_energies:
                     n_energies = len(collected_energies.get(
                         key, {}).get(facet, {}).get(adsorbate, {}).values())
                     if not site:
                         site = 'site{}'.format(n_energies + 1)
-                    #key += '_{}'.format(surf_empty.get_potential_energy())
-
-                if options.keep_all_slabs:
-                    key = surf_empty.get_chemical_formula() + '_Epot=' + \
-                        str(round(surf_empty.get_potential_energy(), 3))
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
