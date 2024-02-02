@@ -514,9 +514,12 @@ class CathubPostgreSQL:
                 'species', 'keys']
             for table in old_tables:
                 cur.execute(
-                    """DELETE FROM {schema}.{table}"""
-                    .format(schema=schema,
-                            table=table))
+                    """DELETE FROM upload.{table}"""
+                    .format(table=table))
+
+            cur.execute(
+                """DELETE FROM upload.systems
+                   WHERE key_value_pairs ->> 'pub_id' is null""")
 
         cur.execute(
             """DELETE FROM {schema}.systems
