@@ -441,7 +441,7 @@ def connect(user):
 @click.option(
     '-a', '--adsorbates',
     type=str,
-    default='C,O,N,H,S,OH,OOH,CH,CH2,CH3,CO,COH,NH,NH2,NH3,SH,SH2',
+    default='C,O,N,H,S,OH,OOH,O2,H2O,CH,CH2,CH3,CO,COH,NH,NH2,NH3,N2H,N2H2,SH,SH2',
     show_default=True,
     help="Specify adsorbates that are to be included. (E.g. -a CO,O,H )")
 @click.option(
@@ -457,13 +457,6 @@ def connect(user):
     show_default=True,
     help="Specify a folder where gas-phase molecules"
     " for calculating adsorption energies are located.")
-@click.option(
-    '-e', '--exclude-pattern',
-    type=str,
-    default='',
-    show_default=True,
-    help="Regular expression that matches"
-    " file (paths) are should be ignored.")
 @click.option(
     '-E', '--energy-corrections',
     default='',
@@ -488,21 +481,14 @@ def connect(user):
     type=float,
     default=1,
     show_default=True,
-    help="Specify the tolerance (A) for"
+    help="Specify the tolerance (Ang) for"
     " structural reorganization between"
-    " empty and adsorbate slabs.")
+    " empty and adsorbate slabs. Should not be larger than the adsorbate-surface bond.")
 @click.option(
     '-hc', '--high-coverage',
     type=bool,
     is_flag=True,
     help="Use this flag to include adsorption energies from slabs with coverages > 1.",)
-@click.option(
-    '-i', '--include-pattern',
-    type=str,
-    default='',
-    show_default=True,
-    help="Expressions that match"
-         " only those files that are included.",)
 @click.option(
     '-I', '--interactive',
     is_flag=True,
@@ -510,29 +496,25 @@ def connect(user):
     show_default=True,
     help="Accept and update reactions on the go.")
 @click.option(
-    '-k', '--keep-all-energies',
+    '-k/-dk', '--keep-all-energies/--dont-keep-all-energies',
     type=bool,
+    default=True,
+    show_default=True,
     is_flag=True,
-    help="Consider all structures with different energies")
+    help="Consider structures with higher energies for each slab configuration to include all possible adsorption sites [-k]. Use [-dk] to only consider the most stable site. Pair with the [-ks] flag to consider all possible structures for the empty slab")
 @click.option(
     '-ks', '--keep-all-slabs',
     type=bool,
+    default=False,
+    show_default=True,
     is_flag=True,
-    help="Consider all slabs with different chemical formula as the empty surface, choosing the most stable configuration for each chemical formula.")
+    help="Consider slabs with different chemical formula as the empty surface (by default only the slab with least atoms is considered). To include only the lowest energy for each chemical composition set [-dk] flag.")
 @click.option(
     '-m', '--max-energy',
     type=float,
-    default=100.,
+    default=20.,
     show_default=True,
-    help="Maximum absolute energy (in eV) that is considered.",)
-@click.option(
-    '-n', '--no-hydrogen',
-    type=bool,
-    is_flag=True,
-    help="By default hydrogen is included as a gas-phase species"
-         "to avoid using typically less accurate gas-phase references."
-         "Use this flag to avoid using hydrogen."
-)
+    help="Maximum absolute adsorption energy (in eV) that is considered.",)
 @click.option(
     '-r', '--exclude-reference',
     type=str,
@@ -568,28 +550,11 @@ def connect(user):
     show_default=True,
     help="Skip constraint check.")
 @click.option(
-    '-t', '--traj-format',
-    type=bool,
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="Store intermediate filetype as traj"
-    "instead of json files")
-@click.option(
-    '-u', '--use-cache',
-    type=bool,
-    is_flag=True,
-    default=False,
-    show_default=True,
-    help="When set the script will cache"
-    " structures between runs in a file named"
-    " <FOLDER_NAME>.cache.pckl")
-@click.option(
     '-v', '--verbose',
     is_flag=True,
     default=False,
     show_default=True,
-    help="Show more debugging messages.")
+    help="Turn on debugging messages.")
 @click.option(
     '-x', '--xc-functional',
     type=str,
@@ -605,27 +570,18 @@ def connect(user):
     help="output folder for oganized data. Default is <foldername>.organized")
 
 @click.option(
-    '-fe', '--file-extension',
+    '-fe', '--file-extensions',
     type=str,
-    default='OUTCAR',
+    default='json,traj,OUTCAR',
     show_default=True,
-    help="Extension of main output file")
+    help="Extensions considered for main structure file read by ASE")
 
 
 def organize(**kwargs):
     """Read reactions from non-organized folder"""
 
-    # do argument wrangling  before turning it into an obect
-    # since namedtuples are immutable
-    if len(kwargs['adsorbates']) == 0:
-        print("""Warning: no adsorbates specified,
-        can't pick up reaction reaction energies.""")
-        print("         Enter adsorbates like --adsorbates CO,O,CO2")
-        print("         [Comma-separated list without spaces.]")
-    kwargs['adsorbates'] = list(map(
-        lambda x: (''.join(sorted(string2symbols(x)))),
-        kwargs['adsorbates'].split(','),
-    ))
+    kwargs['adsorbates'] = kwargs['adsorbates'].split(',')
+
     if kwargs['energy_corrections']:
         e_c_dict = {}
         for e_c in kwargs['energy_corrections'].split(','):
@@ -644,7 +600,7 @@ def organize(**kwargs):
 @click.argument('folder_name')
 
 @click.option(
-    '-fe', '--file-extension',
+    '-fe', '--file-extensions',
     type=str,
     default='OUTCAR',
     show_default=True,
@@ -659,19 +615,14 @@ def organize(**kwargs):
 
 
 def collect(folder_name, **kwargs):
-
-    #structures = ase_tools.collect_structures(folder_name,
-    #                                level='**/*vasprun.xml',
-    #                                **kwargs)
-
-    level = '**/*' + kwargs['file_extension']
+    file_extensions = kwargs['file_extensions'].split(',')
 
     dbname = kwargs['out_db'] or \
         folder_name.replace('.', '').replace('/', '_').rstrip('_') + '_cathub.db'
     with CathubSQLite(dbname) as db:
         for s in ase_tools.collect_structures(folder_name,
-                                              level=level,
-                                              verbose=True): #structures:
+                                              file_extensions=file_extensions,
+                                              verbose=True):
             db.write_structure(s[-1])
 
 @cli.command()

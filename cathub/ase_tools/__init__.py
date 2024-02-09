@@ -69,8 +69,10 @@ def get_chemical_formula(atoms, mode='metal'):
         formula = atoms.get_chemical_formula(mode=mode)
     except ValueError:
         formula = atoms.get_chemical_formula(mode='hill')
-    if formula == 'HO':
-        formual == 'OH'
+    formula_replace = {'HO':'OH',
+                       'HN':'NH',
+                       'HC':'CH'}
+    formula = formula_replace.get(formula, formula)
     return formula
 
 
@@ -101,19 +103,18 @@ def symbols(atoms):
 
 def collect_structures(foldername,
                        verbose=False,
-                       inc_pattern=[],
-                       exc_pattern=[],
-                       level='*'):
-
-    if inc_pattern:
-        inc_pattern = inc_pattern.split(',')
-    if exc_pattern:
-        exc_pattern = exc_pattern.split(',')
+                       level='**/*',
+                       file_extensions=['']):
 
     if verbose:
         print(foldername)
 
-    for i, filename in enumerate(Path(foldername).glob(level)):
+    all_files = []
+
+    for ext in file_extensions:
+        all_files += list(Path(foldername).glob(level + ext))
+
+    for i, filename in enumerate(all_files):
         posix_filename = str(filename.as_posix())
         if verbose:
             print(i, posix_filename)
@@ -130,17 +131,6 @@ def collect_structures(foldername,
                 print('  -> ignore')
             continue
         elif Path(posix_filename).is_file():
-            if inc_pattern:
-                if not np.any([pat in posix_filename for pat in inc_pattern]):
-                    if verbose:
-                        print('  -> ignore')
-                    continue
-            if exc_pattern:
-                if np.any([pat in posix_filename for pat in exc_pattern]):
-                    if verbose:
-                        print('  -> ignore')
-                    continue
-
             try:
                 filetype = ase.io.formats.filetype(posix_filename)
             except Exception as e:
@@ -179,7 +169,13 @@ def collect_structures(foldername,
 
                         # to be enforced soon
                         # assert getattr(structures[-1], 'calc', None) != None, "No calculator"
-                        if structures[-1].calc.parameters == {}:
+
+                        if getattr(structures[-1], 'calc', None) is None:
+                            if verbose:
+                                print("No calculator for structure {}".format(posix_filename))
+                            #structures[-1].calc = {'parameters':{}}
+
+                        elif structures[-1].calc.parameters == {}:
                             vasprun_file = '/'.join(posix_filename.split('/')
                                                     [:-1]) + '/vasprun.xml'
                             if os.path.exists(vasprun_file):
@@ -251,6 +247,11 @@ def collect_structures(foldername,
                             e=e,
                         ))
                     except ase.io.formats.UnknownFileTypeError as e:
+                        print("Trouble reading {posix_filename}: {e}".format(
+                            posix_filename=posix_filename,
+                            e=e,
+                        ))
+                    except ase.io.ParseError as e:
                         print("Trouble reading {posix_filename}: {e}".format(
                             posix_filename=posix_filename,
                             e=e,

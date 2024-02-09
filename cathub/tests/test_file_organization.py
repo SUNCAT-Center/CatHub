@@ -30,6 +30,7 @@ def test_file_organization():
 def test_file_organization_module():
     options = Struct(**{
         'adsorbates': ['O', 'H2'],
+        'file_extensions': 'traj',
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'include_pattern': '.',
@@ -43,6 +44,10 @@ def test_file_organization_module():
         'exclude_reference': '',
         'max_energy': 10,
         'keep_all_energies': True,
+        'keep_all_slabs': True,
+        'reorganization_tol': 1,
+        'interactive': False,
+        'out_folder': None,
         'gas_dir': '',
         'use_cache': False,
         'energy_corrections': {},
@@ -59,6 +64,7 @@ def test_file_organization_module():
 def test_file_organization_module_non_keep():
     options = Struct(**{
         'adsorbates': ['O', 'H2'],
+        'file_extensions': 'traj',
         'foldername': '{path}/unorganized'.format(path=path),
         'verbose': True,
         'dft_code': '',
@@ -72,6 +78,10 @@ def test_file_organization_module_non_keep():
         'exclude_reference': '',
         'max_energy': 10,
         'keep_all_energies': False,
+        'keep_all_slabs': False,
+        'reorganization_tol': 1,
+        'interactive': False,
+        'out_folder': None,
         'gas_dir': '',
         'use_cache': False,
         'energy_corrections': {},
@@ -89,6 +99,7 @@ def test_file_organization_module_collect_only():
     options = Struct(**{
         'adsorbates': ['O', 'H2'],
         'foldername': '{path}/unorganized'.format(path=path),
+        'file_extensions': 'traj',
         'verbose': True,
         'dft_code': '',
         'structure': '',
@@ -101,6 +112,10 @@ def test_file_organization_module_collect_only():
         'exclude_reference': '',
         'max_energy': 10,
         'keep_all_energies': False,
+        'keep_all_slabs': False,
+        'reorganization_tol': 1,
+        'interactive': False,
+        'out_folder': None,
         'gas_dir': '',
         'use_cache': False,
         'energy_corrections': {}

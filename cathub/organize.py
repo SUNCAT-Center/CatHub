@@ -21,11 +21,11 @@ from random import randint
 from pathlib import Path
 Path().expanduser()
 
+
 def fuzzy_match(structures, options):
     # filter out cell with ill-defined unit cells
     structures = [s for s in structures
                   if s.number_of_lattice_vectors == 3]
-
     # sort by density
     structures = sorted(structures,
                         key=lambda x: len(x) / x.get_volume()
@@ -48,9 +48,9 @@ def fuzzy_match(structures, options):
     for structure in structures:
         # add more info from filename
         facet_match = re.search(
-            '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', structure.info['filename'])
+            '(?<=[^0-9])?[0-9]{3,3}(?=[^0-9])?', '/'.join(structure.info['filename'].split('/')[::-1]))
         site_match = [site_name for site_name in
-                      ['top', 'bridge', 'hollow'] if site_name in structure.info['filename']]
+                      ['top', 'bridge', 'hollow', 'fcc', 'hcp'] if site_name in structure.info['filename']]
 
         if facet_match and options.facet_name == 'facet':
             structure.info['facet'] = facet_match.group()
@@ -156,7 +156,7 @@ def fuzzy_match(structures, options):
             energies = np.sort(energies)
             subset = [subset[i] for i in idx]
             formulas = [formulas[i] for i in idx]
-            if options.keep_all_energies or options.keep_all_slabs:
+            if options.keep_all_energies:
                 subset = [s for i, s in enumerate(subset) if not
                           energies[i] in energies[:i]]
             else:
@@ -187,13 +187,13 @@ def fuzzy_match(structures, options):
                     param_check = compare_parameters(surf_empty,
                                                      surf_ads)
                     if param_check == 2 and options.verbose:
-                        print("        -Warning: No calculator information detected for"
-                              " {} vs {}".format(surf_empty.info['filename'],
-                                                 surf_ads.info['filename']))
+                        print("        -Warning: Insufficient calculator information for"
+                              " {} + {}".format(surf_empty.info['filename'],
+                                                surf_ads.info['filename']))
 
                     elif not param_check:
                         if options.verbose:
-                            print("\        n-Warning: Not included."
+                            print("\n        -Warning: Not included."
                                   " different calculator parameters detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
@@ -230,7 +230,7 @@ def fuzzy_match(structures, options):
 
                     if c_flag:
                         if options.verbose:
-                            print("\        n-Warning: Not included."
+                            print("\n        -Warning: Not included."
                                   " different constraint settings detected for"
                                   " {} vs {}".format(surf_empty.info['filename'],
                                                      surf_ads.info['filename']))
@@ -250,44 +250,58 @@ def fuzzy_match(structures, options):
                     continue
 
                 distances, distances_abs = \
-                        get_distances(
-                                surf_ads.get_positions(),
-                                surf_empty.get_positions(),
-                                cell=surf_ads.cell, pbc=True)
-
+                    get_distances(
+                        surf_ads.get_positions(),
+                        surf_empty.get_positions(),
+                        cell=surf_ads.cell, pbc=True)
 
                 min_dist = np.min(distances_abs, axis=1)
-                ads_pos_idx = np.where(min_dist > options.reorganization_tol)[0]
-                ads_pos_numbers = sorted(surf_ads.get_atomic_numbers()[ads_pos_idx])
+                ads_pos_idx = np.where(
+                    min_dist > options.reorganization_tol)[0]
+                ads_pos_numbers = sorted(
+                    surf_ads.get_atomic_numbers()[ads_pos_idx])
 
                 if not ads_pos_numbers == diff_numbers:
                     if options.verbose:
-                        print("        -Skipping due to structural mismatch. \n include by increasing 'cathub -rtol ' ")
+                        print(
+                            "        -Skipping due to structural mismatch. \n include by increasing 'cathub -rtol ' ")
                     continue
 
                 equal_formula = get_reduced_chemical_formula(
                     ase.atoms.Atoms(equal_numbers))
 
-                adsorbate = get_reduced_chemical_formula(
-                    ase.atoms.Atoms(diff_numbers))
-
                 red_diff_numbers, rep = \
                     cathub.ase_tools.get_reduced_numbers(diff_numbers)
-                if rep > 1:
-                    adsorbate = str(rep) + adsorbate
-                red_ads_numbers, rep_ads = \
-                    cathub.ase_tools.get_reduced_numbers(adsorbate_numbers)
 
-                if rep_ads > 1 and rep_ads == rep:
-                    red_diff_numbers *= rep
+                if rep > 1 and red_diff_numbers in adsorbate_numbers:
+                    if not options.high_coverage:
+                        adsorbate_found = get_chemical_formula(
+                            ase.Atoms(diff_numbers))
+                        adsorbate_found_rep = get_chemical_formula(
+                            ase.Atoms(red_diff_numbers))
+                        if options.verbose:
+                            print("        -Adsorbate {} / adsorbate {} with coverage={} detected.".format(adsorbate_found, adsorbate_found_rep, rep),
+                                  "Include with 'cathub organize -a {}' or 'cathub organize -a {} -hc'".format(adsorbate_found, adsorbate_found_rep))
+                        continue
 
-                if not diff_numbers in adsorbate_numbers:
+                elif not diff_numbers in adsorbate_numbers:
+                    adsorbate_found = get_chemical_formula(
+                        ase.Atoms(diff_numbers))
                     if options.verbose:
-                        print("        -Adsorbate {} detected.".format(adsorbate),
-                              "Include with 'cathub organize -a {}'".format(adsorbate))
+                        print("        -Adsorbate {} detected.".format(adsorbate_found),
+                              "Include with 'cathub organize -a {}'".format(adsorbate_found))
                     continue
+                if rep > 1 and options.high_coverage:
+                    adsorbate_input_idx = adsorbate_numbers.index(
+                        red_diff_numbers)
+                    adsorbate = options.adsorbates[adsorbate_input_idx]
+                    adsorbate = str(rep) + adsorbate
+                else:
+                    adsorbate_input_idx = adsorbate_numbers.index(diff_numbers)
+                    adsorbate = options.adsorbates[adsorbate_input_idx]
 
-                tags = [1 if i in ads_pos_idx else 0 for i, a in enumerate(surf_ads)]
+                tags = [1 if i in ads_pos_idx else 0 for i,
+                        a in enumerate(surf_ads)]
                 surf_ads.set_tags(tags)
 
                 dE = surf_ads.get_potential_energy() \
@@ -337,23 +351,14 @@ def fuzzy_match(structures, options):
                 energy = dE
                 key = equal_formula
                 if options.keep_all_slabs and options.keep_all_energies:
-                    key = get_chemical_formula(surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
-                elif options.keep_all_slabs:
-                    key = get_chemical_formula(surf_empty)
-                if not options.keep_all_energies:
-                    if energy > np.min(list(collected_energies.get(
-                            key, {}).get(facet, {}).get(adsorbate, {}).values()) + [np.inf]):
-                        print('FOUND:', surface_ads)
-                        continue
-                else:
+                    key = get_chemical_formula(
+                        surf_empty) + '_Epot=' + str(round(surf_empty.get_potential_energy(), 4))
+
+                if options.keep_all_energies:
                     n_energies = len(collected_energies.get(
                         key, {}).get(facet, {}).get(adsorbate, {}).values())
                     if not site:
                         site = 'site{}'.format(n_energies + 1)
-                    #key += '_{}'.format(surf_empty.get_potential_energy())
-
-                if options.keep_all_slabs:
-                    key = surf_empty.get_chemical_formula() + '_Epot=' + str(round(surf_empty.get_potential_energy(), 3))
 
                 if site:
                     equation += '{}@{}'.format(adsorbate, site)
@@ -367,16 +372,16 @@ def fuzzy_match(structures, options):
                 if options.interactive:
                     print(' ')
                     include = input(
-"""
+                        """
     Include reaction: {}({}) | {} | dE={} ?
         Ads+slab: {}
         Empty slab: {}
 
     return(yes) / n(no) / u(update)
 """.format(key.split('_')[0],
-           facet, equation.replace('__', '->'), round(dE, 3),
-           surf_ads.info['filename'],
-            surf_empty.info['filename']))
+                            facet, equation.replace('__', '->'), round(dE, 3),
+                            surf_ads.info['filename'],
+                            surf_empty.info['filename']))
 
                     if include == 'n':
                         continue
@@ -412,7 +417,8 @@ def fuzzy_match(structures, options):
                                 else:
                                     equation = equation.replace('{}star'.format(
                                         adsorbate), '{}star'.format(update_value))
-                                    adsorbate = adsorbate.replace(adsorbate, update_value)
+                                    adsorbate = adsorbate.replace(
+                                        adsorbate, update_value)
 
                 dft_code = options.dft_code or structure.info['filetype']
                 dft_functional = options.xc_functional
@@ -437,10 +443,6 @@ def fuzzy_match(structures, options):
                     collected_structures[dft_code][dft_functional][key][facet]\
                         .setdefault(equation, {})[adsorbate] = surf_ads
 
-    # if options.verbose:
-    #    print("\n\nCollected Adsorption Energies Data")
-    #    print("====================================")
-    #    pprint.pprint(collected_structures, compact=True, depth=4)
     print("\n\nCollected Adsorption Energies")
     print("=============================")
     if len(collected_energies) == 0:
@@ -460,7 +462,7 @@ def fuzzy_match(structures, options):
                     if site is not None:
                         site = '@{}'.format(site)
                     else:
-                        site=''
+                        site = ''
                     print("{key:15s}: {energy:.3f} eV".format(
                         key='{}({}) + {}{}'.format(key, facet, ads, site),
                         energy=e,
@@ -471,6 +473,7 @@ def fuzzy_match(structures, options):
 
 def dict_representer(dumper, data):
     return dumper.represent_dict(data.items())
+
 
 def create_folders(options, structures, publication_template, root=''):
     out_format = 'json'
@@ -505,43 +508,33 @@ def create_folders(options, structures, publication_template, root=''):
             with ase.db.connect(filename, serial=True, append=False) as db:
                 db.write(atoms, data=atoms.info)
 
+
 def main(options):
     print("Running Organize script")
     print("=======================")
     pickle_file = options.foldername.strip().rstrip(
         '/').strip('.').rstrip('/') + '.cache.pckl'
 
-    if Path(pickle_file).exists() \
-            and Path(pickle_file).stat().st_size \
-            and options.use_cache:
-        with open(pickle_file, 'rb') as infile:
-            structures = pickle.load(infile)
-    else:
-        level = '**/*' + options.file_extension
-        structures = list(collect_structures(options.foldername,
-                                            options.verbose,
-                                            options.include_pattern,
-                                            options.exclude_pattern,
-                                            level=level))
+    file_extensions = options.file_extensions.split(',')
+    structures = list(collect_structures(options.foldername,
+                                         options.verbose,
+                                         file_extensions=file_extensions))
 
-
-        if options.gas_dir:
-            for extra_dir in options.gas_dir.split(','):
-                structures.extend(
-                    list(collect_structures(
-                            extra_dir,
-                            options.verbose,
-                            level=level))
+    if options.gas_dir:
+        for extra_dir in options.gas_dir.split(','):
+            structures.extend(
+                list(collect_structures(
+                    extra_dir,
+                    options.verbose,
+                    file_extensions=file_extensions))
             )
-        if options.use_cache:
-            with open(pickle_file, 'wb') as outfile:
-                pickle.dump(structures, outfile)
 
     publication_template = cathub.ase_tools.PUBLICATION_TEMPLATE
     structures = fuzzy_match(structures, options)
     if not structures:
         return
-    root = options.out_folder or options.foldername.rstrip('/').split('/')[-1] + '.organized/'
+    root = options.out_folder or options.foldername.rstrip(
+        '/').split('/')[-1] + '.organized/'
     create_folders(options, structures,
                    root=root,
                    publication_template=publication_template,
@@ -553,7 +546,8 @@ def main(options):
     print('\nInstructions:')
     print('=============')
     print("    1) Update the file '{root}publication.txt' with your publication info and email."
-          "\n\n    2) Make sure DFT-CODE and XC-FUNCTIONAL folder names + FACET and @site extensions are changed"
+          "\n\n    2) If relevant, include additional adsorbates with '-a ADSORBATE', more adsorption sites with '-k', and more empty surfaces with '-ks'."
+          "\n\n    3) Make sure DFT-CODE and XC-FUNCTIONAL folder names + FACET and @site extensions are changed"
           " with the right information."
-          "\n\n    3) Run 'cathub folder2db {root}'".format(root=root),
+          "\n\n    4) Run 'cathub folder2db {root}'".format(root=root),
           "to create a local database of reaction energies.\n")
