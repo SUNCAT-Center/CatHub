@@ -9,7 +9,23 @@ from cathub.cat_energy.conversion import read_reaction_expression_data
 
 def get_free_energy_change_species(df, species_name):
     '''
-    Compute free energy change for a given species
+    Compute free energy change for a given species.
+
+    This function calculates the free energy change for a specified species 
+    using data from a DataFrame. The species can be either a gas or an adsorbed 
+    species, identified by the suffix 'gas' or 'star', respectively.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the energy data for various species.
+    species_name : str
+        Name of the species for which the free energy change is being computed.
+
+    Returns:
+    --------
+    float
+        The computed free energy change for the given species.
     '''
     if 'gas' in species_name:
         noncatmap_style_species = species_name.replace('gas', '')
@@ -32,7 +48,25 @@ def get_free_energy_change_species(df, species_name):
 
 def get_free_energy_change_reaction(df, rxn_expression):
     '''
-    Compute free energy change for a given reaction
+    Compute free energy change for a given reaction.
+
+    This function calculates the free energy change for a specified reaction 
+    using data from a DataFrame. The reaction expression is parsed to identify 
+    the reactants and products, and their respective free energy changes are 
+    computed and combined to determine the overall free energy change of the reaction.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the energy data for various species.
+    rxn_expression : str
+        Reaction expression in a format that can be parsed to extract reactants 
+        and products.
+
+    Returns:
+    --------
+    float
+        The computed free energy change for the given reaction.
     '''
     (reactant_dict, product_dict, _, _) = read_reaction_expression_data(
                                                                 rxn_expression)
@@ -52,7 +86,23 @@ def get_free_energy_change_reaction(df, rxn_expression):
 
 def get_free_energy_change_rxn_mechanism(df, rxn_mechanism):
     '''
-    Compute free energy change for a given reaction mechanism
+    Compute free energy change for a given reaction mechanism.
+
+    This function calculates the overall free energy change for a specified 
+    reaction mechanism by summing the free energy changes of individual reactions 
+    within the mechanism.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the energy data for various species.
+    rxn_mechanism : list of str
+        List of reaction expressions representing the reaction mechanism.
+
+    Returns:
+    --------
+    float
+        The computed free energy change for the given reaction mechanism.
     '''
     free_energy_change = 0
     for rxn_expression in rxn_mechanism:
@@ -60,9 +110,28 @@ def get_free_energy_change_rxn_mechanism(df, rxn_mechanism):
                                                               rxn_expression)
     return free_energy_change
 
+
 def plot_free_energy_diagram(df, rxn_mechanisms, labels):
     '''
-    Function to plot free energy diagram for a given reaction mechanism
+    Plot free energy diagram for a given reaction mechanism.
+
+    This function generates and saves a free energy diagram for specified 
+    reaction mechanisms. The diagram illustrates the free energy changes 
+    for each step in the reaction mechanisms, including transition states if present.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the energy data for various species.
+    rxn_mechanisms : list of list of str
+        List of reaction mechanisms, where each mechanism is represented as 
+        a list of reaction expressions.
+    labels : list of str
+        List of labels for each reaction mechanism, used in the legend.
+
+    Returns:
+    --------
+    None
     '''
     # title_size = 12
     font_size = 10
