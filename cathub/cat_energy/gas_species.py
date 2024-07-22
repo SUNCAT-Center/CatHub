@@ -18,7 +18,45 @@ def write_gas_energies(
         reference_gases, dummy_gases, dft_corrections_gases,
         beef_dft_helmholtz_offset, external_effects, verbose, latex):
     '''
-    Function to compute and return energetics of gaseous species
+    Compute and return energetics of gaseous species.
+
+    This function calculates the energetics of gaseous species based on the 
+    provided parameters and integrates various corrections and external effects.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the reaction data.
+    df_out : pandas.DataFrame
+        DataFrame to store the computed energies.
+    gas_jsondata_filepath : pathlib.Path
+        Path to the JSON file containing gas species data.
+    system_parameters : dict
+        Dictionary containing system parameters such as:
+            'desired_surface' (str): The surface material being analyzed.
+            'desired_facet' (str): The facet of the surface material being analyzed.
+            'temp' (float): Temperature in Kelvin.
+            'pH' (float): pH value of the system.
+            'u_she' (float): Standard Hydrogen Electrode potential.
+    reference_gases : list of str
+        List of reference gas species.
+    dummy_gases : list of str
+        List of dummy gas species used for computations.
+    dft_corrections_gases : dict
+        Dictionary of DFT corrections for gas species.
+    beef_dft_helmholtz_offset : dict
+        Dictionary of Helmholtz offset values for BEEF-DFT corrections, keyed by species.
+    external_effects : dict
+        Dictionary of external effects to be considered in the calculations.
+    verbose : bool
+        If True, print detailed information about the calculations.
+    latex : bool
+        If True, format the output for LaTeX.
+
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame containing the computed energetics of the gaseous species.
     '''
     db = connect(str(db_filepath))
     gas_atoms_rows = list(db.select(state='gas'))
