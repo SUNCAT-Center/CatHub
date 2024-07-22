@@ -15,7 +15,7 @@ def write_energies(
         ads_jsondata_filepath, ts_jsondata_filepath, rxn_expressions_filepath,
         ts_data, write_mkm_input_files, verbose=True, latex=True):
     '''
-    Delegate computation and return energetics of requested species.
+    Perform computations and return energetics for specified species.
 
     This function handles the computation of energetics for gases, adsorbates, 
     and transition states based on the provided parameters. It integrates various 
