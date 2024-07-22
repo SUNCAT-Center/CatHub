@@ -14,8 +14,25 @@ write_columns = ['surface_name', 'site_name', 'species_name', 'raw_energy',
 
 def read_qe_log(file_path, wf_dipole_index):
     '''
-    read quantum espresso log file and return converged final energy
-    and workfunction
+    Read Quantum Espresso log file and return converged final energy and workfunction.
+
+    This function parses a Quantum Espresso log file to extract the converged 
+    final energy and workfunction based on specified indices.
+
+    Parameters:
+    -----------
+    file_path : pathlib.Path
+        Path to the Quantum Espresso log file.
+    wf_dipole_index : int
+        Index to determine how to extract the workfunction from the log file 
+        (0 or 1 based on the specific format in the log file).
+
+    Returns:
+    --------
+    tuple
+        A tuple containing:
+        - final_energy (float): The converged final energy.
+        - workfunction (float): The workfunction.
     '''
     wf_line_index = -1
     energy_line_index = -1
@@ -33,9 +50,44 @@ def read_qe_log(file_path, wf_dipole_index):
                 final_energy = float(line.split()[0])
     return (final_energy, workfunction)
 
+
 def make_mkm_input_files(db_filepath, system_parameters, df_out):
     '''
-    Function to write input files for mkm simulations using CatMAP
+    Write input files for MKM simulations using CatMAP.
+
+    This function generates the necessary input files for microkinetic modeling
+    (MKM) simulations using CatMAP, based on the provided system parameters and 
+    reaction data. The input file is a tab-separated text file with specific 
+    column headers required by CatMAP.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the reaction data.
+    system_parameters : dict
+        Dictionary containing system parameters such as:
+            'desired_surface' (str): The surface material being analyzed.
+            'desired_facet' (str): The facet of the surface material being analyzed.
+            'temp' (float): Temperature in Kelvin.
+            'pH' (float): pH value of the system.
+            'u_she' (float): Standard Hydrogen Electrode potential.
+    df_out : pandas.DataFrame
+        DataFrame containing the computed energetics of the species.
+
+    Returns:
+    --------
+    None
+
+    Notes:
+    ------
+    The generated input file will be a tab-separated text file with the following
+    required column headers:
+        - surface_name
+        - site_name
+        - species_name
+        - formation_energy
+        - frequencies
+        - reference
     '''
     system_dir_path = (db_filepath.parent
                        / f'{system_parameters["desired_surface"]}'
