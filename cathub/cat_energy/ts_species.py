@@ -19,9 +19,28 @@ from .conversion import read_reaction_expression_data, \
 
 def get_constant_charge_barriers(db_filepath, neb_image_id_range):
     '''
-    Compute energy barrier for an transition state species
-    '''
+    Compute energy barrier for a transition state species.
 
+    This function calculates the constant charge energy barriers (both forward 
+    and backward) for a given transition state species using data from a NEB 
+    (Nudged Elastic Band) calculation.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the NEB calculation data.
+    neb_image_id_range : list of int
+        List containing the range of NEB image IDs for the transition state.
+
+    Returns:
+    --------
+    tuple
+        A tuple containing:
+        - constant_charge_forward_barrier (float): 
+          The constant charge forward energy barrier.
+        - constant_charge_backward_barrier (float): 
+          The constant charge backward energy barrier.
+    '''
     db = connect(str(db_filepath))
     neb_image_id_positions = []
     neb_energies = []
@@ -50,6 +69,30 @@ def get_constant_charge_barriers(db_filepath, neb_image_id_range):
 
 def get_constant_potential_barrier(constant_charge_barrier,
                                    delq, del_phi, barrier_workfunction_state='TS'):
+    '''
+    Compute the constant potential energy barrier for a transition state species.
+
+    This function calculates the constant potential energy barrier from the 
+    constant charge energy barrier by applying a potential correction based on 
+    the change in charge (delq) and the change in potential (del_phi).
+
+    Parameters:
+    -----------
+    constant_charge_barrier : float
+        The constant charge energy barrier.
+    delq : float
+        The change in charge.
+    del_phi : float
+        The change in potential.
+    barrier_workfunction_state : str, optional
+        The workfunction state for the barrier ('TS' for transition state, 
+        default is 'TS'). If not 'TS', the potential correction is applied differently.
+
+    Returns:
+    --------
+    float
+        The computed constant potential energy barrier.
+    '''
     if barrier_workfunction_state == 'TS':
         constant_potential_barrier = constant_charge_barrier - delq * del_phi / 2
     else:
@@ -59,6 +102,29 @@ def get_constant_potential_barrier(constant_charge_barrier,
 
 def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
                              extrapolated_workfunction, delq):
+    '''
+    Compute the extrapolated energy barrier for a transition state species.
+
+    This function calculates the extrapolated energy barrier from the constant 
+    potential energy barrier by applying a correction based on the change in 
+    workfunction and the change in charge (delq).
+
+    Parameters:
+    -----------
+    constant_potential_barrier : float
+        The constant potential energy barrier.
+    barrier_workfunction : float
+        The workfunction associated with the barrier state.
+    extrapolated_workfunction : float
+        The workfunction to which the barrier is being extrapolated.
+    delq : float
+        The change in charge.
+
+    Returns:
+    --------
+    float
+        The computed extrapolated energy barrier.
+    '''
     extrapolated_barrier = (constant_potential_barrier
                             - delq * (extrapolated_workfunction - barrier_workfunction))
     return extrapolated_barrier
@@ -67,9 +133,44 @@ def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
 def get_charge_extrapolated_constant_potential_barriers(
         db_filepath, neb_image_id_range, species_workfunction_data, beta, u_she,
         extrapolate, alk_corr):
-    '''Compute charge extrapolated constant potential energy barrier for a
-    transition state species '''
+    '''
+    Compute charge extrapolated constant potential energy barrier for a
+    transition state species.
 
+    This function calculates the charge-extrapolated constant potential energy 
+    barriers (both forward and backward) for a given transition state species 
+    by incorporating corrections and charge extrapolation schemes.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the reaction data.
+    neb_image_id_range : tuple
+        Tuple containing the range of NEB image IDs for the transition state.
+    species_workfunction_data : list of float
+        List of workfunction data for the species, typically including initial, 
+        transition, and final states.
+    beta : float
+        Beta value for the transition state, used in the charge extrapolation.
+    u_she : float
+        Standard Hydrogen Electrode potential.
+    extrapolate : dict
+        Dictionary containing parameters for charge extrapolation:
+            'perform' (bool): Whether to perform extrapolation.
+            'potential_type' (str): Type of potential ('fixed' or 'potential-dependent').
+            'potential_value' (float): Value of the potential if 'fixed' type is used.
+    alk_corr : float
+        Alkaline correction value to be applied to the barriers.
+
+    Returns:
+    --------
+    tuple
+        A tuple containing:
+        - charge_extrapolated_constant_potential_forward_barrier (float): 
+          The charge-extrapolated constant potential forward barrier.
+        - charge_extrapolated_constant_potential_backward_barrier (float): 
+          The charge-extrapolated constant potential backward barrier.
+    '''
     (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
         get_constant_charge_barriers(db_filepath, neb_image_id_range)
 
@@ -134,10 +235,55 @@ def write_ts_energies(
         db_filepath, df_out, ts_jsondata_filepath, rxn_expressions, ts_data,
         system_parameters, reference_gases, external_effects, verbose, latex):
     '''
-    Write formation energies of transition state species to energies.txt after
-    applying free energy corrections
-    '''
+    Compute and return formation energies of transition state species.
 
+    This function calculates the formation energies of transition state species,
+    applying various free energy corrections, and writes the results to the DataFrame.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the reaction data.
+    df_out : pandas.DataFrame
+        DataFrame to store the computed energies.
+    ts_jsondata_filepath : pathlib.Path
+        Path to the JSON file containing transition state species data.
+    rxn_expressions : list of str
+        List of reaction expressions.
+    ts_data : dict
+        Dictionary containing data for transition states, structured as:
+            'barrier_fits' (dict): Nested dictionaries containing backward barrier fits for each reaction.
+            'ts_states' (dict): Dictionary containing transition state information, with keys:
+                'wf_data' (list of float): Workfunction data for initial, transition, and final states.
+                'neb_image_id_range' (list of int): Range of NEB image IDs for the transition state.
+            'extrapolation' (dict): Dictionary containing extrapolation parameters:
+                'perform' (bool): Whether to perform extrapolation.
+                'method' (str): Method of extrapolation (e.g., 'charge').
+                'potential_type' (str): Type of potential ('fixed' or 'potential-dependent').
+                'potential_value' (float): Value of the potential if 'fixed' type is used.
+            'phi_correction' (float): Phi correction value.
+            'alk_corr' (float): Alkaline correction value.
+    system_parameters : dict
+        Dictionary containing system parameters such as:
+            'desired_surface' (str): The surface material being analyzed.
+            'desired_facet' (str): The facet of the surface material being analyzed.
+            'temp' (float): Temperature in Kelvin.
+            'pH' (float): pH value of the system.
+            'u_she' (float): Standard Hydrogen Electrode potential.
+    reference_gases : list of str
+        List of reference gas species.
+    external_effects : dict
+        Dictionary of external effects to be considered in the calculations.
+    verbose : bool
+        If True, print detailed information about the calculations.
+    latex : bool
+        If True, format the output for LaTeX.
+
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame containing the computed formation energies of the transition state species.
+    '''
     # Data from local cathub .db file
     db = CathubSQL(filename=db_filepath)
     df1 = db.get_dataframe()
@@ -451,9 +597,26 @@ def write_ts_energies(
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
-    Compute the total charge of the solvation layer
-    '''
+    Compute the total charge of the solvation layer.
 
+    This function calculates the total charge of the solvation layer by identifying
+    the indices of atoms within the solvation layer based on Bader charges and 
+    atomic coordinates, and then summing the Bader charges of the solvation layer atoms.
+
+    Parameters:
+    -----------
+    src_path : pathlib.Path
+        Path to the directory containing the Bader charges and atomic coordinates files.
+    adsorbate : str
+        The chemical formula of the adsorbate species.
+    bond_distance_cutoff : float
+        The cutoff distance for determining bonding interactions between atoms.
+
+    Returns:
+    --------
+    float
+        The computed total charge of the solvation layer.
+    '''
     bohr = 0.52917721092  # angstrom
     bader_charges_filename = 'bader_charges.txt'
     coordinates_filename = 'ACF.dat'
