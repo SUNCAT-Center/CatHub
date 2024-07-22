@@ -63,7 +63,16 @@ def write_energies(
     ts_data : dict
         Dictionary containing data for transition states, structured as:
             'barrier_fits' (dict): Nested dictionaries containing backward barrier fits for each reaction.
-            'ts_states' (dict): Dictionary containing transition state information.
+            'ts_states' (dict): Dictionary containing transition state information, with keys:
+                'wf_data' (list of float): Workfunction data for initial, transition, and final states.
+                'neb_image_id_range' (list of int): Range of NEB image IDs for the transition state.
+            'extrapolation' (dict): Dictionary containing extrapolation parameters:
+                'perform' (bool): Whether to perform extrapolation.
+                'method' (str): Method of extrapolation (e.g., 'charge').
+                'potential_type' (str): Type of potential ('fixed' or 'potential-dependent').
+                'potential_value' (float): Value of the potential if 'fixed' type is used.
+            'phi_correction' (float): Phi correction value.
+            'alk_corr' (float): Alkaline correction value.
     write_mkm_input_files : bool
         Boolean to indicate if MKM input files should be generated.
     verbose : bool, optional
