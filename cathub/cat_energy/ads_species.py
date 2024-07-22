@@ -18,10 +18,47 @@ def write_adsorbate_energies(
         facet_conditional, reference_gases, fake_ads, dft_corrections_gases,
         external_effects, verbose, latex):
     '''
-    Write formation energies to energies.txt after applying free energy
-    corrections
-    '''
+    Compute and return energetics of adsorbate species.
 
+    This function calculates the formation energies of adsorbate species,
+    applying various free energy corrections, and writes the results to
+    the DataFrame.
+
+    Parameters:
+    -----------
+    db_filepath : pathlib.Path
+        Path to the ASE database file containing the reaction data.
+    df_out : pandas.DataFrame
+        DataFrame to store the computed energies.
+    ads_jsondata_filepath : pathlib.Path
+        Path to the JSON file containing adsorbate species data.
+    system_parameters : dict
+        Dictionary containing system parameters such as:
+            'desired_surface' (str): The surface material being analyzed.
+            'desired_facet' (str): The facet of the surface material being analyzed.
+            'temp' (float): Temperature in Kelvin.
+            'pH' (float): pH value of the system.
+            'u_she' (float): Standard Hydrogen Electrode potential.
+    facet_conditional : str
+        String to indicate if facet-specific calculations are required.
+    reference_gases : list of str
+        List of reference gas species.
+    fake_ads : dict
+        Dictionary of fake adsorbates used for testing or placeholder purposes.
+    dft_corrections_gases : dict
+        Dictionary of DFT corrections for gas species.
+    external_effects : dict
+        Dictionary of external effects to be considered in the calculations.
+    verbose : bool
+        If True, print detailed information about the calculations.
+    latex : bool
+        If True, format the output for LaTeX.
+
+    Returns:
+    --------
+    pandas.DataFrame
+        DataFrame containing the computed energetics of the adsorbate species.
+    '''
     # Data from local cathub .db file
     db = CathubSQL(filename=db_filepath)
     df1 = db.get_dataframe()
@@ -237,9 +274,47 @@ def get_adsorption_energies(
         dft_corrections_gases, facet_conditional, external_effects, u_rhe, u_she):
     '''
     Compute electronic adsorption energies for a given species at all suitable
-    adsorption sites at a given u_she/RHE
-    '''
+    adsorption sites at a given U_SHE/RHE.
 
+    This function calculates the electronic adsorption energies of a specified
+    species at various adsorption sites, incorporating corrections and external
+    effects based on the specified conditions.
+
+    Parameters:
+    -----------
+    df : pandas.DataFrame
+        DataFrame containing the reaction data.
+    df_out : pandas.DataFrame
+        DataFrame to store the computed energies.
+    species_list : list of str
+        List of species names to be analyzed.
+    species_value : str
+        The species for which the adsorption energy is being computed.
+    products_list : list
+        List of products for each reaction.
+    reference_gases : list of str
+        List of reference gas species.
+    dft_corrections_gases : dict
+        Dictionary of DFT corrections for gas species.
+    facet_conditional : str
+        String to indicate if facet-specific calculations are required.
+    external_effects : dict
+        Dictionary of external effects to be considered in the calculations.
+    u_rhe : float
+        RHE potential in volts.
+    u_she : float
+        SHE potential in volts.
+
+    Returns:
+    --------
+    tuple
+        A tuple containing:
+        - site_wise_energy_contributions (list of lists): Each sublist contains:
+            - adsorption energy at RHE=0.0
+            - RHE energy contribution
+            - external effect contribution for a specific site
+        - facet_list (list): List of facets corresponding to the computed energies.
+    '''
     indices = [index for index, value in enumerate(species_list)
                                                     if value == species_value]
     facet_list = df.facet.iloc[indices].tolist()
@@ -270,9 +345,31 @@ def get_adsorption_energies(
 def get_adsorption_energy(df_out, reactants, products, reaction_energy,
         reference_gases, dft_corrections_gases):
     '''
-    Compute adsorption energy for an adsorbate species in a given reaction
-    '''
+    Compute adsorption energy for an adsorbate species in a given reaction.
 
+    This function calculates the adsorption energy for a given adsorbate species 
+    in a specified reaction, incorporating DFT corrections for gas species.
+
+    Parameters:
+    -----------
+    df_out : pandas.DataFrame
+        DataFrame containing the formation energies of various species.
+    reactants : dict
+        Dictionary of reactants with their respective quantities.
+    products : dict
+        Dictionary of products with their respective quantities.
+    reaction_energy : float
+        The reaction energy of the specified reaction.
+    reference_gases : list of str
+        List of reference gas species.
+    dft_corrections_gases : dict
+        Dictionary of DFT corrections for gas species.
+
+    Returns:
+    --------
+    float
+        The computed adsorption energy at RHE = 0 V.
+    '''
     product_energy = 0
     for product, num_units in products.items():
         if 'star' not in product:
