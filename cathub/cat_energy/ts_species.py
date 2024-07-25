@@ -1,6 +1,17 @@
-'''
-Module with function definitions relating to transition state species
-'''
+"""
+Module with computing energetics of transition state species.
+
+This module provides classes and methods to calculate and return energetics of transition 
+state species using data from the ASE database and other sources. It includes calculations 
+for energy barriers, solvation layer charges, and corrections for various effects. The 
+module also provides methods to read and process reaction expression data and handle 
+transition state energies.
+
+Classes:
+--------
+TSAnalysis(EnergeticAnalysis): Inherits from EnergeticAnalysis and performs specific computations for transition state species.
+"""
+
 import json
 import sys
 
@@ -13,9 +24,14 @@ from tabulate import tabulate
 
 from cathub.cathubsql import CathubSQL
 from .io import NUM_DECIMAL_PLACES, write_columns
-from .conversion import read_reaction_expression_data, \
-    formula_to_chemical_symbols, CM2EV, PHI_REF, get_rhe_contribution
-
+from .conversion import (
+    read_reaction_expression_data, 
+    formula_to_chemical_symbols, 
+    CM2EV, 
+    PHI_REF, 
+    get_rhe_contribution
+)
+from .core import EnergeticAnalysis
 
 def get_constant_charge_barriers(db_filepath, neb_image_id_range):
     '''
@@ -37,16 +53,16 @@ def get_constant_charge_barriers(db_filepath, neb_image_id_range):
     tuple
         A tuple containing:
         - constant_charge_forward_barrier (float): 
-          The constant charge forward energy barrier.
+        The constant charge forward energy barrier.
         - constant_charge_backward_barrier (float): 
-          The constant charge backward energy barrier.
+        The constant charge backward energy barrier.
     '''
     db = connect(str(db_filepath))
     neb_image_id_positions = []
     neb_energies = []
     neb_forces = []
     for index, neb_image_id in enumerate(range(neb_image_id_range[0],
-                                               neb_image_id_range[1] + 1)):
+                                            neb_image_id_range[1] + 1)):
         neb_image_id_positions.append(db.get(id=neb_image_id).toatoms().positions)
         neb_energies.append(db.get(
             id=neb_image_id).toatoms().get_potential_energy())
@@ -66,9 +82,8 @@ def get_constant_charge_barriers(db_filepath, neb_image_id_range):
     constant_charge_backward_barrier = ts_energy - final_energy
     return (constant_charge_forward_barrier, constant_charge_backward_barrier)
 
-
 def get_constant_potential_barrier(constant_charge_barrier,
-                                   delq, del_phi, barrier_workfunction_state='TS'):
+                                delq, del_phi, barrier_workfunction_state='TS'):
     '''
     Compute the constant potential energy barrier for a transition state species.
 
@@ -99,9 +114,8 @@ def get_constant_potential_barrier(constant_charge_barrier,
         constant_potential_barrier = constant_charge_barrier + delq * del_phi / 2
     return constant_potential_barrier
 
-
 def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
-                             extrapolated_workfunction, delq):
+                            extrapolated_workfunction, delq):
     '''
     Compute the extrapolated energy barrier for a transition state species.
 
@@ -128,7 +142,6 @@ def get_extrapolated_barrier(constant_potential_barrier, barrier_workfunction,
     extrapolated_barrier = (constant_potential_barrier
                             - delq * (extrapolated_workfunction - barrier_workfunction))
     return extrapolated_barrier
-
 
 def get_charge_extrapolated_constant_potential_barriers(
         db_filepath, neb_image_id_range, species_workfunction_data, beta, u_she,
@@ -167,9 +180,9 @@ def get_charge_extrapolated_constant_potential_barriers(
     tuple
         A tuple containing:
         - charge_extrapolated_constant_potential_forward_barrier (float): 
-          The charge-extrapolated constant potential forward barrier.
+        The charge-extrapolated constant potential forward barrier.
         - charge_extrapolated_constant_potential_backward_barrier (float): 
-          The charge-extrapolated constant potential backward barrier.
+        The charge-extrapolated constant potential backward barrier.
     '''
     (constant_charge_forward_barrier, constant_charge_backward_barrier) = \
         get_constant_charge_barriers(db_filepath, neb_image_id_range)
@@ -209,14 +222,14 @@ def get_charge_extrapolated_constant_potential_barriers(
                 delq = - beta
                 charge_extrapolated_constant_potential_forward_barrier = \
                     get_extrapolated_barrier(constant_potential_forward_barrier,
-                                             barrier_workfunction,
-                                             workfunction_at_u_she, delq)
+                                            barrier_workfunction,
+                                            workfunction_at_u_she, delq)
             else:
                 delq = 1 - beta
                 charge_extrapolated_constant_potential_backward_barrier = \
                     get_extrapolated_barrier(constant_potential_backward_barrier,
-                                             barrier_workfunction,
-                                             workfunction_at_u_she, delq)
+                                            barrier_workfunction,
+                                            workfunction_at_u_she, delq)
     else:
         charge_extrapolated_constant_potential_forward_barrier = \
             constant_potential_forward_barrier
@@ -229,371 +242,6 @@ def get_charge_extrapolated_constant_potential_barriers(
 
     return (charge_extrapolated_constant_potential_forward_barrier,
             charge_extrapolated_constant_potential_backward_barrier)
-
-
-def write_ts_energies(
-        db_filepath, df_out, ts_jsondata_filepath, rxn_expressions, ts_data,
-        system_parameters, reference_gases, external_effects, verbose, latex):
-    '''
-    Compute and return formation energies of transition state species.
-
-    This function calculates the formation energies of transition state species,
-    applying various free energy corrections, and writes the results to the DataFrame.
-
-    Parameters:
-    -----------
-    db_filepath : pathlib.Path
-        Path to the ASE database file containing the reaction data.
-    df_out : pandas.DataFrame
-        DataFrame to store the computed energies.
-    ts_jsondata_filepath : pathlib.Path
-        Path to the JSON file containing transition state species data.
-    rxn_expressions : list of str
-        List of reaction expressions.
-    ts_data : dict
-        Dictionary containing data for transition states, structured as:
-            'barrier_fits' (dict): Nested dictionaries containing backward barrier fits for each reaction.
-            'ts_states' (dict): Dictionary containing transition state information, with keys:
-                'wf_data' (list of float): Workfunction data for initial, transition, and final states.
-                'neb_image_id_range' (list of int): Range of NEB image IDs for the transition state.
-            'extrapolation' (dict): Dictionary containing extrapolation parameters:
-                'perform' (bool): Whether to perform extrapolation.
-                'method' (str): Method of extrapolation (e.g., 'charge').
-                'potential_type' (str): Type of potential ('fixed' or 'potential-dependent').
-                'potential_value' (float): Value of the potential if 'fixed' type is used.
-            'phi_correction' (float): Phi correction value.
-            'alk_corr' (float): Alkaline correction value.
-    system_parameters : dict
-        Dictionary containing system parameters such as:
-            'desired_surface' (str): The surface material being analyzed.
-            'desired_facet' (str): The facet of the surface material being analyzed.
-            'temp' (float): Temperature in Kelvin.
-            'pH' (float): pH value of the system.
-            'u_she' (float): Standard Hydrogen Electrode potential.
-    reference_gases : list of str
-        List of reference gas species.
-    external_effects : dict
-        Dictionary of external effects to be considered in the calculations.
-    verbose : bool
-        If True, print detailed information about the calculations.
-    latex : bool
-        If True, format the output for LaTeX.
-
-    Returns:
-    --------
-    pandas.DataFrame
-        DataFrame containing the computed formation energies of the transition state species.
-    '''
-    # Data from local cathub .db file
-    db = CathubSQL(filename=db_filepath)
-    df1 = db.get_dataframe()
-
-    desired_surface = system_parameters['desired_surface']
-    desired_facet = system_parameters['desired_facet']
-    df1 = df1[df1['surface_composition'] == desired_surface]
-    df1 = df1[df1['facet'].str.contains(desired_facet)]
-
-    temp = system_parameters['temp']
-    u_rhe = system_parameters['u_rhe']
-    u_she = system_parameters['u_she']
-
-    # Load vibrational data
-    with open(ts_jsondata_filepath, encoding='utf8') as f:
-        ts_vibration_data = json.load(f)
-    vibrational_energies = {}
-    json_species_list = [species_data['species']
-                         for species_data in ts_vibration_data]
-    for species_data in ts_vibration_data:
-        ts_species = species_data['species']
-        vibrational_energies[ts_species] = []
-        for vibrational_frequency in species_data['frequencies']:
-            vibrational_energies[ts_species].append(vibrational_frequency
-                                                    * CM2EV)
-
-    # Load reaction expression data
-    num_rxns = len(rxn_expressions)
-    reactants_rxn_expressions, products_rxn_expressions = [], []
-    ts_states_rxn_expressions, beta_list_rxn_expressions = [], []
-    for rxn_expression in rxn_expressions:
-        (reactant_dict, product_dict,
-         ts_states, beta) = read_reaction_expression_data(rxn_expression)
-        reactants_rxn_expressions.append(reactant_dict)
-        products_rxn_expressions.append(product_dict)
-        ts_states_rxn_expressions.append(ts_states)
-        beta_list_rxn_expressions.append(beta)
-    valid_ts_states_reaction_indices = [reaction_index for reaction_index, ts_state in enumerate(ts_states_rxn_expressions) if ts_state]
-
-    df_activation = df1[df1['activation_energy'].notna()]
-
-    # build dataframe data for transition state species
-    surface, site, species, raw_energy = [], [], [], []
-    charge_extrapolated_constant_potential_barriers = []
-    dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
-    term1_forward_list, term4_forward_list = [], []
-    formation_energy, alk_corr, energy_vector, frequencies = [], [], [], []
-    references = []
-
-    # simple reaction species: only one active product and filter out
-    # reactions without any transition state species
-    df_activation_copy = df_activation.copy()
-
-    df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
-        json.loads)
-    for index, reactant in enumerate(df_activation_copy_reactant_dict_col):
-        row_index = df_activation_copy.index[index]
-        new_dict = {}
-        if 0 in reactant.values():
-            for key, value in reactant.items():
-                if value:
-                    new_dict[key] = value
-            df_activation_copy.at[row_index, 'reactants'] = json.dumps(new_dict)
-    df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
-        json.loads)
-
-    df_activation_copy_product_dict_col = df_activation_copy.products.apply(
-        json.loads)
-    for index, product in enumerate(df_activation_copy_product_dict_col):
-        row_index = df_activation_copy.index[index]
-        new_dict = {}
-        if 0 in product.values() or "star" in product.keys():
-            for key, value in product.items():
-                if value and key != "star":
-                    new_dict[key] = value
-            df_activation_copy.at[row_index, 'products'] = json.dumps(new_dict)
-    df_activation_copy_product_dict_col = df_activation_copy.products.apply(
-        json.loads)
-
-    df_index_rxn_expressions = []
-    for reaction_index in range(num_rxns):
-        df_indices_product = df_activation_copy_product_dict_col[
-            df_activation_copy_product_dict_col
-            == products_rxn_expressions[reaction_index]].index.values
-        df_indices_reactant = df_activation_copy_reactant_dict_col[
-            df_activation_copy_reactant_dict_col
-            == reactants_rxn_expressions[reaction_index]].index.values
-        df_indices = np.intersect1d(df_indices_reactant, df_indices_product)
-        if df_indices:
-            df_index_rxn_expressions.append(df_indices[0])
-        else:
-            df_index_rxn_expressions.append('')
-    available_df_indices = [df_index for df_index in df_index_rxn_expressions if df_index != '']
-    df_activation_rxns = df_activation.loc[available_df_indices]
-
-    species_list, beta_list, reactants_list, products_list = [], [], [], []
-    for reaction_index in valid_ts_states_reaction_indices:
-        ts_state = ts_states_rxn_expressions[reaction_index]
-        species_list.append(ts_state)
-        beta_list.append(beta_list_rxn_expressions[reaction_index])
-        df_index = df_index_rxn_expressions[reaction_index]
-        if ts_state in ts_data['barrier_fits']:
-            reactants_list.append(reactants_rxn_expressions[reaction_index])
-            products_list.append(products_rxn_expressions[reaction_index])
-            barrier_data = [float('nan'), float('nan')]
-            species_barrier_fit = ts_data['barrier_fits'][ts_state]
-            if 'forward' in species_barrier_fit:
-                barrier_data[0] = np.poly1d(species_barrier_fit['forward'])(u_she)
-            if 'backward' in species_barrier_fit:
-                barrier_data[1] = np.poly1d(species_barrier_fit['backward'])(u_she)
-            charge_extrapolated_constant_potential_barriers.append(tuple(barrier_data))
-        elif df_index and ts_state in ts_data['ts_states']:
-            reactants_list.append(json.loads(
-                df_activation.reactants.loc[df_index]))
-            products_list.append(json.loads(
-                df_activation.products.loc[df_index]))
-            neb_image_id_range = ts_data['ts_states'][ts_state]['neb_image_id_range']
-            species_workfunction_data = ts_data['ts_states'][ts_state]['wf_data']
-            corrected_species_workfunction_data = []
-            for workfunction_value in species_workfunction_data:
-                if workfunction_value != 'nan':
-                    corrected_species_workfunction_data.append(
-                        workfunction_value - ts_data['phi_correction'])
-                else:
-                    corrected_species_workfunction_data.append(float('nan'))
-            alk_corr.append(ts_data['alk_corr'] if beta_list[-1] else 0.0)
-            charge_extrapolated_constant_potential_barriers.append(
-                get_charge_extrapolated_constant_potential_barriers(
-                    db_filepath, neb_image_id_range,
-                    corrected_species_workfunction_data, beta_list[-1], u_she,
-                    ts_data['extrapolation'], alk_corr[-1]))
-        else:
-            sys.exit(f"Barrier data for {ts_state} not found. Exiting...")
-
-    for species_index, species_name in enumerate(species_list):
-        if '-' in desired_surface:
-            surface.append(desired_surface.split('-')[0])
-        else:
-            surface.append(desired_surface)
-        site.append(desired_facet)
-        species.append(species_name)
-
-        raw_energy.append(float("nan"))
-        # Zero DFT Correction for transition states
-        dft_corr.append(0.0)
-
-        if species_name in json_species_list:
-            thermo = HarmonicThermo(
-                vib_energies=vibrational_energies[species_name])
-
-            # zero point energy correction
-            zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
-
-            # enthalpic temperature correction
-            enthalpy.append(thermo.get_internal_energy(temp, verbose=False))
-
-            S = thermo.get_entropy(temp, verbose=False)
-            # entropy contribution
-            entropy.append(- temp * S)
-        else:
-            zpe.append(0.0)
-            enthalpy.append(0.0)
-            entropy.append(0.0)
-
-        # RHE correction
-        reaction_index = species_list.index(species_name)
-        df_index = df_index_rxn_expressions[reaction_index]
-        if df_index:
-            reactants = json.loads(df_activation_rxns.reactants.loc[df_index])
-        else:
-            reactants = reactants_rxn_expressions[reaction_index]
-        rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
-                                             reference_gases, reactants,
-                                             beta_list[species_index]))
-
-        # Compute initial state energy
-        ini_ads_energy_term1 = 0
-        ini_ads_energy_term4 = 0
-        for reactant, num_reactants in reactants_list[species_index].items():
-            if 'gas' in reactant:
-                noncatmap_style_species = reactant.replace('gas', '')
-                idx1 = df_out.index[df_out['site_name'] == 'gas']
-                idx2 = (df_out.index[df_out['species_name']
-                        == noncatmap_style_species])
-                idx = idx1.intersection(idx2)
-                if len(idx) == 1:
-                    ini_ads_energy_term1 += (
-                        num_reactants * df_out.energy_vector[idx[0]][0])
-                    ini_ads_energy_term4 += (
-                        num_reactants * df_out.energy_vector[idx[0]][3])
-            elif 'star' in reactant:
-                noncatmap_style_species = reactant.replace('star', '')
-                if noncatmap_style_species:
-                    idx1 = df_out.index[df_out['site_name'] != 'gas']
-                    idx2 = (df_out.index[df_out['species_name']
-                            == noncatmap_style_species])
-                    idx = idx1.intersection(idx2)
-                    if len(idx) == 1:
-                        ini_ads_energy_term1 += (
-                            num_reactants * df_out.energy_vector[idx[0]][0])
-                        ini_ads_energy_term4 += (
-                            num_reactants * df_out.energy_vector[idx[0]][3])
-
-        # Compute final state energy
-        fin_ads_energy_term1 = 0
-        fin_ads_energy_term4 = 0
-        for product, num_products in products_list[species_index].items():
-            if 'gas' in product:
-                noncatmap_style_species = product.replace('gas', '')
-                idx1 = df_out.index[df_out['site_name'] == 'gas']
-                idx2 = (df_out.index[df_out['species_name']
-                        == noncatmap_style_species])
-                idx = idx1.intersection(idx2)
-                if len(idx) == 1:
-                    fin_ads_energy_term1 += (
-                        num_products * df_out.energy_vector[idx[0]][0])
-                    fin_ads_energy_term4 += (
-                        num_products * df_out.energy_vector[idx[0]][3])
-            elif 'star' in product:
-                noncatmap_style_species = product.replace('star', '')
-                if noncatmap_style_species:
-                    idx1 = df_out.index[df_out['site_name'] != 'gas']
-                    idx2 = (df_out.index[df_out['species_name']
-                            == noncatmap_style_species])
-                    idx = idx1.intersection(idx2)
-                    if len(idx) == 1:
-                        fin_ads_energy_term1 += (
-                            num_products * df_out.energy_vector[idx[0]][0])
-                        fin_ads_energy_term4 += (
-                            num_products * df_out.energy_vector[idx[0]][3])
-
-        # compute energy vector
-        term1_forward_list.append(
-            charge_extrapolated_constant_potential_barriers[species_index][0]
-            + dft_corr[-1] + ini_ads_energy_term1)
-        term1_backward = (charge_extrapolated_constant_potential_barriers[species_index][1]
-                          + dft_corr[-1] + fin_ads_energy_term1)
-        term2 = enthalpy[-1] + entropy[-1]
-        term3 = rhe_corr[-1]
-        if species_name in external_effects:
-            external_effect_contribution = np.poly1d(external_effects[species_name])(u_she)
-        else:
-            external_effect_contribution = 0.0
-        term4_forward_list.append(external_effect_contribution + ini_ads_energy_term4)
-        term4_backward = external_effect_contribution + fin_ads_energy_term4
-        
-
-        G = mu = term1_backward + term2 + term3 + term4_backward
-        formation_energy.append(term1_backward + term4_backward)
-        energy_vector.append([term1_backward, term2, term3, term4_backward, mu, G])
-
-        if species_name in json_species_list:
-            frequencies.append(ts_vibration_data[json_species_list.index(
-                species_name)]['frequencies'])
-            references.append(ts_vibration_data[json_species_list.index(
-                species_name)]['reference'])
-        else:
-            frequencies.append([])
-            references.append('')
-
-    df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
-                                charge_extrapolated_constant_potential_barriers,
-                                dft_corr, zpe, enthalpy, entropy, rhe_corr,
-                                formation_energy, energy_vector, frequencies,
-                                references)),
-                       columns=write_columns)
-    df_out = df_out.append(df3, ignore_index=True, sort=False)
-
-    if verbose:
-        ts_phase_header = 'Transition State Free Energy Correction:'
-        print(ts_phase_header)
-        print('-' * len(ts_phase_header))
-
-        print('Term1 = Backward Electronic Activation Energy + DFT Correction')
-        print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
-        print('Term3 = RHE-scale Dependency')
-        print('Term4 = External Effects '
-              + '+ Charge Extrapolation Correction' if ts_data['extrapolation'].get('perform', False) else ''
-              + ' + Alkaline Correction + Final Adsorbate Energy')
-        print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
-        print('∆G at U_RHE=0.0 V = ∆G - Term3')
-        print()
-
-        table = []
-        table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)",
-                         "Term4 (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
-        for index, species_name in enumerate(df3['species_name']):
-            sub_table = []
-            delg_at_zero_u_rhe = (df3["energy_vector"][index][5]
-                                  - df3["energy_vector"][index][2])
-            sub_table.extend(
-                [species_name,
-                 f'{df3["energy_vector"][index][0]:.{NUM_DECIMAL_PLACES}f}',
-                 f'{df3["energy_vector"][index][1]:.{NUM_DECIMAL_PLACES}f}',
-                 f'{df3["energy_vector"][index][2]:.{NUM_DECIMAL_PLACES}f}',
-                 f'{df3["energy_vector"][index][3]:.{NUM_DECIMAL_PLACES}f}',
-                 f'{df3["energy_vector"][index][5]:.{NUM_DECIMAL_PLACES}f}',
-                 f'{delg_at_zero_u_rhe:.{NUM_DECIMAL_PLACES}f}'])
-            table.append(sub_table)
-        if latex:
-            print(tabulate(table, headers=table_headers, tablefmt='latex',
-                           colalign=("right", ) * len(table_headers),
-                           disable_numparse=True))
-        else:
-            print(tabulate(table, headers=table_headers, tablefmt='psql',
-                           colalign=("right", ) * len(table_headers),
-                           disable_numparse=True))
-        print('\n')
-    return df_out
-
 
 def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     '''
@@ -636,7 +284,7 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
     bader_charge_array = np.asarray(bader_charge_list)
     num_atoms = len(element_list)
     coordinates = np.loadtxt(coordinates_filepath, skiprows=2,
-                             max_rows=num_atoms)[:, 1:4] * bohr
+                            max_rows=num_atoms)[:, 1:4] * bohr
     z_coordinates = coordinates[:, 2]
     total_indices = np.arange(len(z_coordinates)).tolist()
 
@@ -668,7 +316,7 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
 
     anchor_z_coordinate = z_coordinates[anchor_atom_index]
     substrate_indices = np.where(z_coordinates
-                                 < anchor_z_coordinate)[0].tolist()
+                                < anchor_z_coordinate)[0].tolist()
     non_substrate_indices = [
         index for index in total_indices if index not in substrate_indices]
 
@@ -706,7 +354,352 @@ def get_solvation_layer_charge(src_path, adsorbate, bond_distance_cutoff):
                         num_atoms_to_scrape -= 1
 
     solvation_layer_indices = [index for index in non_substrate_indices
-                               if index not in adsorbate_indices]
+                            if index not in adsorbate_indices]
     solvation_layer_charges = bader_charge_array[solvation_layer_indices]
     solvation_layer_charge = solvation_layer_charges.sum()
     return solvation_layer_charge
+
+class TSAnalysis(EnergeticAnalysis):
+    """
+    Class for performing free energy analysis related to transition state species.
+
+    Inherits from EnergeticAnalysis and includes methods to compute and return the 
+    energetics of transition state species.
+
+    Methods:
+    --------
+    write_ts_energies(self, df_out, rxn_expressions):
+        Compute and return formation energies of transition state species.
+    """
+
+    def __init__(self, parent_instance):
+        self.__dict__.update(parent_instance.__dict__)
+
+    def write_ts_energies(self, df_out, rxn_expressions):
+        """
+        Compute and return energetics of transition state species.
+
+        This method calculates the energetics of transition state species,
+        applying various free energy corrections, and stores the results in a provided DataFrame.
+
+        Parameters:
+        -----------
+        df_out : pandas.DataFrame
+            DataFrame to store the computed energies.
+        rxn_expressions : list of str
+            List of reaction expressions.
+
+        Returns:
+        --------
+        pandas.DataFrame
+            DataFrame containing the computed energetics of the transition state species.
+        """
+        # Data from local cathub .db file
+        db = CathubSQL(filename=self.db_filepath)
+        df1 = db.get_dataframe()
+
+        desired_surface = self.system_parameters['desired_surface']
+        desired_facet = self.system_parameters['desired_facet']
+        df1 = df1[df1['surface_composition'] == desired_surface]
+        df1 = df1[df1['facet'].str.contains(desired_facet)]
+
+        temp = self.system_parameters['temp']
+        u_rhe = self.system_parameters['u_rhe']
+        u_she = self.system_parameters['u_she']
+
+        # Load vibrational data
+        with open(self.ts_jsondata_filepath, encoding='utf8') as f:
+            ts_vibration_data = json.load(f)
+        vibrational_energies = {}
+        json_species_list = [species_data['species']
+                            for species_data in ts_vibration_data]
+        for species_data in ts_vibration_data:
+            ts_species = species_data['species']
+            vibrational_energies[ts_species] = []
+            for vibrational_frequency in species_data['frequencies']:
+                vibrational_energies[ts_species].append(vibrational_frequency
+                                                        * CM2EV)
+
+        # Load reaction expression data
+        num_rxns = len(rxn_expressions)
+        reactants_rxn_expressions, products_rxn_expressions = [], []
+        ts_states_rxn_expressions, beta_list_rxn_expressions = [], []
+        for rxn_expression in rxn_expressions:
+            (reactant_dict, product_dict,
+            ts_states, beta) = read_reaction_expression_data(rxn_expression)
+            reactants_rxn_expressions.append(reactant_dict)
+            products_rxn_expressions.append(product_dict)
+            ts_states_rxn_expressions.append(ts_states)
+            beta_list_rxn_expressions.append(beta)
+        valid_ts_states_reaction_indices = [reaction_index for reaction_index, ts_state in enumerate(ts_states_rxn_expressions) if ts_state]
+
+        df_activation = df1[df1['activation_energy'].notna()]
+
+        # build dataframe data for transition state species
+        surface, site, species, raw_energy = [], [], [], []
+        charge_extrapolated_constant_potential_barriers = []
+        dft_corr, zpe, enthalpy, entropy, rhe_corr = [], [], [], [], []
+        term1_forward_list, term4_forward_list = [], []
+        formation_energy, alk_corr, energy_vector, frequencies = [], [], [], []
+        references = []
+
+        # simple reaction species: only one active product and filter out
+        # reactions without any transition state species
+        df_activation_copy = df_activation.copy()
+
+        df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
+            json.loads)
+        for index, reactant in enumerate(df_activation_copy_reactant_dict_col):
+            row_index = df_activation_copy.index[index]
+            new_dict = {}
+            if 0 in reactant.values():
+                for key, value in reactant.items():
+                    if value:
+                        new_dict[key] = value
+                df_activation_copy.at[row_index, 'reactants'] = json.dumps(new_dict)
+        df_activation_copy_reactant_dict_col = df_activation_copy.reactants.apply(
+            json.loads)
+
+        df_activation_copy_product_dict_col = df_activation_copy.products.apply(
+            json.loads)
+        for index, product in enumerate(df_activation_copy_product_dict_col):
+            row_index = df_activation_copy.index[index]
+            new_dict = {}
+            if 0 in product.values() or "star" in product.keys():
+                for key, value in product.items():
+                    if value and key != "star":
+                        new_dict[key] = value
+                df_activation_copy.at[row_index, 'products'] = json.dumps(new_dict)
+        df_activation_copy_product_dict_col = df_activation_copy.products.apply(
+            json.loads)
+
+        df_index_rxn_expressions = []
+        for reaction_index in range(num_rxns):
+            df_indices_product = df_activation_copy_product_dict_col[
+                df_activation_copy_product_dict_col
+                == products_rxn_expressions[reaction_index]].index.values
+            df_indices_reactant = df_activation_copy_reactant_dict_col[
+                df_activation_copy_reactant_dict_col
+                == reactants_rxn_expressions[reaction_index]].index.values
+            df_indices = np.intersect1d(df_indices_reactant, df_indices_product)
+            if df_indices:
+                df_index_rxn_expressions.append(df_indices[0])
+            else:
+                df_index_rxn_expressions.append('')
+        available_df_indices = [df_index for df_index in df_index_rxn_expressions if df_index != '']
+        df_activation_rxns = df_activation.loc[available_df_indices]
+
+        species_list, beta_list, reactants_list, products_list = [], [], [], []
+        for reaction_index in valid_ts_states_reaction_indices:
+            ts_state = ts_states_rxn_expressions[reaction_index]
+            species_list.append(ts_state)
+            beta_list.append(beta_list_rxn_expressions[reaction_index])
+            df_index = df_index_rxn_expressions[reaction_index]
+            if ts_state in self.ts_data['barrier_fits']:
+                reactants_list.append(reactants_rxn_expressions[reaction_index])
+                products_list.append(products_rxn_expressions[reaction_index])
+                barrier_data = [float('nan'), float('nan')]
+                species_barrier_fit = self.ts_data['barrier_fits'][ts_state]
+                if 'forward' in species_barrier_fit:
+                    barrier_data[0] = np.poly1d(species_barrier_fit['forward'])(u_she)
+                if 'backward' in species_barrier_fit:
+                    barrier_data[1] = np.poly1d(species_barrier_fit['backward'])(u_she)
+                charge_extrapolated_constant_potential_barriers.append(tuple(barrier_data))
+            elif df_index and ts_state in self.ts_data['ts_states']:
+                reactants_list.append(json.loads(
+                    df_activation.reactants.loc[df_index]))
+                products_list.append(json.loads(
+                    df_activation.products.loc[df_index]))
+                neb_image_id_range = self.ts_data['ts_states'][ts_state]['neb_image_id_range']
+                species_workfunction_data = self.ts_data['ts_states'][ts_state]['wf_data']
+                corrected_species_workfunction_data = []
+                for workfunction_value in species_workfunction_data:
+                    if workfunction_value != 'nan':
+                        corrected_species_workfunction_data.append(
+                            workfunction_value - self.ts_data['phi_correction'])
+                    else:
+                        corrected_species_workfunction_data.append(float('nan'))
+                alk_corr.append(self.ts_data['alk_corr'] if beta_list[-1] else 0.0)
+                charge_extrapolated_constant_potential_barriers.append(
+                    get_charge_extrapolated_constant_potential_barriers(
+                        self.db_filepath, neb_image_id_range,
+                        corrected_species_workfunction_data, beta_list[-1], u_she,
+                        self.ts_data['extrapolation'], alk_corr[-1]))
+            else:
+                sys.exit(f"Barrier data for {ts_state} not found. Exiting...")
+
+        for species_index, species_name in enumerate(species_list):
+            if '-' in desired_surface:
+                surface.append(desired_surface.split('-')[0])
+            else:
+                surface.append(desired_surface)
+            site.append(desired_facet)
+            species.append(species_name)
+
+            raw_energy.append(float("nan"))
+            # Zero DFT Correction for transition states
+            dft_corr.append(0.0)
+
+            if species_name in json_species_list:
+                thermo = HarmonicThermo(
+                    vib_energies=vibrational_energies[species_name])
+
+                # zero point energy correction
+                zpe.append(np.sum(vibrational_energies[species_name]) / 2.0)
+
+                # enthalpic temperature correction
+                enthalpy.append(thermo.get_internal_energy(temp, verbose=False))
+
+                S = thermo.get_entropy(temp, verbose=False)
+                # entropy contribution
+                entropy.append(- temp * S)
+            else:
+                zpe.append(0.0)
+                enthalpy.append(0.0)
+                entropy.append(0.0)
+
+            # RHE correction
+            reaction_index = species_list.index(species_name)
+            df_index = df_index_rxn_expressions[reaction_index]
+            if df_index:
+                reactants = json.loads(df_activation_rxns.reactants.loc[df_index])
+            else:
+                reactants = reactants_rxn_expressions[reaction_index]
+            rhe_corr.append(get_rhe_contribution(u_rhe, species_name,
+                                                self.reference_gases, reactants,
+                                                beta_list[species_index]))
+
+            # Compute initial state energy
+            ini_ads_energy_term1 = 0
+            ini_ads_energy_term4 = 0
+            for reactant, num_reactants in reactants_list[species_index].items():
+                if 'gas' in reactant:
+                    noncatmap_style_species = reactant.replace('gas', '')
+                    idx1 = df_out.index[df_out['site_name'] == 'gas']
+                    idx2 = (df_out.index[df_out['species_name']
+                            == noncatmap_style_species])
+                    idx = idx1.intersection(idx2)
+                    if len(idx) == 1:
+                        ini_ads_energy_term1 += (
+                            num_reactants * df_out.energy_vector[idx[0]][0])
+                        ini_ads_energy_term4 += (
+                            num_reactants * df_out.energy_vector[idx[0]][3])
+                elif 'star' in reactant:
+                    noncatmap_style_species = reactant.replace('star', '')
+                    if noncatmap_style_species:
+                        idx1 = df_out.index[df_out['site_name'] != 'gas']
+                        idx2 = (df_out.index[df_out['species_name']
+                                == noncatmap_style_species])
+                        idx = idx1.intersection(idx2)
+                        if len(idx) == 1:
+                            ini_ads_energy_term1 += (
+                                num_reactants * df_out.energy_vector[idx[0]][0])
+                            ini_ads_energy_term4 += (
+                                num_reactants * df_out.energy_vector[idx[0]][3])
+
+            # Compute final state energy
+            fin_ads_energy_term1 = 0
+            fin_ads_energy_term4 = 0
+            for product, num_products in products_list[species_index].items():
+                if 'gas' in product:
+                    noncatmap_style_species = product.replace('gas', '')
+                    idx1 = df_out.index[df_out['site_name'] == 'gas']
+                    idx2 = (df_out.index[df_out['species_name']
+                            == noncatmap_style_species])
+                    idx = idx1.intersection(idx2)
+                    if len(idx) == 1:
+                        fin_ads_energy_term1 += (
+                            num_products * df_out.energy_vector[idx[0]][0])
+                        fin_ads_energy_term4 += (
+                            num_products * df_out.energy_vector[idx[0]][3])
+                elif 'star' in product:
+                    noncatmap_style_species = product.replace('star', '')
+                    if noncatmap_style_species:
+                        idx1 = df_out.index[df_out['site_name'] != 'gas']
+                        idx2 = (df_out.index[df_out['species_name']
+                                == noncatmap_style_species])
+                        idx = idx1.intersection(idx2)
+                        if len(idx) == 1:
+                            fin_ads_energy_term1 += (
+                                num_products * df_out.energy_vector[idx[0]][0])
+                            fin_ads_energy_term4 += (
+                                num_products * df_out.energy_vector[idx[0]][3])
+
+            # compute energy vector
+            term1_forward_list.append(
+                charge_extrapolated_constant_potential_barriers[species_index][0]
+                + dft_corr[-1] + ini_ads_energy_term1)
+            term1_backward = (charge_extrapolated_constant_potential_barriers[species_index][1]
+                            + dft_corr[-1] + fin_ads_energy_term1)
+            term2 = enthalpy[-1] + entropy[-1]
+            term3 = rhe_corr[-1]
+            if species_name in self.external_effects:
+                external_effect_contribution = np.poly1d(self.external_effects[species_name])(u_she)
+            else:
+                external_effect_contribution = 0.0
+            term4_forward_list.append(external_effect_contribution + ini_ads_energy_term4)
+            term4_backward = external_effect_contribution + fin_ads_energy_term4
+            
+
+            G = mu = term1_backward + term2 + term3 + term4_backward
+            formation_energy.append(term1_backward + term4_backward)
+            energy_vector.append([term1_backward, term2, term3, term4_backward, mu, G])
+
+            if species_name in json_species_list:
+                frequencies.append(ts_vibration_data[json_species_list.index(
+                    species_name)]['frequencies'])
+                references.append(ts_vibration_data[json_species_list.index(
+                    species_name)]['reference'])
+            else:
+                frequencies.append([])
+                references.append('')
+
+        df3 = pd.DataFrame(list(zip(surface, site, species, raw_energy,
+                                    charge_extrapolated_constant_potential_barriers,
+                                    dft_corr, zpe, enthalpy, entropy, rhe_corr,
+                                    formation_energy, energy_vector, frequencies,
+                                    references)),
+                        columns=write_columns)
+        df_out = df_out.append(df3, ignore_index=True, sort=False)
+
+        if self.verbose:
+            ts_phase_header = 'Transition State Free Energy Correction:'
+            print(ts_phase_header)
+            print('-' * len(ts_phase_header))
+
+            print('Term1 = Backward Electronic Activation Energy + DFT Correction')
+            print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
+            print('Term3 = RHE-scale Dependency')
+            print('Term4 = External Effects '
+                + '+ Charge Extrapolation Correction' if self.ts_data['extrapolation'].get('perform', False) else ''
+                + ' + Alkaline Correction + Final Adsorbate Energy')
+            print('Free Energy Change, ∆G = Term1 + Term2 + Term3 + Term4')
+            print('∆G at U_RHE=0.0 V = ∆G - Term3')
+            print()
+
+            table = []
+            table_headers = ["Species", "Term1 (eV)", "Term2 (eV)", "Term3 (eV)",
+                            "Term4 (eV)", "∆G (eV)", "∆G at U_RHE=0 (eV)"]
+            for index, species_name in enumerate(df3['species_name']):
+                sub_table = []
+                delg_at_zero_u_rhe = (df3["energy_vector"][index][5]
+                                    - df3["energy_vector"][index][2])
+                sub_table.extend(
+                    [species_name,
+                    f'{df3["energy_vector"][index][0]:.{NUM_DECIMAL_PLACES}f}',
+                    f'{df3["energy_vector"][index][1]:.{NUM_DECIMAL_PLACES}f}',
+                    f'{df3["energy_vector"][index][2]:.{NUM_DECIMAL_PLACES}f}',
+                    f'{df3["energy_vector"][index][3]:.{NUM_DECIMAL_PLACES}f}',
+                    f'{df3["energy_vector"][index][5]:.{NUM_DECIMAL_PLACES}f}',
+                    f'{delg_at_zero_u_rhe:.{NUM_DECIMAL_PLACES}f}'])
+                table.append(sub_table)
+            if self.latex:
+                print(tabulate(table, headers=table_headers, tablefmt='latex',
+                            colalign=("right", ) * len(table_headers),
+                            disable_numparse=True))
+            else:
+                print(tabulate(table, headers=table_headers, tablefmt='psql',
+                            colalign=("right", ) * len(table_headers),
+                            disable_numparse=True))
+            print('\n')
+        return df_out
