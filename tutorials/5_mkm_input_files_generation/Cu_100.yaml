@@ -1,0 +1,135 @@
+name: 'Cu-fcc_100'
+db_filename: 'PasumarthiCOR2022.db'
+gas_jsondata_filename: 'gas_vibration_data_hongjie.json'
+ads_jsondata_filename: 'ads_vibration_data.json'
+ts_jsondata_filename: 'ts_vibration_data.json'
+rxn_expressions_filename: 'rxn_expressions.txt'
+
+### GAS
+reference_gases:
+    - 'CO'
+    - 'H2O'
+    - 'H2_ref'
+dummy_gases:
+    - 'ele'
+    - 'H'
+    - 'O2'
+
+# BEEF-vdW functional in eV
+dft_corrections_gases:
+    'H2' : 0.09
+    'H2_ref' : 0.09
+
+### ADSORBATES
+dft_corrections_adsorbates: {}
+fake_ads:
+    'O2' : 9.0
+
+# TODO: Ask Frank for the Helmholtz calculation source or else remove the parameter.
+beef_dft_helmholtz_offset:  # in eV
+    'CO' : -0.0172  # CO in Helmholtz Plane
+
+facet_conditional: ''
+
+she_voltage_range: [-1.98, -1.86, -1.74, -1.62, -1.5, -1.38, -1.26, -1.14, -1.02, -0.9, -0.78, -0.66, -0.54, -0.42]
+pH : 7
+temp: 300  # temperature in K
+
+# to be read in np.poly1d i.e. [coeff_nth_order, coeff_(n-1)th_order, ..., coeff_2nd_order, coeff_1st_order, coeff_0th_order]
+external_effects:  # derived from my calculations
+    C: [0.006, 0.089, 0.047]
+    CCO: [-0.089, 0.1, -0.02]
+    CH: [-0.006, -0.015, -0.006]
+    CH2: [-0.028, -0.091, -0.041]
+    CH3: [-0.04, -0.091, -0.037]
+    CHO: [-0.102, -0.011, -0.087]
+    CHOH: [-0.069, -0.057, -0.12]
+    CO: [-0.062, -0.043, -0.064]
+    COH: [-0.059, -0.145, -0.171]
+    CO_HP: [0.0]
+    CO_g: [-0.088, -0.066, -0.01]
+    H: [0.002, 0.044, 0.023]
+    CHCO: [-0.081, -0.011, -0.082]
+    OCCO: [-0.08, 0.285, -0.073]
+    OCCOH: [-0.125, 0.117, -0.2]
+    OH: [-0.017, -0.149, -0.075]
+
+## Transition States
+ts_data:
+    barrier_fits:
+        CH3-H:
+            backward: [0.0, 0.0, 1.925]
+        CH2-CH2:
+            backward: [0.0, -0.0, 3.178]
+        CH3-H-ele:
+            backward: [0.0, 0.0, 1.814]
+        CHO-H-ele:
+            backward: [0.0, 0.0, 0.112]
+        H-H:
+            backward: [-0.0, -0.0, 1.03]
+        CH2-H:
+            backward: [0.0, -0.0, 1.886]
+        CHOH-H-ele:
+            backward: [0.0, -0.0, 1.053]
+    ts_states:
+        H-ele:
+            # [phi_IS, phi_TS, phi_FS]
+            wf_data: [4.012081966506208, 5.179011600011103, 5.495064544998458]
+            # ids not indices [start, end]
+            neb_image_id_range: [156, 167]
+        H2-ele:
+            wf_data: [3.6029236469484016, 4.748135199817553, 5.4668954102977025]
+            neb_image_id_range: [100, 111]
+        CH-H-ele:
+            wf_data: [3.410351556199842, 3.5675119336561814, 4.424377371595987]
+            neb_image_id_range: [132, 144]
+        CH2-H-ele:
+            wf_data: [3.174870018609454, 3.7478582492411263, 4.419801575929386]
+            neb_image_id_range: [169, 179]
+        CO-H-ele:
+            wf_data: [4.825465278188786, 5.49004368632964, 5.5575539535907215]
+            neb_image_id_range: [189, 195]
+        COH-H-ele:
+            wf_data: ['nan', 4.275152591157996, 3.8636016838285263]
+            neb_image_id_range: [125, 131]
+        C-H-ele:
+            wf_data: [4.143611871388327, 3.7846802153212704, 4.38961058395118]
+            neb_image_id_range: [22, 33]
+        H-CO:
+            wf_data: [5.105149288532077, 5.17057547245222, 4.987438664554999]
+            neb_image_id_range: [35, 55]
+        COH-H:
+            wf_data: [4.553892345500073, 4.275152591157996, 3.8636016838285263]
+            neb_image_id_range: [56, 76]
+        C-H:
+            wf_data: [5.072766405662124, 4.901269501071718, 4.710443713019968]
+            neb_image_id_range: [208, 228]
+        CH-H:    
+            wf_data: [4.825963685733026, 4.696066997315907, 4.578977507142838]
+            neb_image_id_range: [145, 155]
+        OC-C:
+            wf_data: [5.114061863250607, 5.169302241252386, 5.330958139131744]
+            neb_image_id_range: [112, 124]
+        C-CO:
+            wf_data: [4.924421582503749, 5.051374275913492, 5.334035291158092]
+            neb_image_id_range: [78, 98]
+        OCC-H-ele:
+            wf_data: [3.7924231791832588, 4.285236605354968, 4.598151069494828]
+            neb_image_id_range: [229, 241]
+        OCCO-H-ele:
+            wf_data: [4.954489713018363, 5.524534659979921, 5.7799902721127]
+            neb_image_id_range: [242, 251]
+        OC-CH:
+            wf_data: [4.786147153214446, 5.096743519943188, 4.921413318663995]
+            neb_image_id_range: [180, 188]
+        H-CO-ele:
+            wf_data: [4.14204168076168, 4.986150034950673, 4.796259600988961]
+            neb_image_id_range: [196, 207]
+    # extrapolation: 1  # Enabled: 1; Disabled: 0
+    extrapolation:
+        perform: True   # Flag to indicate whether extrapolation should be performed
+        method: charge
+        potential_type: fixed  # fixed: extrapolate to a fixed potential; potential-dependent
+        potential_value: 0.0  # fixed potential value in SHE; null: if potential_type is potential-dependent
+    phi_correction: 0.8  # [0.8, 1.3]
+    alk_corr: 0.23  # applied towards electrochemical steps only
