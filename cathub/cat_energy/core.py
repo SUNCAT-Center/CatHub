@@ -3,30 +3,29 @@ Module to perform free energetic analysis for CatHub ASE database
 '''
 import pandas as pd
 from .io import make_mkm_input_files, write_columns
-from .ts_species import write_ts_energies
-from .ads_species import write_adsorbate_energies
-from .gas_species import write_gas_energies
 from .conversion import u_she_to_u_rhe
 
-def write_energies(
-        db_filepath, reference_gases, dummy_gases, dft_corrections_gases,
-        fake_ads, beef_dft_helmholtz_offset, external_effects, system_parameters,
-        facet_conditional, write_species, gas_jsondata_filepath,
-        ads_jsondata_filepath, ts_jsondata_filepath, rxn_expressions_filepath,
-        ts_data, write_mkm_input_files, verbose=True, latex=True):
-    '''
-    Perform computations and return energetics for specified species.
+class EnergeticAnalysis:
+    """
+    Perform energetic analysis for CatHub ASE database.
 
-    This function handles the computation of energetics for gases, adsorbates, 
-    and transition states based on the provided parameters. It integrates various 
+    This class handles the computation of energetics for gases, adsorbates, and
+    transition states based on the provided parameters. It integrates various
     corrections and external effects to compute the free energy changes and 
     optionally writes the corrected energy data to input files for microkinetic 
     modeling (MKM).
 
-    Parameters:
+    Attributes:
     -----------
     db_filepath : pathlib.Path
         Path to the ASE database file containing the reaction data.
+    system_parameters : dict
+        Dictionary containing system parameters such as:
+            'desired_surface' (str): The surface material being analyzed.
+            'desired_facet' (str): The facet of the surface material being analyzed.
+            'temp' (float): Temperature in Kelvin.
+            'pH' (float): pH value of the system.
+            'u_she' (float): Standard Hydrogen Electrode potential.
     reference_gases : list of str
         List of reference gas species.
     dummy_gases : list of str
@@ -39,19 +38,8 @@ def write_energies(
         Dictionary of Helmholtz offset values for BEEF-DFT corrections, keyed by species.
     external_effects : dict
         Dictionary of external effects to be considered in the calculations.
-    system_parameters : dict
-        Dictionary containing system parameters such as 'u_she', 'temp', and 'pH'.
-    system_parameters : dict
-        Dictionary containing system parameters such as:
-            'desired_surface' (str): The surface material being analyzed.
-            'desired_facet' (str): The facet of the surface material being analyzed.
-            'temp' (float): Temperature in Kelvin.
-            'pH' (float): pH value of the system.
-            'u_she' (float): Standard Hydrogen Electrode potential.
     facet_conditional : str
         String to indicate if facet-specific calculations are required.
-    write_species : dict
-        Dictionary indicating which species (gases, adsorbates, transition states) to process.
     gas_jsondata_filepath : pathlib.Path
         Path to the JSON file containing gas species data.
     ads_jsondata_filepath : pathlib.Path
@@ -80,26 +68,50 @@ def write_energies(
     latex : bool, optional
         If True, format the output for LaTeX. Default is True.
 
-    Returns:
+    Methods:
     --------
-    pandas.DataFrame
-        Dataframe containing the computed energetics of the requested species.
-    '''
+    write_energies(write_species)
+        Perform computations and return energetics for specified species.
+    """
+    def __init__(self, db_filepath, system_parameters, reference_gases, dummy_gases,
+                 dft_corrections_gases, fake_ads, beef_dft_helmholtz_offset, external_effects,
+                 facet_conditional, gas_jsondata_filepath, ads_jsondata_filepath,
+                 ts_jsondata_filepath, rxn_expressions_filepath, ts_data, write_mkm_input_files=True,
+                 verbose=True, latex=True):
+        self.db_filepath = db_filepath
+        self.system_parameters = system_parameters
+        self.reference_gases = reference_gases
+        self.dummy_gases = dummy_gases
+        self.dft_corrections_gases = dft_corrections_gases
+        self.fake_ads = fake_ads
+        self.beef_dft_helmholtz_offset = beef_dft_helmholtz_offset
+        self.external_effects = external_effects
+        self.facet_conditional = facet_conditional
+        self.gas_jsondata_filepath = gas_jsondata_filepath
+        self.ads_jsondata_filepath = ads_jsondata_filepath
+        self.ts_jsondata_filepath = ts_jsondata_filepath
+        self.rxn_expressions_filepath = rxn_expressions_filepath
+        self.ts_data = ts_data
+        self.write_mkm_input_files = write_mkm_input_files
+        self.verbose = verbose
+        self.latex = latex
 
-    df_out = pd.DataFrame(columns=write_columns)
-    u_she = system_parameters['u_she']
-    temp = system_parameters['temp']
-    u_rhe = u_she_to_u_rhe(u_she, temp, system_parameters['pH'])
-    system_parameters['u_rhe'] = u_rhe
+        self._calculate_u_rhe()
 
-    if verbose:
-        system_header = (f'###### {system_parameters["desired_surface"]}'
-                         f'_{system_parameters["desired_facet"]}: '
-                         f'SHE Potential = {u_she:.2f} V ######')
+    def _calculate_u_rhe(self):
+        """ Calculate and set u_rhe in system parameters """
+        u_she = self.system_parameters['u_she']
+        temp = self.system_parameters['temp']
+        self.system_parameters['u_rhe'] = u_she_to_u_rhe(u_she, temp, self.system_parameters['pH'])
+
+    def _print_verbose_info(self):
+        """ Print detailed information about the calculations if verbose is True """
+        system_header = (f'###### {self.system_parameters["desired_surface"]}'
+                         f'_{self.system_parameters["desired_facet"]}: '
+                         f'SHE Potential = {self.system_parameters["u_she"]:.2f} V ######')
         print('-' * len(system_header))
         print(system_header)
         print('-' * len(system_header))
-
         print()
         print('Term1 = Calculated Electronic Energy + DFT Correction')
         print('Term2 = Enthalpic Temperature Correction + Entropy Contribution')
@@ -111,30 +123,50 @@ def write_energies(
         print('∆G at U_RHE=0.0 V = ∆G - Term3')
         print()
 
+
+def write_energies(analysis, write_species):
+    '''
+    Perform computations and return energetics for specified species.
+
+    This function handles the computation of energetics for gases, adsorbates, 
+    and transition states based on the provided parameters. It integrates various 
+    corrections and external effects to compute the free energy changes and 
+    optionally writes the corrected energy data to input files for microkinetic 
+    modeling (MKM).
+
+    Parameters:
+    -----------
+    write_species : dict
+        Dictionary indicating which species (gases, adsorbates, transition states) to process.
+
+    Returns:
+    --------
+    pandas.DataFrame
+        Dataframe containing the computed energetics of the requested species.
+    '''
+    df_out = pd.DataFrame(columns=write_columns)
+
+    if analysis.verbose:
+        analysis._print_verbose_info()
+
     if write_species['gases']:
-        df_out = write_gas_energies(db_filepath, df_out, gas_jsondata_filepath,
-                                    system_parameters, reference_gases,
-                                    dummy_gases, dft_corrections_gases,
-                                    beef_dft_helmholtz_offset, external_effects,
-                                    verbose, latex)
+        from .gas_species import GasAnalysis
+        gas_analysis = GasAnalysis(analysis)
+        df_out = gas_analysis.write_gas_energies(df_out)
 
     if write_species['adsorbates']:
-        df_out = write_adsorbate_energies(db_filepath, df_out,
-                                          ads_jsondata_filepath,
-                                          system_parameters, facet_conditional,
-                                          reference_gases, fake_ads,
-                                          dft_corrections_gases,
-                                          external_effects, verbose, latex)
+        from .ads_species import AdsAnalysis
+        ads_analysis = AdsAnalysis(analysis)
+        df_out = ads_analysis.write_adsorbate_energies(df_out)
 
     if write_species['transition_states']:
-        exec(compile(open(rxn_expressions_filepath, 'rb').read(), '<string>',
-                     'exec'))
-        df_out = write_ts_energies(db_filepath, df_out, ts_jsondata_filepath,
-                                   locals()['rxn_expressions'], ts_data,
-                                   system_parameters, reference_gases,
-                                   external_effects, verbose, latex)
+        from .ts_species import TSAnalysis
+        ts_analysis = TSAnalysis(analysis)
+        exec(compile(open(analysis.rxn_expressions_filepath, 'rb').read(), '<string>', 'exec'))
+        df_out = ts_analysis.write_ts_energies(df_out, locals()['rxn_expressions'])
 
     # write corrected energy data to mkm input file
-    if write_mkm_input_files:
-        make_mkm_input_files(db_filepath, system_parameters, df_out)
+    if analysis.write_mkm_input_files:
+        make_mkm_input_files(analysis.db_filepath, analysis.system_parameters, df_out)
+
     return df_out
