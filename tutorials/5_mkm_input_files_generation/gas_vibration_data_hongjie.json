@@ -1,0 +1,101 @@
+[
+    {
+        "species": "CO",
+        "frequencies": [
+            30,
+            36.9,
+            2149.4
+        ],
+        "geometry": "linear",
+        "fugacity": 5562,
+        "symmetry": 2,
+        "spin": 0,
+        "reference": "PengRole2020"
+    },
+    {
+        "species": "H2",
+        "frequencies": [
+            0.8,
+            1.1,
+            4426.3
+        ],
+        "geometry": "linear",
+        "fugacity": 30296,
+        "symmetry": 2,
+        "spin": 0,
+        "reference": "PengRole2020"
+    },
+    {
+        "species": "H2_ref",
+        "frequencies": [
+            0.8,
+            1.1,
+            4426.3
+        ],
+        "geometry": "linear",
+        "fugacity": 101325,
+        "symmetry": 2,
+        "spin": 0,
+        "reference": "PengRole2020"
+    },
+    {
+        "species": "CH4",
+        "frequencies": [
+            6.7,
+            38.8,
+            122.4,
+            1314.5,
+            1326.3,
+            1338.3,
+            1538.4,
+            1538.9,
+            2997.8,
+            3100.2,
+            3132.2,
+            3138
+        ],
+        "geometry": "nonlinear",
+        "fugacity": 20467,
+        "symmetry": 12,
+        "spin": 0,
+        "reference": "PengRole2020"
+    },
+    {
+        "species": "C2H4",
+        "frequencies": [
+            50,
+            789.3,
+            900.5,
+            956.4,
+            1036.7,
+            1216.5,
+            1385.6,
+            1467.8,
+            1655.6,
+            3130.7,
+            3145.6,
+            3176.5,
+            3211
+        ],
+        "geometry": "nonlinear",
+        "fugacity": 13942,
+        "symmetry": 4,
+        "spin": 0,
+        "reference": "PengRole2020"
+    },
+    {
+        "species": "H2O",
+        "frequencies": [
+            293.1,
+            345.1,
+            1635.1,
+            3736.7,
+            3832.6
+        ],
+        "geometry": "nonlinear",
+        "fugacity": 3534,
+        "symmetry": 2,
+        "spin": 0,
+        "reference": "PengRole2020"
+    }
+]

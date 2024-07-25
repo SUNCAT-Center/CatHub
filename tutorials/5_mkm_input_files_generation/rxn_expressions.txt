@@ -1,0 +1,42 @@
+rxn_expressions = [ 
+    'H_g + ele_g + *_t <-> H-ele*_t <-> H*_t; beta=0.65',   # Volmer 1
+    'H_g + ele_g + H*_t -> H2-ele*_t -> H2_g + *_t; beta=0.65',     # Heyrovsky 2
+    'H*_t + H*_t -> H-H*_t + *_t -> H2_g + 2*_t',     # Tafel 3
+    'OH*_t + H_g + ele_g <-> H2O_g + *_t',  #4  
+
+    'CO_g + *_t <-> CO*_t', #5
+    'CHO*_t + H_g + ele_g <-> CHO-H-ele*_t <-> CHOH*_t; beta=0.5',  #6  
+    'CHOH*_t + H_g + ele_g <-> CHOH-H-ele*_t <-> CH*_t + H2O_g; beta=0.5',  #7  
+    'CH*_t + H_g + ele_g <-> CH-H-ele*_t <-> CH2*_t; beta=0.5', #8
+    'CH2*_t + H_g + ele_g <-> CH2-H-ele*_t <-> CH3*_t; beta=0.5',   #9  
+    'CH3*_t + H_g + ele_g <-> CH3-H-ele*_t <-> CH4_g + *_t; beta=0.5',  #10 
+    #'CH*_t + H_g + ele_g <-> CH2*_t',  #8  
+    #'CH2*_t + H_g + ele_g <-> CH3*_t', #9
+    #'CH3*_t + H_g + ele_g <-> CH4_g + *_t',    #10 
+
+    'CO*_t + H_g + ele_g <-> CO-H-ele*_t <-> COH*_t; beta=0.5', # Electro_COH 11
+    'COH*_t + H_g + ele_g <-> COH-H-ele*_t <-> C*_t + H2O_g; beta = 0.45',  #12 
+    'C*_t + H_g + ele_g <-> C-H-ele*_t <-> CH*_t; beta=0.6',    #13 
+
+    'CO*_t + H*_t <-> H-CO*_t + *_t <-> CHO*_t + *_t', # Thermo_CHO 14
+    'COH*_t + H*_t <-> COH-H*_t + *_t <-> CHOH*_t + *_t', # Thermo_CHOH 15
+    'C*_t + H*_t <-> C-H*_t + *_t <-> CH*_t + *_t', #16 
+    'CH*_t + H*_t <-> CH-H*_t + *_t <-> CH2*_t + *_t',  #17 
+    'CH2*_t + H*_t <-> CH2-H*_t + *_t <-> CH3*_t + *_t',    #18 
+    'CH3*_t + H*_t <-> CH3-H*_t + *_t <-> CH4_g + 2*_t',    #19 
+
+    'O2_g + *_t -> O2*_t',     #20 fake ads 
+    
+    'CO*_t + C*_t <-> OC-C*_t <-> CCO*_t + *_t', #Thermo_CCO_surface 21
+    'CO_g + C*_t <-> C-CO*_t <-> CCO*_t', #Thermo_CCO_gas 22
+    'CCO*_t + H_g + ele_g <-> OCC-H-ele_t <-> CHCO_t; beta=0.5', #23
+    'CHCO*_t + 5H_g + 5ele_g <-> C2H4_g + H2O_g + *_t', #24
+    '2CH2*_t <-> CH2-CH2*_t <-> C2H4_g + 2*_t', # CH2-CH2 coupling 25
+    
+    '2CO_t <-> OCCO_t', # OCCO dimerization 26
+    'OCCO_t + H_g + ele_g <-> OCCO-H-ele_t <-> OCCOH_t; beta=0.5', # 27
+    'OCCOH_t + H_g + ele_g <-> CCO_t + H2O_g + *_t', # 28
+    'CO_t + CH_t <-> OC-CH_t <-> CHCO_t + *_t', #29
+    
+    'CO*_t + H_g + ele_g <-> H-CO-ele*_t <-> CHO*_t; beta=0.5', # Electro_CHO #30 
+]
