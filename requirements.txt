@@ -1,5 +1,5 @@
-ase>=3.17
-numpy>=1.16.5
+ase==3.21
+numpy==1.23
 click>=6.7
 future>=0.16
 pathlib2>=2.3
