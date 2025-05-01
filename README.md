@@ -5,7 +5,7 @@ CatHub provides an interface to the Surface Reactions database on [Catalysis-Hub
 The module includes a command line interface that can be used to access and upload data. A short guide is given below. We refer to the [catalysis-hub documentation](http://docs.catalysis-hub.org/en/latest/tutorials/upload.html) for details on how to submit data.
 
 ## Installation
-As of April 30, 2025, Python 3.9 is supported. Using a virtual environment, such as Conda, is recommended for managing dependencies.
+As of April 30, 2025, `Python 3.9` is supported. Using a virtual environment, such as `Conda`, is recommended for managing dependencies.
     
     conda create -n cathub python==3.9
     conda activate cathub
