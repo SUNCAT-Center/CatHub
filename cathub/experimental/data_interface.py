@@ -59,7 +59,8 @@ init_commands = [
     );""",
 
     """CREATE TABLE xps (
-    mat_id integer PRIMARY KEY REFERENCES material (mat_id),
+    id SERIAL PRIMARY KEY,
+    mat_id integer REFERENCES material (mat_id),
     sample_id integer REFERENCES sample (sample_id),
     type text,
     binding_energy DOUBLE PRECISION[],
@@ -67,6 +68,7 @@ init_commands = [
     );""",  # type: pre, post
 
     """CREATE TABLE xrd (
+    id SERIAL PRIMARY KEY,
     mat_id integer PRIMARY KEY REFERENCES material (mat_id),
     type text,
     degree DOUBLE PRECISION[],
@@ -74,14 +76,16 @@ init_commands = [
     );""",
 
     """CREATE TABLE xas_ledge (
-    mat_id integer PRIMARY KEY REFERENCES material (mat_id),
+    id SERIAL PRIMARY KEY,
+    mat_id integer REFERENCES material (mat_id),
     type text,
     energy DOUBLE PRECISION[],
     intensity DOUBLE PRECISION[]
     );""",
 
     """CREATE TABLE xas_kedge (
-    mat_id integer PRIMARY KEY REFERENCES material (mat_id),
+    id SERIAL PRIMARY KEY,
+    mat_id integer REFERENCES material (mat_id),
     type text,
     energy DOUBLE PRECISION[],
     intensity DOUBLE PRECISION[]
@@ -236,7 +240,7 @@ class ExpSQL(CathubPostgreSQL):
         con.commit()
         con.close()
 
-    def write_from_datasheet(self, directory):
+    def write_from_datasheet(self, directory, exclude_dois=[]):
         dataframes = get_dataframes_from_sheet(directory)
 
         server_dois = self.get_dataframe(table='publication')['doi'].values
@@ -244,7 +248,7 @@ class ExpSQL(CathubPostgreSQL):
         for doi in dois:
             if not '10.' in str(doi):
                 continue
-            if doi in server_dois:
+            if doi in server_dois or doi in exclude_dois:
                 continue
             print('Adding publication with doi={} to server'.format(doi))
             self.write(dataframes, doi=doi)
@@ -261,6 +265,7 @@ class ExpSQL(CathubPostgreSQL):
             main_table = main_table[main_table['dataset_name'] == dataset]
 
         XPS_table = dataframes['XPS']
+        XPS_HR_table = dataframes['XPS_HR']
         XRD_table = dataframes['XRD']
         CV_table = dataframes['CV']
         CVend_table = dataframes['CVend']
@@ -295,9 +300,9 @@ class ExpSQL(CathubPostgreSQL):
             .format(pub_id=pub_id))
         id_p = cur.fetchone()
 
-        if id_p is not None:
-            print('Dataset already exists: skipping!')
-            return
+        #if id_p is not None:
+        #    print('Dataset already exists: skipping!')
+        #    return
 
         key_list = get_key_list('publication', start_index=1)
         pub_values = [pub_info[k] for k in key_list]
@@ -315,19 +320,27 @@ class ExpSQL(CathubPostgreSQL):
         main_table['ICSD_ID'] = main_table['ICSD_ID'].apply(lambda x: [int(float(i)) for i in str(
             x).split('/') if not (pandas.isnull(i) or i == 'nan' or i == '-')])
 
-        XPS_ids = []
+        XRD_ids = []
+        mat_ids = {}
         for index, row in main_table.iterrows():
             row['pub_id'] = pub_id
             XPS_id = row['XPS_ID']
             XRD_id = row['XRD(CuKa)ID']
             CV_init_id = row['CV_intial_ID']
             CV_end_id = row['CV_end_ID']
+            print(CV_init_id, CV_end_id)
             Stab_id = row['stability_test_ID']
             XPS_post_id = row['XPS_post_test_ID']
-            if not XPS_id in XPS_ids:
-                if XPS_id is not None:
-                    XPS_ids += [XPS_id]
 
+            if pandas.isnull(CV_init_id) and pandas.isnull(CV_end_id):
+                print('No CV for row {}. Skipping!'.format(index))
+                continue
+
+            if XRD_id in XRD_ids: # already written
+                mat_id = mat_ids[XRD_id]
+            else:
+                if not pandas.isnull(XRD_id):
+                    XRD_ids += [XRD_id]
                 # Material
                 mat_value_list = [row[c] for c in mat_columns]
                 # mat_value_list[4] =
@@ -342,9 +355,11 @@ class ExpSQL(CathubPostgreSQL):
                 query_mat = \
                     """INSERT INTO material ({}) VALUES ({}) RETURNING mat_id
                     """.format(key_str, value_str)
-                print(query_mat)
+                print('Wrote material')
                 cur.execute(query_mat)
                 mat_id = cur.fetchone()[0]
+                if not pandas.isnull(XRD_id):
+                    mat_ids[XRD_id] = mat_id
                 if XPS_id in XPS_table:
                     # XPS
                     E = XPS_table[XPS_id].values[1:]
@@ -360,6 +375,29 @@ class ExpSQL(CathubPostgreSQL):
                         """INSERT INTO xps ({}) VALUES ({})
                         """.format(key_str, value_str)
                     cur.execute(query_xps)
+                    print('Wrote survey XPS')
+                    xps_hr_elements = row['XPS_spectra']
+                    if not pandas.isnull(xps_hr_elements):
+
+                        xps_hr_elements = xps_hr_elements.lstrip('[').rstrip(']').replace(' ', '').split(';')
+                        for e in xps_hr_elements:
+                            XPS_ID_hr = '{}_{}'.format(XPS_id, e)
+
+                            if XPS_ID_hr in XPS_HR_table:
+                                E = XPS_HR_table[XPS_ID_hr].values[1:]
+                                idx = [not pandas.isnull(e) for e in E]
+                                E = np.array(E)[idx]
+                                I = np.array(XPS_HR_table[XPS_ID_hr + '.1'].values[1:])[idx]
+
+                                key_str = ', '.join(xps_columns)
+                                xps_value_list = [mat_id, None, 'highres', list(E), list(I)]
+                                value_str = get_value_str(xps_value_list)
+
+                                query_xps = \
+                                    """INSERT INTO xps ({}) VALUES ({})
+                                    """.format(key_str, value_str)
+                                cur.execute(query_xps)
+                                print('Wrote XPS')
 
                 if XRD_id in XRD_table:
                     Deg = XRD_table[XRD_id].values[1:]
@@ -375,6 +413,7 @@ class ExpSQL(CathubPostgreSQL):
                         """INSERT INTO xrd ({}) VALUES ({})
                         """.format(key_str, value_str)
                     cur.execute(query_xrd)
+                    print('wrote XRD')
 
             # Sample table
             pub_id = row.pop('pub_id')
@@ -394,13 +433,14 @@ class ExpSQL(CathubPostgreSQL):
                 # '/', '_o_').replace('%', 'perc').replace('+', 'plus').replace('-', 'minus').replace('.', 'd')
                 clean_dict[k] = v
 
+
             key_str = ', '.join(sample_columns)
             value_str = get_value_str([mat_id, pub_id, json.dumps(clean_dict)])
 
             query_sample = \
                 """INSERT INTO sample ({}) VALUES ({}) RETURNING sample_id
-                 """.format(key_str, value_str)
-
+                """.format(key_str, value_str)
+            print('wrote sample')
             cur.execute(query_sample)
             sample_id = cur.fetchone()[0]
 
@@ -425,7 +465,7 @@ class ExpSQL(CathubPostgreSQL):
                     query_cv = \
                         """INSERT INTO echemical ({}) VALUES ({})
                         """.format(key_str, value_str)
-                    print(query_cv)
+                    print('wrote CV')
                     cur.execute(query_cv)
 
             if not pandas.isnull(CV_end_id):
@@ -444,7 +484,7 @@ class ExpSQL(CathubPostgreSQL):
                     query_cv = \
                         """INSERT INTO echemical ({}) VALUES ({})
                         """.format(key_str, value_str)
-                    # print(query_cv)
+                    print('wrote CV end')
                     cur.execute(query_cv)
 
             # if not pandas.isnull(Stab_id):
@@ -630,7 +670,7 @@ def load_table(filename, tablename):
     return data
 
 
-def get_dataframes_from_sheet(directory):
+def get_dataframes_from_sheet(directory, use_cache=True):
     filenames = {
         '1-OxR _HxR ActivityDatabase - 1.xlsx':
         [
@@ -641,25 +681,36 @@ def get_dataframes_from_sheet(directory):
         ],
         '2- OxR _HxR ActivityDatabase - 2.xlsx':
         [
-         'Tabulated Data',
+         'Tabulated data',
          'pretest CV (t-i-V)',
          'posttest CV (t-i-V)',
          'stability (t-i-V)'
          ],
         'XPS- OxR _HxR ActivityDatabase Survey.xlsx': ['XPS', 'XPSPosttest'],
+        'HR XPS- OxR _HxR ActivityDatabase_carbon shifted .xlsx': ['HR data and background'],
         'XRD- OxR _HxR ActivityDatabase .xlsx': ['Sheet1']
     }
     name_map = {'pretest CV (t-i-V)': 'CV',
                 'posttest CV (t-i-V)': 'CVend',
                 'stability (t-i-V)': 'Stability Test',
                 'Sheet1': 'XRD',
-                'Tabulated Data': 'Tabulated data'}
+                'HR data and background': 'XPS_HR',
+                #'Tabulated Data': 'Tabulated data'
+                }
     dataframes = {}
     for filename, tables in filenames.items():
-        for table in tables:
-            data = load_table(filename=directory+filename, tablename=table)
+        for tableo in tables:
+            print(tableo)
+            table = name_map.get(tableo, tableo)
+            pklname = '{}/{}.pkl'.format(directory, table)
+            if use_cache and os.path.isfile(pklname):
+                data = pandas.read_pickle(pklname)
+                dataframes[table] = data
+                continue
+
+            data = load_table(filename=directory+filename, tablename=tableo)
             data = clean_column_names(data)
-            table = name_map.get(table, table)
+
             if table in list(dataframes.keys()): ## append
                 if table == 'Tabulated data':
                     axis = 0
@@ -667,7 +718,10 @@ def get_dataframes_from_sheet(directory):
                     axis = 1
                 data = pandas.concat([dataframes[table], data], sort=False, axis=axis)
             data = data.loc[:,~data.columns.duplicated()]
+            data = data.replace('-', np.nan)
             dataframes[table] = data
+            if not filename == '1-OxR _HxR ActivityDatabase - 1.xlsx':
+                data.to_pickle(pklname)
     return dataframes
 
 

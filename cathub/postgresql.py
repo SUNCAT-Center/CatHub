@@ -781,10 +781,11 @@ class CathubPostgreSQL:
 
         return
 
+
     def transfer(self, filename_sqlite, block_size=1000,
                  start_block=0, write_ase=True,
                  write_publication=True, write_reaction=True,
-                 write_reaction_system=True, write_log=True, check=False):
+                 write_reaction_system=True, write_log=False, check=False):
         """ Transfer data from local sqlite3 .db file to the
         catalysis-hub postgreSQL server
 
