@@ -9,7 +9,7 @@ import psycopg2
 from psycopg2.extras import execute_values
 import ase.db
 from ase.db.core import now
-from ase.db.postgresql import PostgreSQLDatabase
+from ase_db_backends.postgresql import PostgreSQLDatabase
 from past.utils import PY2
 
 from .cathubsqlite import CathubSQLite
