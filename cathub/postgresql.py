@@ -500,7 +500,7 @@ class CathubPostgreSQL:
     def delete_publication(self, pub_id, schema='upload'):
         """ Delete dataset from upload or public schema"""
 
-        assert self.user == 'catroot', \
+        assert self.user in ['catroot', 'upload_admin'], \
             "You don't have permission to perform this operation"
 
         con = self.connection or self._connect()
