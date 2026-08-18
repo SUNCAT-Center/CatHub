@@ -27,12 +27,12 @@ Querying the Surface Reactions database in Python:
     from cathub.query import CathubQuery
 
     client = CathubQuery(api_key='your_key_here')
-    dataframe = client.get_dataframe(pub_id='PengRole2020')
+    dataframe = client.get_reactions(pub_id='PengRole2020')
 
 If `CATHUB_API_KEY` is set in the environment, the `api_key` argument can be omitted:
 
     client = CathubQuery()
-    dataframe = client.get_dataframe(pub_id='PengRole2020')
+    dataframe = client.get_reactions(pub_id='PengRole2020')
 
 Filtering results:
 
