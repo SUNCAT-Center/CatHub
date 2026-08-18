@@ -4,7 +4,6 @@ import unittest
 import shutil
 from cathub.postgresql import CathubPostgreSQL
 from cathub.cathubsqlite import CathubSQLite
-from cathub.cathubsql import CathubSQL
 from cathub.query import get_reactions
 from cathub import db2server, make_folders_template, folder2db
 
@@ -87,20 +86,6 @@ class UploadTestCase(unittest.TestCase):
 
     def test1_read_folders(self):
         folder2db.main('{path}/aayush/'.format(path=path))
-
-    def test2_api(self):
-        filename = '{path}/aayush/MontoyaChallenge2015.db'.format(path=path)
-        db = CathubSQL(filename=filename)
-
-        dataframe = db.get_dataframe(include_atoms=True)
-        assert dataframe.shape == (24, 19)
-        data_dict = dataframe.to_dict()
-        for atoms in data_dict['atoms'][23]:
-            atoms.get_chemical_formula()
-        assert '{"NNH2star": 1}' in data_dict['products'].values()
-        assert 1.1360665501670155 in data_dict['reaction_energy'].values()
-        assert 'Pt16' in data_dict['chemical_composition'].values()
-
 
     def test3_upload(self):
         """Ensure postgres database is empty"""

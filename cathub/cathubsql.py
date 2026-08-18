@@ -1,3 +1,5 @@
+import warnings
+
 from sqlalchemy import create_engine
 import sqlite3
 from pandas import read_sql
@@ -7,6 +9,13 @@ import ase.visualize
 
 from cathub.postgresql import CathubPostgreSQL
 
+warnings.warn(
+    "cathub.cathubsql is deprecated and will be removed in a future version. "
+    "Use cathub.query.get_dataframe() instead.",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 
 class CathubSQL:
     """
@@ -14,6 +23,12 @@ class CathubSQL:
     """
 
     def __init__(self, filename=None, user='apiuser'):
+        warnings.warn(
+            "CathubSQL is deprecated and will be removed in a future version. "
+            "Use cathub.query.get_dataframe() instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
         if filename is not None:
             sql_url = 'sqlite:///' + str(filename)

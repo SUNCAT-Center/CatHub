@@ -44,11 +44,20 @@ def show_reactions(dbfile):
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
 def ase(dbuser, dbpassword, args, gui):
-    """Connection to atomic structures on the Catalysis-Hub
-       server with ase db cli.
-       Arguments to the the ase db cli client must be enclosed in one string.
-       For example: <cathub ase 'formula=Ag6In6H -s energy -L 200'>.
-       To see possible ase db arguments run <ase db --help>"""
+    """[DEPRECATED] Direct SQL connection to Catalysis-Hub structures.
+       Use cathub.query.get_dataframe() to fetch reaction data instead."""
+    import warnings
+    warnings.warn(
+        "'cathub ase' is deprecated and will be removed in a future version. "
+        "Use cathub.query.get_dataframe() to fetch reaction data instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    click.echo(
+        "WARNING: 'cathub ase' is deprecated. "
+        "Use cathub.query.get_dataframe() instead.",
+        err=True,
+    )
     if dbuser == 'upload':
         dbpassword = 'cHyuuQH0'
     db = CathubPostgreSQL(user=dbuser, password=dbpassword)
@@ -202,25 +211,24 @@ def reactions(columns, n_results, write_db, queries):
                 query_dict.update({key: value})
             except BaseException:
                 query_dict.update({key: '{0}'.format(value)})
-                # Keep {0} in string.format for python2.6 compatibility
     if write_db and n_results > 1000:
         print("""Warning: You're attempting to write more than a 1000 rows
         with geometries. This could take some time""")
-    data = query.get_reactions(columns=columns,
+    data = query.CathubQuery().get_reactions(
                                n_results=n_results,
-                               write_db=write_db,
+                               #write_db=write_db,
                                **query_dict)
 
-    if write_db:
-        return
+    #if write_db:
+    #    return
     table = []
     headers = []
-    for row in data['reactions']['edges']:
-        table += [list(row['node'].values())]
+    #for row in data['reactions']['edges']:
+    #    table += [list(row['node'].values())]
 
-    headers = list(row['node'].keys())
+    #eaders = list(row['node'].keys())
 
-    print(tabulate(table, headers) + '\n')
+    print(data)#tabulate(table, headers) + '\n')
 
 
 @cli.command()

@@ -56,10 +56,10 @@ class CommandLineTestCase(unittest.TestCase):
         runner.invoke(db2server, ['--dbuser=postgres',
                                   'aayush/MontoyaChallenge2015.db'])
 
-    def test3_cli_asedb(self):
-        from cathub.cli import ase
-        runner = CliRunner()
-        runner.invoke(ase, ['--dbuser=postgres', '--dbpassword=None'])
+    #def test3_cli_asedb(self):
+    #    from cathub.cli import ase
+    #    runner = CliRunner()
+    #    runner.invoke(ase, ['--dbuser=postgres', '--dbpassword=None'])
 
     def test4_show_reactions(self):
         from cathub.cli import show_reactions

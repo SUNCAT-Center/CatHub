@@ -14,41 +14,36 @@ or with any of its sub-commands:
 
     cathub reactions --help
 
+## Authentication
+
+Queries to `api.catalysis-hub.org/graphql` require an API key. Pass it directly or set the `CATHUB_API_KEY` environment variable:
+
+    export CATHUB_API_KEY=your_key_here
+
 ## Examples
 
 Querying the Surface Reactions database in Python:
 
-    from cathub.cathubsql import CathubSQL
+    from cathub.query import CathubQuery
 
-    # To get data on catalysis-hub.org
-    db = CathubSQL()
+    client = CathubQuery(api_key='your_key_here')
+    dataframe = client.get_dataframe(pub_id='PengRole2020')
 
-    # Data from local cathub .db file
-    db = CathubSQL(filename='filename.db')
+If `CATHUB_API_KEY` is set in the environment, the `api_key` argument can be omitted:
 
-Get reactions in pandas dataframe:
+    client = CathubQuery()
+    dataframe = client.get_dataframe(pub_id='PengRole2020')
 
-    dataframe = db.get_dataframe(pub_id='PengRole2020',
-                                 include_atoms=False,
-                                 reactants={'COgas': 1},
-                                 products={'COstar': 1},
-                                 elements=['Cu', 'Al'],
-                                 #surface_composition='Cu', # match specific composition
-                                 facet = '100'
-                                 )
+Filtering results:
 
-Get atomic structure separately:
+    dataframe = client.get_dataframe(
+        pub_id='PengRole2020',
+        surface_composition='Cu',
+        facet='100',
+    )
 
-    # Get atoms for one reaction_id taken from dataframe
-    atoms_list = db.get_atoms_for_reaction(reaction_id)
+The returned DataFrame has snake_case columns (`chemical_composition`, `reaction_energy`, `pub_id`, etc.), an `equation` column, and `atoms_name`/`atoms_id` list columns from the associated structures.
 
-    # Get atoms for entire dataset
-    atoms_list = db.get_atoms_for_publication(pub_id='PengRole2020')
-
-
-Quick view of atomic structures on Catalysis Hub with ase db CLI:
-
-    cathub ase 'CuAg pub_id=PengRole2020'
 
 ## Uploading data
 
