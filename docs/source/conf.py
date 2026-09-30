@@ -52,6 +52,7 @@ extensions = [
     'sphinx.ext.viewcode',
     'sphinx.ext.githubpages',
     'sphinx.ext.napoleon',
+    'myst_parser',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -71,7 +72,7 @@ master_doc = 'index'
 #
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
-language = None
+language = 'en'
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -167,11 +168,6 @@ texinfo_documents = [
      'Miscellaneous'),
 ]
 
-
-# -- Extension configuration -------------------------------------------------
-source_parsers = {
-   '.md': 'recommonmark.parser.CommonMarkParser',
-}
 
 # -- Options for intersphinx extension ---------------------------------------
 
