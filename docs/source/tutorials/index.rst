@@ -156,7 +156,7 @@ Check out `jq <https://stedolan.github.io/jq/manual/>`_, `yaml2json <https://www
           energy Cifdata
               }
       }
-    }}' | jq '.data.systems.edges[].node.Cifdata' | sed -e 's/"//g' | split - -l 1 structure_ -d 
+    }}' | jq '.data.systems.edges[].node.Cifdata' | sed -e 's/"//g' | split - -l 1 structure_ -d
 
     sed -i 's/\\n/\n/g' structure_*
 
@@ -174,7 +174,7 @@ to write structures into many files. Or try this::
         }
       }
     }
-    ' | jq -r '.data.reactions.edges[].node | [.reactionEnergy,.chemicalComposition, .sites ] | @csv' 
+    ' | jq -r '.data.reactions.edges[].node | [.reactionEnergy,.chemicalComposition, .sites ] | @csv'
 
 
 for creating a CSV output.
@@ -292,43 +292,6 @@ Calling the Backend from Coffee Script
       console.log JSON.stringify response.data
 
 
-Connecting to the database server with psql
-.............................................
-
-This exercise requires that you have postgreSQL installed, so you can use the `psql` terminal client.
-Also you need the password for the `catvisitor` user, or optionally your own user account. Contact Kirsten Winther at winther@stanford.edu for question.
-
-Type into the terminal::
-
-  psql --host=catalysishub.c8gwuc8jwb7l.us-west-2.rds.amazonaws.com
-  --port=5432 --username=catvisitor --dbname=catalysishub
-
-And write the password when prompted.
-
-Now you can start writing SQL statements directly against the database server. Try for example::
-
-  SELECT title, year from publication LIMIT 10;
-
-and see the output. Please use the :code:`LIMIT` clause to limit the number of results, or specify :code:`id=int`. See https://www.postgresql.org/docs/9.6/static/index.html for documentation on the SQL language and postgres.
-
-
-Connecting to the database with ASE db
---------------------------------------
-For this exercise you need to have a recent version of ASE installed. See https://wiki.fysik.dtu.dk/ase/install.html .
-
-1) Now use the ASE cli to connect. Type this in the terminal (with an updated DB_PASSWORD)::
-
-     ase db postgresql://catvisitor:$DB_PASSWORD@catalysishub.
-     c8gwuc8jwb7l.us-west-2.rds.amazonaws.com:5432/catalysishub Pt3Co
-
-
-(Note: this query is probably going to take some time. We're still working on optimizing the ASE database part.)
-
-
-2) Write a python script to connect via ase.db.connect. Hint: the connect() function will take the same server URL as used in the previous exercise.
-
-   You can now use the select() function to make queries against the database. See https://wiki.fysik.dtu.dk/ase/ase/db/db.html for documentation.
-
 
 
 Using the CatHub cli
@@ -350,27 +313,5 @@ The following noteboks demonstrate how make interactive use of the `Catalysis-Hu
 `GraphQL Querying <http://nbviewer.jupyter.org/gist/mhoffman/556332aaac0e7e11769ce28848b6b721>`_
 ................................................................................................
 
-
 `Retrieve ASE Atoms object through GraphQL <https://gist.github.com/mhoffman/c418acb6b3f928eb4ef71f4001d120d9>`_
 ................................................................................................................
-
-
-`Prototype Search <http://nbviewer.jupyter.org/gist/mhoffman/2f680eb90a5531fe6e3e588f2c835775>`_
-.................................................................................................
-
-
-`Search Structures and Cut Slabs <http://nbviewer.jupyter.org/gist/mhoffman/e0e9edf6771c3c0c5838043a022e0857>`_
-................................................................................................................
-
-
-`Get Spacegroup and Wyckoff Sites from Structure <http://nbviewer.jupyter.org/gist/mhoffman/c483dece941930fbb785f019893a1c15>`_
-................................................................................................................................
-
-
-Partner Projects
--------------------------
-
-The catalysis-hub.org database is large and its possibilities are manifold.
-Fortunately there are two partner projects that are best digested together:
-`CatKit <http://catkit.readthedocs.io/en/latest/>`_ and
-`CatLearn <http://catlearn.readthedocs.io/en/latest/>`_.
