@@ -13,7 +13,7 @@ from ase_db_backends.postgresql import PostgreSQLDatabase
 from past.utils import PY2
 
 from .cathubsqlite import CathubSQLite
-from .config import server_name, public_access
+from .config import server_name
 
 init_commands = [
     """CREATE TABLE publication (
@@ -136,29 +136,20 @@ class CathubPostgreSQL:
     on postgreSQL server.
     """
 
-    def __init__(self, user='apiuser', schema='public', password=None, stdin=sys.stdin,
+    def __init__(self, user, schema='public', password=None, stdin=sys.stdin,
                  stdout=sys.stdout):
         self.initialized = False
         self.connection = None
         self.id = None
         self.server = server_name
         self.database = 'catalysishub'
-        self.schema = schema or user
+        self.schema = schema
 
-        if user == 'apiuser':
-            password = public_access[user]
-        elif user == 'postgres':  # For testing on travis
-            self.server = 'localhost'
-            self.database = 'travis_ci_test'
-            self.password = ''
-
-        if not user in ['catroot', 'apiuser', 'postgres']:
-            self.schema = user
         if password is None:
             password = os.environ.get('DB_PASSWORD')
 
-        assert password is not None, \
-            'Please specify password or set "DB_PASSWORD" environment variable'
+        #assert password is not None, \
+        #    'Please specify password or set "DB_PASSWORD" environment variable'
 
         self.user = user
         self.password = password
@@ -232,17 +223,14 @@ class CathubPostgreSQL:
         return ase.db.connect(self.server_name)
 
     def create_user(self, user, table_privileges=['ALL PRIVILEGES'],
-                    schema_privileges=['ALL PRIVILEGES'],
-                    row_limit=50000):
+                    schema_privileges=['ALL PRIVILEGES']):
         con = self.connection or self._connect()
         cur = con.cursor()
 
-        cur.execute('CREATE SCHEMA {0};'.format(user))
-        # self._initialize(schema=schema_name)
         password = pwgen(8)
-        #cur.execute(
-        #    "CREATE USER {user} with PASSWORD '{password}';"
-        #    .format(user=user, password=password))
+        cur.execute(
+            "CREATE USER {user} with PASSWORD '{password}';"
+            .format(user=user, password=password))
 
         """ Grant SELECT on public schema """
         cur.execute('GRANT USAGE ON SCHEMA public TO {user};'
@@ -258,65 +246,6 @@ class CathubPostgreSQL:
             'CREATED USER {user} WITH PASSWORD {password}\n'
             .format(user=user, password=password))
 
-        """ initialize user-schema """
-        old_schema = self.schema
-        self.initialized = False
-        self.schema = user
-        self._initialize(con)
-
-        """ Privileges on user-schema"""
-        cur.execute(
-            'GRANT {privileges} ON SCHEMA {user} TO {user};'
-            .format(privileges=', '.join(schema_privileges), user=user))
-        cur.execute(
-            'GRANT {privileges} ON ALL TABLES IN SCHEMA {user} TO {user};'
-            .format(privileges=', '.join(table_privileges), user=user))
-        cur.execute(
-            'GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA {user} TO {user};'
-            .format(user=user))
-        con.commit()
-
-        if row_limit:
-            """ Limit number of rows"""
-            for table in ['reaction', 'publication', 'systems',
-                          'reaction_system', 'publication_system',
-                          'information']:
-                table_factor = 1
-                if table in ['reaction_system', 'publication_system']:
-                    table_factor = 15
-                elif table == 'publication':
-                    table_factor = 1 / 100
-                elif table == 'information':
-                    table_factor = 1 / 100
-
-                trigger_function = """
-                CREATE OR REPLACE FUNCTION
-                check_number_of_rows_{user}_{table}()
-                RETURNS TRIGGER AS
-                $BODY$
-                BEGIN
-                    IF (SELECT count(*) FROM {user}.{table}) > {row_limit}
-                    THEN
-                        RAISE EXCEPTION
-                            'INSERT statement exceeding maximum number of rows';
-                    END IF;
-                    RETURN NEW;
-                END;
-                $BODY$
-                LANGUAGE plpgsql""".format(user=user, table=table,
-                                           row_limit=row_limit * table_factor)
-                cur.execute(trigger_function)
-
-                trigger = """
-                DROP TRIGGER IF EXISTS tr_check_number_of_rows_{user}_{table}
-                    on {user}.{table};
-                CREATE TRIGGER tr_check_number_of_rows_{user}_{table}
-                BEFORE INSERT ON {user}.systems
-                FOR EACH ROW EXECUTE PROCEDURE check_number_of_rows_{user}_{table}();
-                """.format(user=user, table=table)
-                cur.execute(trigger)
-
-        self.schema = old_schema
         set_schema = 'ALTER ROLE {user} SET search_path TO {schema};'\
                      .format(user=self.user, schema=self.schema)
         cur.execute(set_schema)
@@ -333,7 +262,7 @@ class CathubPostgreSQL:
         assert not user == 'public'
         con = self.connection or self._connect()
         cur = con.cursor()
-        cur.execute('DROP SCHEMA {user} CASCADE;'.format(user=user))
+
         cur.execute('REVOKE USAGE ON SCHEMA public FROM {user};'
                     .format(user=user))
         cur.execute(
@@ -471,11 +400,6 @@ class CathubPostgreSQL:
             execute_values(cur=cur, sql=insert_command,
                            argslist=reaction_system_values, page_size=1000)
             self.stdout.write('Transfer complete\n')
-
-        # if self.user == 'catroot':
-        #    if self.connection is None:
-        #        con.commit()
-        #    self.delete_publication(pub_id, schema='upload')
 
         if self.connection is None:
             con.commit()

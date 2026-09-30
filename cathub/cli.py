@@ -39,8 +39,8 @@ def show_reactions(dbfile):
 
 @cli.command()
 @click.argument('args',  default='', type=str)
-@click.option('--dbuser', default='apiuser', type=str)
-@click.option('--dbpassword', default='ubDwfqPw', type=str)
+@click.option('--dbuser', type=str)
+@click.option('--dbpassword', type=str)
 @click.option('--gui', default=False, show_default=True, is_flag=True,
               help='show structures in ase gui')
 def ase(dbuser, dbpassword, args, gui):
@@ -48,7 +48,7 @@ def ase(dbuser, dbpassword, args, gui):
        Use cathub.query.get_dataframe() to fetch reaction data instead."""
     import warnings
     warnings.warn(
-        "'cathub ase' is deprecated and will be removed in a future version. "
+        "'cathub ase' is deprecated. "
         "Use cathub.query.get_dataframe() to fetch reaction data instead.",
         DeprecationWarning,
         stacklevel=2,
@@ -58,8 +58,7 @@ def ase(dbuser, dbpassword, args, gui):
         "Use cathub.query.get_dataframe() instead.",
         err=True,
     )
-    if dbuser == 'upload':
-        dbpassword = 'cHyuuQH0'
+
     db = CathubPostgreSQL(user=dbuser, password=dbpassword)
     db._connect()
     server_name = db.server_name
@@ -69,24 +68,6 @@ def ase(dbuser, dbpassword, args, gui):
         args = args.split('-')[0]
         subprocess.call(
             ('ase gui {}@{}'.format(server_name, args)).split())
-
-
-@cli.command()
-@click.argument('pubid', default='', type=str)
-@click.option('--dbuser', default='expvisitor', type=str)
-@click.option('--dbpassword', default='99Ny81eG', type=str)
-@click.argument('args',  default='', type=str)
-def exp(pubid, dbuser, dbpassword, args):
-    """Connection to atomic structures on the Catalysis-Hub
-       server with ase db cli.
-       Arguments to the the ase db cli client must be enclosed in one string.
-       For example: <cathub ase 'formula=Ag6In6H -s energy -L 200'>.
-       To see possible ase db arguments run <ase db --help>"""
-    db = ExpSQL(user=dbuser, password=dbpassword)
-    if pubid=='':
-        db.show_publications()
-    else:
-        db.show_dataset(pubid)
 
 @cli.command()
 @click.argument('folder_name')

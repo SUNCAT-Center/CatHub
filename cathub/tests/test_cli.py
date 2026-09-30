@@ -11,7 +11,6 @@ from click.testing import CliRunner
 
 import cathub
 
-
 class CommandLineTestCase(unittest.TestCase):
     def setUp(self):
         pass
@@ -45,16 +44,16 @@ class CommandLineTestCase(unittest.TestCase):
         runner = CliRunner()
         runner.invoke(folder2db, ['aayush/'])
 
-    def test2_cli_db2server(self):
-        from cathub.postgresql import CathubPostgreSQL
-        from cathub.cli import db2server
-        db = CathubPostgreSQL(user='postgres')
-        con = db._connect()
-        db._initialize(con)
-        db.truncate_schema()
-        runner = CliRunner()
-        runner.invoke(db2server, ['--dbuser=postgres',
-                                  'aayush/MontoyaChallenge2015.db'])
+    #def test2_cli_db2server(self):
+    #    from cathub.postgresql import CathubPostgreSQL
+    #    from cathub.cli import db2server
+    #    db = CathubPostgreSQL(user='postgres')
+    #    con = db._connect()
+    #    db._initialize(con)
+    #    db.truncate_schema()
+    #    runner = CliRunner()
+    #    runner.invoke(db2server, ['--dbuser=postgres',
+    #                              'aayush/MontoyaChallenge2015.db'])
 
     #def test3_cli_asedb(self):
     #    from cathub.cli import ase

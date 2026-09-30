@@ -34,11 +34,11 @@ class CathubQuery:
     Parameters
     ----------
     api_key : str, optional
-        API key for api.catalysis-hub.org. Falls back to the
+        API key for api-catalysis-hub.slac.stanford.edu. Falls back to the
         CATHUB_API_KEY environment variable if not provided.
     """
 
-    _root = 'http://api.catalysis-hub.org/graphql'
+    _root = 'https://api-catalysis-hub.slac.stanford.edu/graphql'
 
     def __init__(self, api_key=None):
         self.api_key = api_key or os.environ.get('CATHUB_API_KEY')
@@ -176,7 +176,7 @@ class CathubQuery:
                           subtables=['reactionSystems', 'publication'],
                           n_results=n_results,
                           queries=queries)
-
+        print(data)
         edges = data.get('reactions', {}).get('edges', [])
 
         if not edges:
