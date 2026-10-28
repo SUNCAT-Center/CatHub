@@ -199,6 +199,7 @@ def reactions(columns, n_results, write_db, queries):
                                n_results=n_results,
                                #write_db=write_db,
                                **query_dict)
+    data = data.drop(columns=['atoms_name', 'atoms_id'], errors='ignore')
 
     #if write_db:
     #    return
@@ -245,14 +246,15 @@ def publications(columns, n_results, queries):
                 query_dict.update({key: '{0}'.format(value)})
     if 'sort' not in query_dict:
         query_dict.update({'order': '-year'})
-    data = query.query(table='publications',
+    data = query.CathubQuery().query(table='publications',
                        columns=columns,
+                       subtables=[],
                        n_results=n_results,
                        queries=query_dict)
     table = []
-    headers = []
+    headers = list(columns)
     for row in data['publications']['edges']:
-        value = list(row['node'].values())
+        value = [row['node'][column] for column in columns]
         for n, v in enumerate(value):
             if isinstance(v, str) and len(v) > 20:
                 splited = v.split(' ')
@@ -270,7 +272,6 @@ def publications(columns, n_results, queries):
 
         table += [value]
 
-    headers = list(row['node'].keys())
     print(tabulate(table, headers, tablefmt="grid") + '\n')
 
 

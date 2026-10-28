@@ -8,9 +8,6 @@ import pprint
 import ase.db
 import pandas as pd
 
-from cathub.cathubsqlite import CathubSQLite
-from cathub.postgresql import CathubPostgreSQL
-
 all_columns = {'reactions': ['chemicalComposition', 'surfaceComposition',
                              'facet', 'sites', 'coverages', 'reactants',
                              'products', 'Equation',
@@ -39,6 +36,9 @@ class CathubQuery:
     """
 
     _root = 'https://api-catalysis-hub.slac.stanford.edu/graphql'
+    # Server silently caps page size at 200 regardless of the requested
+    # 'first' value, so results beyond that require cursor-based paging.
+    _max_page_size = 200
 
     def __init__(self, api_key=None):
         self.api_key = api_key or os.environ.get('CATHUB_API_KEY')
@@ -72,37 +72,42 @@ class CathubQuery:
         return data
 
     def query(self, table, columns, subtables, n_results, queries):
-        query_string = graphql_query(table=table,
-                                     subtables=subtables,
-                                     columns=columns,
-                                     n_results=n_results,
-                                     queries=queries)
-        return self._execute_graphql(query_string)
-    """
-    def get_reactions(self, columns='all', n_results=20, write_db=False,
-                      **kwargs):
-        # Get reactions from the server. Pass filter criteria as kwargs.
-        if write_db or columns == 'all':
-            columns = all_columns['reactions']
-        queries = {}
-        for key, value in kwargs.items():
-            key = map_column_names(key)
-            if key == 'distinct':
-                if value in [True, 'True', 'true']:
-                    queries.update({key: True})
-                    continue
-            if isinstance(value, (int, float)):
-                queries.update({key: value})
-            else:
-                queries.update({key: '{0}'.format(value)})
+        remaining = None if n_results == 'all' else int(n_results)
 
-        subtables = ['reactionSystems', 'publication'] if write_db else []
-        data = self._query(table='reactions', subtables=subtables,
-                           columns=columns, n_results=n_results,
-                           queries=queries)
+        all_edges = []
+        total_count = None
+        page_info = {}
+        after = None
+        while remaining is None or remaining > 0:
+            first = self._max_page_size if remaining is None \
+                else min(self._max_page_size, remaining)
+            query_string = graphql_query(table=table,
+                                         subtables=subtables,
+                                         columns=columns,
+                                         n_results=first,
+                                         queries=queries,
+                                         after=after)
+            data = self._execute_graphql(query_string)
+            table_data = data[table]
+            edges = table_data['edges']
+            total_count = table_data['totalCount']
+            page_info = table_data['pageInfo']
 
+            all_edges.extend(edges)
+            if remaining is not None:
+                remaining -= len(edges)
 
-    """
+            if not edges or not page_info.get('hasNextPage'):
+                break
+            after = page_info['endCursor']
+            print('Fetched {} of {} results...'.format(
+                len(all_edges), total_count))
+            print('')
+
+        return {table: {'totalCount': total_count,
+                        'pageInfo': page_info,
+                        'edges': all_edges}}
+
     def get_publications(self, **kwargs):
         """Get publications from the server."""
         queries = {}
@@ -171,12 +176,14 @@ class CathubQuery:
             queries[map_column_names(key)] = value
 
         columns = [c for c in all_columns['reactions'] if c != 'Equation']
+
+
         data = self.query(table='reactions',
                           columns=columns,
                           subtables=['reactionSystems', 'publication'],
                           n_results=n_results,
                           queries=queries)
-        print(data)
+
         edges = data.get('reactions', {}).get('edges', [])
 
         if not edges:
@@ -215,12 +222,15 @@ def graphql_query(table='reactions',
                            'reactants',
                            'products'],
                   n_results=10,
-                  queries={}):
+                  queries={},
+                  after=None):
 
     statement = '{'
     statement += '{}('.format(table)
     if n_results != 'all':
         statement += 'first: {}'.format(n_results)
+    if after is not None:
+        statement += ', after: "{}"'.format(after)
     for key, value in queries.items():
         if isinstance(value, str):
             statement += ', {}: "{}"'.format(key, value)
@@ -233,7 +243,9 @@ def graphql_query(table='reactions',
             statement += ', {}: {}'.format(key, value)
 
     statement += ') {\n'
-    statement += ' totalCount\n  edges {\n    node { \n'
+    statement += ' totalCount\n'
+    statement += ' pageInfo {\n    hasNextPage\n    startCursor\n    endCursor\n  }\n'
+    statement += '  edges {\n    node { \n'
     for column in columns:
         column = map_column_names(column)
         statement += '      {}\n'.format(column)
