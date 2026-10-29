@@ -561,8 +561,20 @@ class CathubSQLite:
         rows = db_ase.select(energy=energy)
         id = None
         former_keys = {}
+        try:
+            forces = atoms.get_forces(apply_constraint=False)
+        except (AttributeError, RuntimeError):
+            # e.g. QMC energies are stored without forces
+            forces = None
         for row in rows:
-            if np.all(row.forces == atoms.get_forces()):
+            if forces is not None and hasattr(row, 'forces'):
+                is_duplicate = np.all(row.forces == forces)
+            else:
+                is_duplicate = (
+                    np.all(row.numbers == atoms.numbers)
+                    and np.all(row.positions == atoms.positions)
+                    and np.all(np.array(row.cell) == np.array(atoms.cell)))
+            if is_duplicate:
                 if update:
                     count = db_ase.update(row.id, **key_value_pairs)
                     self.stdout.write('  Updating {0} key value pairs in ASE db row id = {1}\n'
